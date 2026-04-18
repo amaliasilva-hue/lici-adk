@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f7f8fb;
+}
+
+body {
+  background: var(--bg);
+  color: #0f1a3a;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-5; }
+.btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition; }
+.btn-primary { @apply bg-xertica-600 text-white hover:bg-xertica-700; }
+.btn-ghost { @apply text-xertica-700 hover:bg-xertica-50; }
+.badge { @apply inline-block px-2 py-0.5 rounded-full text-xs font-semibold; }

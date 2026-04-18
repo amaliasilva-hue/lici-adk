@@ -1,0 +1,685 @@
+# Perfil estático da Xertica Brasil — usado no system prompt do Agente Analista
+# Atualizado em: 2026-04-17 (cruzado com contratos reais do BigQuery)
+#
+# Princípio de design deste YAML:
+#   • `realidade_contratual` = o que A XERTICA REALMENTE FECHA (base: tabela `contratos`)
+#   • `narrativa_gtm` = posicionamento comercial (decks FDM, GIS) — útil como argumento,
+#                       mas NÃO aparece nominalmente em editais/contratos
+# O Agente Analista deve pesar aderência primeiro pela realidade contratual e usar a
+# narrativa GTM apenas como reforço de argumentação quando o edital tocar em IA agêntica,
+# ontologia, triagem processual etc.
+
+empresa:
+  razao_social: "XERTICA BRASIL LTDA"
+  nome_fantasia: "Xertica.ai"
+  cnpj: "51.476.858/0001-68"
+  endereco: "Avenida Presidente Juscelino Kubitschek, 2041, Bloco A - Vila Nova Conceição, São Paulo - SP, 04543-011"
+  representante_legal: "Gustavo Rodrigues De Paula"
+  rg_representante: "4584650-DGCP/GO"
+  cpf_representante: "024.471.071-61"
+  cargo_representante: "Representante Legal"
+  pais: "Brasil"
+  telefone: "+55 11 5039-6912"
+  email: "contato.brasil@xertica.com"
+  descricao: >
+    Google Cloud Premier Partner no Brasil, especializada em Google Workspace,
+    Google Cloud Platform e serviços de Inteligência Artificial Generativa sobre
+    Vertex AI / Gemini. Atua majoritariamente em setor público (Adesão a Ata,
+    Contrato Público direto, ARP) e setor privado (SOW, Contrato Privado).
+    Entregas típicas: cessão de licenças GWS/GCP, créditos de nuvem, bolsa de horas
+    técnicas, suporte 24x7 (MSP), migração, treinamento e aceleradores próprios
+    (Meet Transcriber, Video Transcript, X-Bot, Virtual Career Center, Doc Intelligence).
+    Para o setor público em Justiça/Fisco/Ambiental posiciona a narrativa FDM
+    (Fair Decision Making) — IA agêntica com camada ontológica — como empacotamento
+    estratégico sobre o stack Google (Vertex AI + Gemini + Cloud Functions + BigQuery).
+    Metodologia proprietária X-Factor.
+
+# ══════════════════════════════════════════════════════════════════════
+# REALIDADE CONTRATUAL — extraído de `sales_intelligence.contratos`
+# Esta é a fonte mais confiável para o Analista julgar aderência.
+# ══════════════════════════════════════════════════════════════════════
+realidade_contratual:
+  # Distribuição real dos objetos contratados (top 12 de 175 contratos)
+  objetos_mais_comuns:
+    - {objeto: "GWS",                                                qtd: 46, peso: "alto"}
+    - {objeto: "GCP + GWS",                                          qtd: 18, peso: "alto"}
+    - {objeto: "GWS + Suporte/Treinamento",                          qtd: 12, peso: "alto"}
+    - {objeto: "Outros (colaboração/comunicação)",                   qtd: 12, peso: "medio"}
+    - {objeto: "GCP",                                                qtd: 11, peso: "alto"}
+    - {objeto: "GCP + Suporte/Treinamento",                          qtd: 10, peso: "alto"}
+    - {objeto: "GCP + Serviços",                                     qtd: 10, peso: "alto"}
+    - {objeto: "GCP + GWS + Serviços",                               qtd:  9, peso: "alto"}
+    - {objeto: "GCP + Serviços + Suporte/Treinamento",               qtd:  8, peso: "alto"}
+    - {objeto: "GCP + GWS + Serviços + Suporte/Treinamento",         qtd:  8, peso: "alto"}
+    - {objeto: "GCP + GWS + Suporte/Treinamento",                    qtd:  7, peso: "alto"}
+    - {objeto: "GCP + Serviços + Acelerador + Suporte/Treinamento",  qtd:  5, peso: "alto"}
+
+  # Modalidades públicas reais (top)
+  modalidades_publicas_reais:
+    - {modalidade: "Contrato Público direto",    qtd: 48}
+    - {modalidade: "Adesão a Ata de Registro",   qtd: 27}  # MUITO relevante — sinalizar no parecer
+    - {modalidade: "ARP (Ata de Registro)",      qtd:  4}
+    - {modalidade: "Pregão Eletrônico",          qtd:  2}
+    - {modalidade: "Dispensa de Licitação",      qtd:  1}
+    - {modalidade: "Termo de Cooperação",        qtd:  1}
+    - {modalidade: "Acordo de Cooperação Técnica", qtd: 1}
+
+  # Aceleradores Xertica realmente vendidos (NÃO confundir com narrativa GTM)
+  aceleradores_vendidos:
+    - {nome: "Meet Transcriber",            contratos: 8,  descricao: "Transcrição de reuniões Google Meet"}
+    - {nome: "Virtual Career Center (VCC)", contratos: 1,  descricao: "Plataforma de empregabilidade baseada em IA Google"}
+    - {nome: "X-Bot",                       contratos: 1,  descricao: "Chatbot/assistente virtual"}
+    - {nome: "Video Transcript",            contratos: 1,  descricao: "Transcrição e sumarização de vídeos"}
+    - {nome: "Doc Intelligence",            contratos: 1,  descricao: "Análise inteligente de documentos (DocAI)"}
+    - {nome: "DANG",                        contratos: 1,  descricao: "Acelerador específico (revisar nome interno)"}
+
+  # Unidades de medida que APARECEM em editais públicos — o Extrator deve reconhecer
+  # e o Analista deve saber converter entre elas (USN ≈ Créditos ≈ Consumo Cloud).
+  unidades_de_medida_comuns:
+    - sigla: "USN"
+      nome: "Unidade de Serviço de Nuvem"
+      equivalencia_comercial: "créditos de consumo GCP"
+      observado_em: ["TJGO", "BRB", "TJES CF056/2024"]
+    - sigla: "USNM"
+      nome: "Unidade de Serviço de Nuvem — Marketplace"
+      equivalencia_comercial: "consumo via Google Cloud Marketplace"
+      observado_em: ["Banestes"]
+    - sigla: "UST"
+      nome: "Unidade de Serviço Técnico"
+      equivalencia_comercial: "1 UST ≈ 1 hora técnica base (multiplicadores por perfil)"
+      observado_em: ["Celepar (tabela de proporcionalidade: Especialista × 1,30)", "TJES"]
+    - sigla: "USTc"
+      nome: "UST de Consultoria"
+      equivalencia_comercial: "hora técnica de consultoria especializada"
+      observado_em: ["Banestes"]
+    - sigla: "USTa"
+      nome: "UST de Alocação"
+      equivalencia_comercial: "hora técnica de profissional alocado (full-time proxy)"
+      observado_em: ["Banestes"]
+    - sigla: "Licença usuário/mês"
+      nome: "Licenciamento Workspace"
+      observado_em: ["TRE-TO", "USP", "DPRF"]
+    - sigla: "Créditos GCP"
+      nome: "Créditos de consumo"
+      equivalencia_comercial: "sinônimo direto de USN"
+      observado_em: ["PCMG", "TJGO"]
+    - sigla: "Bolsa/Pool de horas"
+      nome: "Bolsa de horas técnicas"
+      observado_em: ["AGU"]
+    - sigla: "Tickets"
+      nome: "Franquia anual de chamados de suporte"
+      observado_em: ["Contratos MSP"]
+    - sigla: "Interações/mês"
+      nome: "Volumetria de consumo de chatbot"
+      observado_em: ["COHAB (20.000/mês)"]
+
+  # Pacotes comerciais recorrentes (linguagem que aparece nos contratos)
+  pacotes_comerciais:
+    - "Suporte Técnico 24x7 (MSP) — Google Cloud"
+    - "Suporte Técnico 8x5 (MSP) — Google Workspace"
+    - "Suporte direto Xertica 5x8 em português"
+    - "Metodologia X-Factor"
+    - "Centro de Excelência (CoE)"
+    - "Implantação + Migração de domínio/e-mail"
+    - "Treinamento customizado (administradores + usuários finais)"
+    - "Franquia de tickets técnicos"
+    - "SLA alinhado ao SLA da Google Cloud"
+
+  # Exemplos reais de contratos de IA no setor público — casos âncora
+  contratos_ia_ancora:
+    - cliente: "MPRS"
+      objeto: "Desenvolvimento de soluções de IA — análise de expedientes, sugestão de minutas, transcrição de áudio"
+      stack: ["GCP", "Vertex AI", "Gemini"]
+    - cliente: "MPMT"
+      objeto: "Modernização de processos — IA, busca contextual, resumo de documentos, infraestrutura em nuvem"
+      stack: ["GCP", "GWS", "Vertex AI"]
+    - cliente: "Poder Judiciário ES (TJES)"
+      objeto: "USN de IA Generativa + UST de Serviços Técnicos em IA (CF056/2024)"
+      stack: ["GCP", "Vertex AI"]
+    - cliente: "TJMG"
+      objeto: "PoC chatbot para consulta processual (nome/número de processo)"
+      stack: ["Vertex AI", "Chatbot"]
+    - cliente: "SEMAD/GO"
+      objeto: "MVP de IA para análise documental e geoespacial"
+      stack: ["GCP", "Vertex AI", "Google Earth Engine"]
+    - cliente: "PCMG"
+      objeto: "Créditos GCP + Gemini + Vertex AI"
+      stack: ["GCP", "Gemini", "Vertex AI"]
+    - cliente: "MPRO"
+      objeto: "Apigee + Vertex AI"
+      stack: ["Apigee", "Vertex AI"]
+    - cliente: "Correio Braziliense"
+      objeto: "MVP IA Generativa + consultoria — classificação/sumarização/extração de entidades"
+      stack: ["Vertex AI", "DocAI", "Cloud Run", "Cloud Functions", "BigQuery"]
+    - cliente: "BNB (Banco do Nordeste)"
+      objeto: "Acelerador IA — Dialogflow + Enterprise Search + Gemini + Vertex AI"
+      stack: ["Dialogflow", "Enterprise Search", "Gemini", "Vertex AI", "BigQuery"]
+    - cliente: "CNI"
+      objeto: "Implementação da plataforma VCC com IA do Google Cloud"
+      stack: ["GCP", "Virtual Career Center"]
+    - cliente: "MPAP (Ministério Público do Amapá)"
+      objeto: "Créditos Google + BI + IA (Gemini, Vertex) + Google Maps + suporte"
+      stack: ["GCP", "Vertex AI", "Gemini", "Google Maps"]
+    - cliente: "Defensoria Pública RJ (via DPEGO)"
+      objeto: "Acelerador Vertex AI + Cloud Functions + Cloud Scheduler + BigQuery + Cloud Armor"
+      stack: ["Vertex AI", "Cloud Functions", "BigQuery"]
+    - cliente: "COPASA"
+      objeto: "Google Maps + APIs + GIS"
+      stack: ["Google Maps", "GIS"]
+    - cliente: "SEF-MG"
+      objeto: "Produto tecnológico geoespacial em nuvem"
+      stack: ["GCP", "GIS"]
+    - cliente: "Hemominas"
+      objeto: "Desenvolvimento de sistemas — robô captador de doadores"
+      stack: ["GCP", "Desenvolvimento"]
+
+  # Contratos maiores (âncora de capacidade técnica e financeira)
+  contratos_relevantes_por_valor:
+    - {cliente: "AGU",              valor_brl: 27_429_503, escopo: "GWS Enterprise + AppSheet + 2.985 horas técnicas"}
+    - {cliente: "CI&T",             valor_brl: 10_581_609, escopo: "GWS + GCP (privado, 3 anos)"}
+    - {cliente: "DPRF",             valor_brl: 10_670_005, escopo: "21.200 licenças de colaboração/comunicação"}
+    - {cliente: "SENAI-MG (FIEMG)", valor_brl:  2_710_255, escopo: "GCP"}
+    - {cliente: "CNI",              valor_brl:  1_514_304, escopo: "VCC com IA Google Cloud"}
+    - {cliente: "CDP (Docas PA)",   valor_brl:  1_065_000, escopo: "Solução integrada de colaboração corporativa"}
+    - {cliente: "CGE-MT",           valor_brl:  1_008_772, escopo: "GCP + IA + MTI-IA + sustentação 24x7"}
+
+  # Datas-chave dos contratos âncora — usadas quando o edital exige restrição temporal
+  # (ex: Celepar pede experiência obtida nos últimos 36 meses).
+  # Datas aproximadas — validar com BQ (c.data_inicio / a.datadoatestado) antes de citar no parecer.
+  experiencia_temporal:
+    contratos_ancora_datados:
+      - {cliente: "MPRS",   ano_assinatura: 2024, atestado_emitido: true,  janela_36m: true}
+      - {cliente: "TJES",   ano_assinatura: 2024, atestado_emitido: true,  janela_36m: true,  referencia: "CF056/2024 — USN IA Generativa + UST IA"}
+      - {cliente: "AGU",    ano_assinatura: 2023, atestado_emitido: true,  janela_36m: true,  referencia: "GWS Enterprise + AppSheet + 2.985h"}
+      - {cliente: "DPRF",   ano_assinatura: 2023, atestado_emitido: true,  janela_36m: true,  referencia: "21.200 licenças"}
+      - {cliente: "MPMT",   ano_assinatura: 2024, atestado_emitido: true,  janela_36m: true}
+      - {cliente: "SEMAD/GO", ano_assinatura: 2025, atestado_emitido: null, janela_36m: true,  referencia: "MVP IA + Earth Engine"}
+      - {cliente: "PCMG",   ano_assinatura: 2025, atestado_emitido: null, janela_36m: true}
+      - {cliente: "BNB",    ano_assinatura: 2024, atestado_emitido: null, janela_36m: true,  referencia: "Dialogflow + Enterprise Search + Gemini"}
+      - {cliente: "CNI",    ano_assinatura: 2024, atestado_emitido: null, janela_36m: true,  referencia: "VCC"}
+      - {cliente: "CGE-MT", ano_assinatura: 2023, atestado_emitido: null, janela_36m: true,  referencia: "MTI-IA + 24x7"}
+    # Referências de editais analisados (NÃO são contratos fechados da Xertica — apenas
+    # permitem ao Analista reconhecer o formato temporal quando o edital citar exigência):
+    exigencias_temporais_observadas_em_editais:
+      - {orgao: "Celepar",  janela_meses: 36, objeto: "15.000 USTs executadas"}
+      - {orgao: "Banestes", janela_meses: null, objeto: "perfis hiper-especializados (ML, FinOps, Guardião de Dados)"}
+
+# ══════════════════════════════════════════════════════════════════════
+# NARRATIVA GTM — posicionamento comercial dos decks XerticaProducts/
+# ATENÇÃO: "FDM", "Camada Ontológica", "Multi-agente" NÃO aparecem nominalmente
+# em contratos reais. Use como argumento de venda/parecer quando o edital tocar
+# em IA agêntica, triagem processual, análise de impacto etc — mas a entrega
+# real é empacotada como GCP + Vertex AI + Gemini + serviços técnicos.
+# ══════════════════════════════════════════════════════════════════════
+narrativa_gtm:
+  plataforma_fdm:
+    nome: "FDM — Fair Decision Making"
+    tipo: "narrativa de posicionamento (não é SKU vendável)"
+    definicao: >
+      Plataforma de IA Agêntica construída sobre arquitetura dual: Camada Ontológica
+      (cérebro semântico que codifica leis, normas e jurisprudência em regras
+      computacionais verificáveis) + Camada Agêntica (Sistema Multi-Agente com
+      Chain of Thought executando tarefas complexas com autonomia auditável).
+    diferenciais:
+      - "Glass Box: 100% auditável, Explainable AI, log de justificativa por decisão"
+      - "Ontologia jurídica nativa (MNI/TPU do CNJ, CONAMA, LGPD, e-PING)"
+      - "Multi-agente especializado (Chain of Thought) em vez de LLM único"
+      - "RAG com acervo curado da instituição — mitigação de alucinações"
+      - "Motor de Regras Determinísticas + LLMs apenas para leitura (modelo híbrido)"
+      - "Soberania de dados — deploy VPC/On-prem ou Cloud cliente"
+      - "Semantic Data Accelerator — tradutor universal entre fontes (BACEN, COAF, Receita, CNJ, ANS)"
+      - "Compliance & Audit Engine — rastro de auditoria para TCU/TCE"
+      - "Arquitetura cloud-native containerizada (Kubernetes) com escalabilidade elástica"
+    agentes_especializados:
+      - "Analista Digital — triagem, classificação de competência, identificação de causas repetitivas"
+      - "Assistente de Promotoria / Magistrado — pesquisa proativa de jurisprudência e fundamentos"
+      - "Investigador Forense — cruzamento multimodal de dados (áudios, mensagens, planilhas, imagens)"
+      - "Planejador Estratégico Digital — score de prioridade e alocação de recursos"
+      - "Auditor Imutável — registro de decisões para conformidade"
+    modulos:
+      - "Case Understanding Module — OCR + NLP para extrair entidades (partes, crimes, valores)"
+      - "Legal Precedent Analysis — jurisprudência e teses do acervo institucional"
+      - "Case Context Module — score de prioridade por gravidade, vítimas, repercussão, prescrição"
+      - "Compliance & Audit Engine — trilha de auditoria"
+      - "Agentic Layer — orquestração multi-agente"
+    kpis_tipicos:
+      - "Redução de 40% no backlog / fila de entrada"
+      - "Aumento de 150% na velocidade em casos repetitivos"
+      - "Redução de 50% em casos prioritários próximos à prescrição"
+      - "Redução de 30% em custos de litígio / recursos protelatórios"
+      - "Aumento de 300% na análise de grandes volumes não estruturados"
+      - "Aumento de 90% na identificação de vínculos suspeitos"
+      - "Até 20% de recuperação de receita via cruzamento multimodal (Fisco)"
+      - "95% de acurácia na classificação de competência"
+      - "Zero exclusões por viés algorítmico"
+    seguranca:
+      - "Criptografia AES-256 em repouso e trânsito (TLS 1.2+)"
+      - "RBAC — princípio do menor privilégio por agente"
+      - "Zero Trust na interação entre agentes e sistemas legados"
+      - "LGPD by design — anonimização e controle de acesso"
+      - "Aderência LGPD, CNJ Resolução 332/2020, e-PING"
+
+  # Plataforma GIS — também é narrativa/empacotamento sobre Google Maps + Earth Engine
+  plataforma_gis:
+    nome: "Xertica GIS"
+    tipo: "narrativa de posicionamento (empacotamento sobre Google Maps / Earth Engine)"
+    posicionamento: >
+      Plataforma de inteligência geoespacial para tomada de decisão — não apenas
+      visualização de mapas, mas cruzamento de variáveis para gerar insights
+      acionáveis. Vai além de "CEP de maior risco" e "fluxo de pessoas".
+    casos_de_uso:
+      - "Setor Público / Fazenda — Mapa de Auditoria de Rotas (evasão fiscal em transporte de commodities)"
+      - "Saúde Pública — Vigilância epidemiológica preventiva (Dengue, surtos, alocação de agentes)"
+      - "Seguradoras — Mapa de Calor de Risco em micro-zonas (sinistralidade por enchente)"
+      - "Varejo — Mapa de Potencial de Mercado (ponto de ouro com perfil + saturação de concorrência)"
+    contratos_reais_relacionados:
+      - "COPASA — Google Maps + APIs + GIS (R$ 201.783)"
+      - "SEF-MG — Produto tecnológico geoespacial em nuvem"
+      - "SEMAD/GO — MVP IA análise documental e geoespacial (Earth Engine)"
+
+# Especializações reconhecidas pelo Google Partner Program
+especializacoes_google:
+  - "Work Transformation - Enterprise"
+  - "Infrastructure - Services"
+  - "Generative AI - Services"
+
+# Expertise de parceria (Google Partner Directory)
+expertise:
+  industria:
+    - "Government"
+  produto_tecnologia:
+    - "Google Cloud Productivity"
+  solucao:
+    - "Vertex AI"
+    - "AppSheet"
+    - "Work Transformation"
+
+# Portfólio de produtos e soluções
+portfolio:
+  plataformas_proprias:
+    - "FDM — Fair Decision Making (IA Agêntica + Ontologia)"
+    - "Xertica GIS — Inteligência Geoespacial"
+    - "Video Transcript — transcrição e sumarização de áudios/vídeos"
+    - "Precedent Analysis — análise de precedentes jurídicos"
+    - "X-Factor Methodology — framework de implementação GenAI"
+  google_workspace:
+    - "Google Workspace Business Starter / Standard / Plus"
+    - "Google Workspace Enterprise Standard / Plus"
+    - "Google Vault"
+    - "Gemini for Google Workspace"
+    - "ChromeOS for Enterprise"
+    - "Google Education"
+  google_cloud_platform:
+    - "Google Cloud Platform (GCP) — créditos e licenciamento"
+    - "Vertex AI"
+    - "Vertex AI Agent Builder"
+    - "BigQuery"
+    - "Google Maps Platform"
+    - "Google Cloud SecOps"
+  servicos:
+    - "Consultoria em IA Agêntica e Generativa"
+    - "Implementação da plataforma FDM em verticais governamentais"
+    - "Desenvolvimento de MVPs com IA"
+    - "Implementação de chatbots e assistentes virtuais (Vertex AI Agent Builder)"
+    - "Machine Learning preditivo"
+    - "Análise geoespacial (GIS)"
+    - "Suporte técnico e capacitação Google Workspace / GCP"
+    - "Integração de APIs Google"
+    - "Migração para nuvem"
+    - "AppSheet — desenvolvimento de aplicativos no-code"
+
+# Verticais com FDM maduro (sales enablement decks disponíveis)
+verticais_fdm:
+  ministerio_publico:
+    deck: "06_02_2026 - FDM_ Ministério Público.pptx"
+    dores_atendidas:
+      - "Morosidade na admissibilidade"
+      - "Inconsistência de precedentes"
+      - "Complexidade investigativa (terabytes de dados)"
+      - "Priorização de recursos por impacto social e risco de prescrição"
+      - "Transparência e auditabilidade"
+    aderencia_normativa: ["MNI", "TPU (CNJ)", "CNJ Res. 332/2020", "LGPD"]
+  tribunal_justica:
+    deck: "06_03_2026 - FDM_ Tribunal de Justiça.pptx"
+    dores_atendidas:
+      - "Fila de entrada / triagem manual"
+      - "Decisões divergentes em casos idênticos"
+      - "Soberania do magistrado com Explainable AI"
+    kpis: ["40% redução na fila de entrada", "150% aumento em casos repetitivos"]
+  secretaria_fazenda:
+    deck: "20_03_2026 - FDM_ Secretaria da Fazenda.pptx"
+    dores_atendidas:
+      - "Evasão fiscal e grupos econômicos ocultos (cruzamento multimodal)"
+      - "Litígio tributário alto — jurisprudência unificada"
+      - "Triagem manual — Case Understanding"
+    kpis: ["40% redução de backlog", "30% redução de custos de litígio", "20% recuperação de receita"]
+  secretaria_planejamento:
+    deck: "20_02_2026 - FDM_ Secretaria de Planejamento.pptx"
+    dores_atendidas:
+      - "Inconsistência legal / distribuição desigual"
+      - "Alocação ineficiente de recursos (leitos fantasmas generalizados)"
+      - "Fragmentação de dados entre secretarias (Cidadão 360º)"
+    kpis: [">40% redução de tempo", ">95% eliminação de erros manuais", ">20% uso de ativos"]
+    aderencia_normativa: ["e-PING", "LGPD"]
+  secretaria_meio_ambiente:
+    deck: "25_03_2026 - FDM_ Secretaria do Meio Ambiente.pptx"
+    dores_atendidas:
+      - "Saturação de processos manuais (Zero-Delay Environment)"
+      - "Fragmentação de dados / amnésia burocrática"
+      - "Blindagem técnica do gestor com análise de impacto imparcial"
+    aderencia_normativa: ["CONAMA", "LC 140/11", "LGPD", "e-PING"]
+
+# Segmentos onde há experiência comprovada (contratos e atestados reais)
+segmentos_experiencia:
+  setor_publico:
+    - "Ministério Público (MPRS, MPMT, MP Amapá)"
+    - "Tribunais Regionais do Trabalho (TRT4-RS, TRT8-PA, TRT24-MS)"
+    - "Tribunais de Justiça (TJES)"
+    - "Tribunal Regional Eleitoral (TRE-PA)"
+    - "Advocacia-Geral da União (AGU)"
+    - "Governo do Estado (Gov MT)"
+    - "Câmaras Municipais e Prefeituras"
+    - "Detran-PR"
+    - "CSJT - Conselho Superior da Justiça do Trabalho"
+  setor_privado:
+    - "Healthtech / Saúde (Liti Saúde)"
+    - "Consultoria"
+    - "Institutos de cidades inteligentes"
+
+# Casos de referência (Customer Stories públicas)
+casos_referencia:
+  - cliente: "MPRS"
+    descricao: "Solução de IA para transcrição de áudio e análise de processos judiciais com Vertex AI"
+    tecnologias: ["GCP", "Vertex AI", "Video Transcript", "FDM-compatible"]
+  - cliente: "MPRS"
+    descricao: "AppSheet para gestão de crise ambiental (enchentes RS) — 3 apps em tempo recorde"
+    tecnologias: ["AppSheet"]
+  - cliente: "Gov MT (Avalia Gov.MT)"
+    descricao: "Primeira plataforma de IA do estado do MT — portal com painéis e chatbot"
+    tecnologias: ["GCP", "Vertex AI", "BigQuery"]
+  - cliente: "TJES"
+    descricao: "Automação de processos judiciais com análise de precedentes — Precedent Analysis"
+    tecnologias: ["GCP", "Vertex AI", "Precedent Analysis", "FDM-compatible"]
+
+# Critérios de qualificação para participar de licitações
+criterios_participacao:
+  valor_minimo_contrato_brl: 50000  # referência — ajustar conforme política interna
+  modalidades_aceitas:
+    - "Pregão Eletrônico"
+    - "Chamada Pública"
+    - "Contratação Direta"
+    - "Pré-qualificação"
+    - "Dispensa de Licitação"
+  restricoes:
+    # IMPORTANTE: consorcio ≠ subcontratação.
+    #   - Consórcio: Xertica NÃO participa como membro. Se o edital EXIGIR consórcio, é bloqueador.
+    #   - Subcontratação: Xertica NÃO subcontrata terceiros para executar o objeto (ver
+    #     qualificacao_empresa.posicionamento_em_consorcio.aceita_subcontratacao_para_terceiros=false).
+    #     Xertica PODE ser subcontratada por outra integradora (pode_ser_subcontratada=true).
+    - "Não participa de consórcios como membro"
+    - "Não subcontrata terceiros para execução do objeto — entrega direta"
+    - "Objeto deve estar alinhado ao portfólio: FDM, GIS, Google Cloud, GenAI ou Workspace"
+
+# Palavras-chave estratégicas para matching com editais
+keywords_match:
+  alta_relevancia_fdm:
+    - "IA agêntica"
+    - "inteligência artificial agêntica"
+    - "sistema multi-agente"
+    - "agentes autônomos"
+    - "ontologia"
+    - "grafo de conhecimento"
+    - "explicabilidade"
+    - "explainable AI"
+    - "XAI"
+    - "auditabilidade"
+    - "rastreabilidade de decisões"
+    - "triagem processual"
+    - "análise de precedentes"
+    - "classificação de competência"
+    - "análise de impacto"
+    - "case understanding"
+    - "MNI"
+    - "TPU"
+    - "Modelo Nacional de Interoperabilidade"
+    - "Tabelas Processuais Unificadas"
+    - "e-PING"
+    - "CONAMA"
+    - "LC 140"
+    - "evasão fiscal"
+    - "recuperação de crédito tributário"
+    - "cruzamento de dados"
+    - "licenciamento ambiental"
+  alta_relevancia_google:
+    - "inteligência artificial"
+    - "IA generativa"
+    - "Gemini"
+    - "Vertex AI"
+    - "Google Cloud"
+    - "GCP"
+    - "Google Workspace"
+    - "nuvem"
+    - "cloud"
+    - "machine learning"
+    - "chatbot"
+    - "assistente virtual"
+    - "colaboração digital"
+    - "produtividade"
+  alta_relevancia_gis:
+    - "geoespacial"
+    - "geoprocessamento"
+    - "GIS"
+    - "SIG"
+    - "análise territorial"
+    - "mapa de calor"
+    - "georreferenciamento"
+  media_relevancia:
+    - "transcrição"
+    - "OCR"
+    - "PLN"
+    - "NLP"
+    - "RAG"
+    - "análise de dados"
+    - "BigQuery"
+    - "AppSheet"
+    - "aplicativo"
+    - "plataforma digital"
+    - "modernização"
+    - "transformação digital"
+    - "LGPD"
+    - "interoperabilidade"
+  baixa_relevancia:
+    - "desenvolvimento de software"
+    - "sistemas de informação"
+    - "infraestrutura"
+    - "suporte técnico"
+
+  # Keywords específicas de SKU/produto Google — casam com exigências nominais em editais
+  alta_relevancia_google_workspace:
+    - "Google Workspace for Education"
+    - "Teaching and Learning Upgrade"
+    - "Workspace Enterprise Standard"
+    - "Workspace Enterprise Plus"
+    - "Workspace Business Standard"
+    - "Additional Storage"
+    - "Google Vault"
+    - "Gemini for Google Workspace"
+    - "ChromeOS Enterprise"
+  alta_relevancia_google_gcp:
+    - "USN"
+    - "Unidade de Serviço de Nuvem"
+    - "USNM"                              # Banestes — Marketplace
+    - "Créditos GCP"
+    - "Créditos Google Cloud"
+    - "Consumo Cloud"                     # sinônimo comercial de USN
+    - "Cloud consumption"
+    - "Google Cloud Platform"
+    - "Compute Engine"
+    - "Cloud Run"
+    - "GKE"
+    - "Cloud SQL"
+    - "Apigee"
+  alta_relevancia_ai_bot:
+    - "Chatbot omnichannel"
+    - "WhatsApp Business API"
+    - "Assistente virtual automatizado"
+    - "Dialogflow"
+    - "Dialogflow CX"
+    - "Agent Builder"
+    - "Enterprise Search"
+    - "Conversational AI"
+  # Expertise Data & AI — exigida em editais como Banestes (FinOps, ML, Governança)
+  alta_relevancia_data_ai:
+    - "Machine Learning"
+    - "MLOps"
+    - "BigQuery"
+    - "Data Warehouse"
+    - "Data Lakehouse"
+    - "AutoML"
+    - "Engenharia de Dados"
+    - "Vertex AI"
+    - "Vertex AI Pipelines"
+    - "Feature Store"
+    - "Looker"
+    - "Dataplex"
+  alta_relevancia_cloud_governance:
+    - "FinOps"
+    - "Gestão de Custos em Nuvem"
+    - "Infraestrutura como Código"
+    - "IaC"
+    - "Terraform"
+    - "Landing Zone"
+    - "Well-Architected"
+    - "Cloud Center of Excellence"
+    - "CCoE"
+  # Exigências regulatórias de data residency / ISOs corporativas
+  alta_relevancia_compliance_data_residency:
+    - "Datacenter no Brasil"
+    - "residência de dados"
+    - "Resolução CMN 4.893"
+    - "BACEN"
+    - "ISO 27001"
+    - "ISO 27017"
+    - "ISO 27018"
+    - "ISO 27701"
+    - "SOC 1"
+    - "SOC 2"
+    - "SOC 3"
+    - "CNJ Resolução 332/2020"
+  # Flags de No-Go ou ressalva automática (o Extrator marca booleano, o Analista avalia)
+  flags_bloqueadoras:
+    - termo: "exclusivo para ME/EPP"
+      efeito: "no_go"
+      motivo: "Xertica não se enquadra como ME/EPP"
+    - termo: "participação em consórcio obrigatória"
+      efeito: "ressalva"
+      motivo: "Xertica não participa de consórcio — avaliar parceria formal"
+    - termo: "vedada a subcontratação"
+      efeito: "ressalva"
+      motivo: "Restringe modelo de parceria (ex: Celepar)"
+    - termo: "exige comprovação de ser Premier Partner"
+      efeito: "apto_reforcado"
+      motivo: "Xertica é Google Cloud Premier Partner — diferencial competitivo"
+
+# ══════════════════════════════════════════════════════════════════════
+# QUALIFICAÇÃO DA EMPRESA — fatos para cruzar com requisitos de habilitação
+# ══════════════════════════════════════════════════════════════════════
+qualificacao_empresa:
+  porte:
+    enquadramento: "Grande porte"      # não ME/EPP — bloqueador em lotes exclusivos
+    faturamento_compativel_com_me_epp: false
+  parcerias_formais:
+    google_cloud_partner_level: "Premier"   # confirmar anualmente no portal Google Partner
+    google_partner_advantage: true
+    google_public_sector_partner: true
+  posicionamento_em_consorcio:
+    participa_consorcio: false
+    aceita_subcontratacao_para_terceiros: false
+    pode_ser_subcontratada: true
+  restricoes_operacionais:
+    atua_em_todos_estados: true
+    possui_filial_fisica: false
+    trabalha_remoto_com_alocacao_presencial_ocasional: true
+
+# ══════════════════════════════════════════════════════════════════════
+# VOLUMETRIA COMPROVADA — maior atestado/contrato por dimensão técnica
+# Base para o Qualificador responder "temos atestado de N contas Workspace?"
+# TODO: preencher com consulta manual a atestados — hoje placeholders.
+# ══════════════════════════════════════════════════════════════════════
+volumetria_comprovada:
+  google_workspace:
+    maior_qtd_contas_em_atestado: null         # ex: TRE-TO pede 400 — validar no BQ
+    maior_migracao_de_dominio: null
+    maior_qtd_licencas_ativas: 21200           # DPRF (10.670.005 BRL)
+  google_cloud:
+    maior_qtd_vms_administradas: null          # BRB pede 50
+    maior_credito_usn_contratado_brl: null
+    maior_pool_ust_horas: null
+    maior_projeto_finops: null
+  servicos_tecnicos:
+    maior_bolsa_horas: 2985                    # AGU
+    maior_projeto_migracao: null
+    maior_atestado_mlops: null
+  chatbot_ia:
+    # HONESTO: Xertica não tem atestado formal de volumetria de chatbot nessa escala.
+    # A referência de 20k/mês vista no edital COHAB está em `volumetria_observada_em_editais`
+    # abaixo — o Analista usa aquela seção para calcular GAP, não esta.
+    maior_volumetria_interacoes_mensais: null
+    ambientes_whatsapp_business_api: null
+
+  # Volumetrias observadas em editais analisados (NÃO são comprovações Xertica —
+  # servem só para o Analista reconhecer a ordem de grandeza exigida e declarar GAP).
+  volumetria_observada_em_editais:
+    - {orgao: "COHAB", dimensao: "interacoes_chatbot_mes", quantidade: 20000, unidade: "interações/mês"}
+    - {orgao: "TRE-TO", dimensao: "contas_workspace", quantidade: 400, unidade: "usuários"}
+    - {orgao: "BRB", dimensao: "vms_administradas", quantidade: 50, unidade: "instâncias"}
+    - {orgao: "Celepar", dimensao: "ust_executadas_36m", quantidade: 15000, unidade: "UST"}
+    - {orgao: "Banestes", dimensao: "usta_24m", quantidade: 47000, unidade: "USTa"}
+
+# ══════════════════════════════════════════════════════════════════════
+# CERTIDÕES DA EMPRESA — guard-rail de habilitação jurídica/fiscal
+# TODO: integrar com fonte oficial (Trello, RH, Jurídico, SICAF) em fase 2
+# ══════════════════════════════════════════════════════════════════════
+certidoes_empresa:
+  aviso_habilitacao_juridica: >
+    TODOS os campos de status abaixo estão como `null` (não cadastrados).
+    Enquanto não houver integração com fonte oficial (SICAF/Jurídico/RH), o Analista
+    deve tratar habilitação jurídica/fiscal como PENDENTE DE VERIFICAÇÃO MANUAL —
+    nunca afirmar "certidões válidas" sem dado. Se o edital exigir certidão específica,
+    o parecer deve rebaixar para APTO COM RESSALVAS com alerta: "confirmar validade
+    da {certidão} junto ao Financeiro/Jurídico antes de {data_encerramento}".
+  sicaf:
+    status: null           # "valida" | "vencida" | "nao_cadastrada"
+    validade: null
+  cnd_federal:
+    status: null
+    validade: null
+  cnd_estadual:
+    status: null
+    validade: null
+  cnd_municipal:
+    status: null
+    validade: null
+  fgts_crf:
+    status: null
+    validade: null
+  cndt_trabalhista:
+    status: null
+    validade: null
+  cadin_estadual:
+    status: null
+    validade: null
+  cagef:
+    status: null
+    validade: null
+  ceis_cnep:
+    status: null
+    validade: null
+  certidoes_iso:
+    - {norma: "ISO 27001", status: null, validade: null}
+    - {norma: "ISO 27017", status: null, validade: null}
+    - {norma: "ISO 27018", status: null, validade: null}
+    - {norma: "ISO 27701", status: null, validade: null}
+  soc_reports:
+    - {tipo: "SOC 2 Type II", status: null, validade: null}
+
