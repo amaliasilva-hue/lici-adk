@@ -1,0 +1,41 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Next.js / Node
+web/.next/
+web/node_modules/
+web/.env.local
+web/.env*.local
+
+# XerticaProducts (excluído explicitamente)
+XerticaProducts/
+
+# Backups
+architecture2.md.bak
+*.bak
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db

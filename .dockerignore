@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+.git
+.github
+notebooks
+*.pdf
+*.csv
+XerticaProducts
+.venv
+venv
+.env
+.env.*
