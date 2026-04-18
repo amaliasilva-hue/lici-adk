@@ -21,7 +21,7 @@ Não é "lici-adk + x-biding". É um produto só, com três camadas que operam e
 - **Usuário secundário:** vendedor / Customer Engineer (vinculado ao edital, comenta, aprova)
 - **Usuário terciário:** diretoria (vê pipeline agregado)
 - **Substitui:** o Trello atual. Sem coexistência.
-- **Fronteira do produto:** x-lici termina em `homologado_ganho`. O pós-homologação (empenho, entrega, contrato) é responsabilidade do SaaS de contratos (integração futura — Fase 10).
+- **Fronteira do produto:** x-lici termina em `homologado`. O pós-homologação (empenho, entrega, contrato) é responsabilidade do SaaS de contratos (integração futura — Fase 10).
 
 ---
 
@@ -91,10 +91,10 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 │  x-lici-web (Next.js 14 · Cloud Run · operaciones-br/us-central1)    │
 │                                                                        │
 │  Páginas:                                                              │
-│    /           Kanban (fases do processo, cards por edital)           │
-│    /card/[id]  Card: análise comercial + jurídica + comentários +     │
-│                anexos (espelhados do Drive) + movimentação            │
-│    /upload     Upload do edital → cria card → roda pipeline           │
+│    /             Pipeline de editais (stages, lista por stage)        │
+│    /edital/[id]  Edital: análise comercial + jurídica + comentários + │
+│                  anexos (espelhados do Drive) + movimentação          │
+│    /upload       Upload do edital → cria registro → roda pipeline     │
 │    /historico  Busca/filtro (órgão, UF, status, vendedor, data)       │
 │    /config     Prompt customizável por usuário                        │
 │    /admin      Monitoramento + editor de súmulas (/admin/sumulas)     │
@@ -108,18 +108,18 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 │  x-lici-backend (FastAPI · Cloud Run · operaciones-br/us-central1)   │
 │  --no-allow-unauthenticated                                           │
 │                                                                        │
-│  ENDPOINTS — CARDS                                                     │
-│    POST /cards                       cria card (dispara pipeline)    │
-│    GET  /cards · GET /cards/{id}     lê estado do card               │
-│    PATCH /cards/{id}                 atualiza fase/vendedor/campos    │
-│    POST /cards/{id}/comentarios      adiciona comentário             │
-│    POST /cards/{id}/analise_juridica dispara Analista Licitatório    │
+│  ENDPOINTS — EDITAIS                                                   │
+│    POST /editais                       cria edital (dispara pipeline) │
+│    GET  /editais · GET /editais/{id}   lê estado do edital            │
+│    PATCH /editais/{id}                 atualiza fase/vendedor/campos  │
+│    POST /editais/{id}/comentarios      adiciona comentário            │
+│    POST /editais/{id}/analise_juridica dispara Analista Licitatório   │
 │                                                                        │
 │  ENDPOINTS — DRIVE                                                     │
-│    GET  /cards/{id}/drive/arvore           lista pastas/arquivos     │
-│    POST /cards/{id}/drive/upload           upload → subpasta certa   │
-│    POST /cards/{id}/drive/sincronizar      força re-scan             │
-│    GET  /cards/{id}/drive/atestados_somados  somatório               │
+│    GET  /editais/{id}/drive/arvore         lista pastas/arquivos      │
+│    POST /editais/{id}/drive/upload         upload → subpasta certa    │
+│    POST /editais/{id}/drive/sincronizar    força re-scan              │
+│    GET  /editais/{id}/drive/atestados_somados  somatório              │
 │                                                                        │
 │  PIPELINE (um edital, dois analistas em paralelo):                    │
 │                                                                        │
@@ -133,14 +133,14 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 │    │ (BQ + somatório) │    └──▶ ┌─────────────────────┐              │
 │    └──────────────────┘         │ Analista Licitatório│──▶ Relatório │
 │            │                    │ (Pro + Lei 14.133 + │    jurídico  │
-│            └─ atestados ──────▶ │  TCU súmulas +      │    5 blocos  │
+│            └─ atestados ──────▶ │  TCU súmulas +      │    6 blocos  │
 │               somados           │  custom_prompt)     │              │
 │                                 └─────────────────────┘              │
 │                                           │                           │
 │                                           ▼                           │
 │                           ┌─────────────────────────┐                │
 │                           │ Persistor               │                │
-│                           │ (card + 2 análises)     │                │
+│                           │ (edital + 2 análises)   │                │
 │                           └─────────────────────────┘                │
 └───┬────────────────────┬──────────────────┬──────────┬────────────┘
     │ Vertex AI          │ Cloud SQL        │ Drive API│
@@ -193,7 +193,7 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 
 ### Endpoint legado
 
-`POST /analyze` vira alias de `POST /cards` — cria card automaticamente, devolve `analysis_id=card_id`.
+`POST /analyze` vira alias de `POST /editais` — cria edital automaticamente, devolve `analysis_id=edital_id`.
 O campo `analysis_id` no response **mantém o mesmo nome** (string UUID) para não quebrar scripts existentes.
 
 ---
@@ -227,9 +227,9 @@ O campo `analysis_id` no response **mantém o mesmo nome** (string UUID) para n�
 
 **Problema:** o lici-adk qualifica com base no BigQuery. Na montagem da proposta, o time precisa somar atestados para cobrir escala (ex: edital pede 540k licenças GWS — 1 atestado sozinho não cobre, 4 somados cobrem).
 
-**Solução:** tool `somar_atestados_do_drive(card_id)`:
+**Solução:** tool `somar_atestados_do_drive(edital_id)`:
 
-1. Lê a subpasta `Atestados/` do card no Drive via Drive API
+1. Lê a subpasta `Atestados/` do edital no Drive via Drive API
 2. Para cada PDF, chama Gemini Flash multimodal → extrai `{drive_file_id, drive_file_name, contratante, objeto, periodo, volume, categoria, pagina_referencia}`
 3. Agrupa por categoria (`GWS`, `GCP`, `GMP`, `UST`, `bolsa_horas`, `interacoes_chatbot`)
 4. Soma os volumes; marca individualmente quais atestados sozinhos atendem `parcela_maior_relevancia` do edital (≥ 4% do valor estimado, art. 67 §1º)
@@ -266,7 +266,7 @@ O campo `analysis_id` no response **mantém o mesmo nome** (string UUID) para n�
 | MVP (Fases 1–6) | No Drive direto (como hoje) | Jurídico |
 | V1 (Fase 8+) | No app → app sobe no Drive via API | Jurídico ou vendedor |
 
-Sincronização no MVP: background job a cada 15 min verificando timestamp; arquivo novo → re-processa somatório + notifica card.
+Sincronização no MVP: background job a cada 15 min verificando timestamp; arquivo novo → re-processa somatório + notifica edital.
 
 **Autenticação Drive:**
 - SA do backend com Domain-Wide Delegation — impersona o email do usuário do request
@@ -408,8 +408,8 @@ UI `/admin/sumulas`: lista ativa · toggle ativo/inativo · histórico de ediç�
 |---|---|---|
 | **Quando** | Agora, antes da Fase 5 | Após 2–3 meses em produção |
 | **Responsabilidade** | "Jurídico sugere → Xertica aprova → commit" — linha clara | Requer NDA/contrato explícito antes de dar edição direta |
-| **Isolamento de regressão** | YAML estável → se minuta piorar, causa é o prompt | Firestore mutável dificulta debugging |
-| **Esforço** | Zero (arquivo + commit) | Tela CRUD + Cloud Function + GCS bucket |
+| **Isolamento de regressão** | YAML estável → se minuta piorar, causa é o prompt | Postgres com trigger `tcu_sumulas_historico` → alterações rastreáveis |
+| **Esforço** | Zero (arquivo + commit) | Tela CRUD (Postgres já existe, sem Cloud Function nem GCS extra) |
 
 **Motivo para não fazer C agora:** 8 súmulas não justificam UI CRUD. Faça C quando souber quais súmulas mudam frequentemente — só visível após uso real.
 
@@ -442,7 +442,7 @@ Combina dados fixos da Xertica (de `xertica_profile.yaml`: CNPJ, razão social, 
 
 | Fase | Formato | Como chega ao jurídico |
 |---|---|---|
-| MVP (Fases 5–7) | `text/plain` (markdown formatado) | Exibido no card, botão "Copiar" |
+| MVP (Fases 5–7) | `text/plain` (markdown formatado) | Exibido no edital, botão "Copiar" |
 | Fase 8 | Google Docs API | Criado automaticamente em `Habilitação/` no Drive do processo |
 
 > **Humano no loop:** declarações são sugestão. Jurídico revisa, imprime em papel timbrado e assina. O agente só preenche — a responsabilidade jurídica é do assinante.
@@ -824,8 +824,8 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 
 ### Conteúdo jurídico
 
-5. **Curar `tcu_sumulas.yaml`** antes da Fase 5 — 8 súmulas via prompt do §6.6 Caminho B
-6. **Validar 1–2 minutas** geradas pelo Analista Licitatório com o jurídico antes do rollout
+7. **Curar `tcu_sumulas.yaml`** antes da Fase 5 — 8 súmulas via prompt do §6.6 Caminho B
+8. **Validar 1–2 minutas** geradas pelo Analista Licitatório com o jurídico antes do rollout
 
 ### Operacional
 
@@ -859,7 +859,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 
 - Jurídico processa ≥ 5 editais no app em 2 semanas sem pedir para voltar ao Trello
 - Minuta de esclarecimento aprovada com ≤ 30% de edição
-- Vendedor consulta card antes de enviar proposta em ≥ 80% dos casos
+- Vendedor consulta edital antes de enviar proposta em ≥ 80% dos casos
 
 ### Fase 8+ (maturidade)
 
