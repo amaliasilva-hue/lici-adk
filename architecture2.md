@@ -15,24 +15,27 @@ Não é "lici-adk + x-biding". É um produto só, com três camadas que operam e
 |---|---|---|
 | Comercial | "A Xertica deve participar? Onde estão os gaps?" | lici-adk v1 — já funciona (validado PRODESP) |
 | Jurídica | "O edital está legal? Há cláusulas impugnáveis? Quais minutas?" | A construir — herda Extrator, adiciona Analista Licitatório |
-| Operacional | "Em que fase está? Quem é responsável? O que falta?" | A construir — kanban, cards, comentários, anexos, integração Drive |
+| Operacional | "Em que fase está? Quem é responsável? O que falta?" | A construir — controle de editais (8 stages + gates), comentários, anexos, integração Drive |
 
-- **Usuário primário:** jurídico terceirizado (o operador que movimenta cards)
-- **Usuário secundário:** vendedor / Customer Engineer (vinculado a cards, comenta, aprova)
+- **Usuário primário:** jurídico terceirizado (o operador que avança stages do edital)
+- **Usuário secundário:** vendedor / Customer Engineer (vinculado ao edital, comenta, aprova)
 - **Usuário terciário:** diretoria (vê pipeline agregado)
 - **Substitui:** o Trello atual. Sem coexistência.
+- **Fronteira do produto:** x-lici termina em `homologado_ganho`. O pós-homologação (empenho, entrega, contrato) é responsabilidade do SaaS de contratos (integração futura — Fase 10).
 
 ---
 
 ## 2. Princípios arquiteturais (trava contra escopo mutante)
 
 1. **Drive é fonte de verdade da operação jurídica.** O app lê do Drive via Drive API. Nunca sobrescreve. Jurídico continua operando como hoje.
-2. **BigQuery é fonte de verdade do histórico e analytics.** Toda análise persiste em `operaciones-br.lici_adk.*`.
-3. **Um backend só.** FastAPI único em Cloud Run, projeto `operaciones-br`. Endpoints novos se somam aos existentes.
-4. **Um frontend só.** Next.js em Cloud Run, servindo kanban, análise, histórico, config. Identidade visual Xertica (brand kit oficial).
-5. **Extrator é compartilhado.** O lici-adk já extrai o edital estruturado. O Analista Comercial e o Analista Licitatório consomem o mesmo output.
-6. **Auth Google OAuth @xertica.com.** Jurídico terceirizado recebe conta `@xertica.com` pelo Workspace ou acesso controlado por email whitelist.
-7. **Sem `--allow-unauthenticated`.** Cloud Run autenticado. Frontend SSR injeta token service-to-service. Zero exposição pública.
+2. **BigQuery é fonte de verdade analítica.** Toda análise persiste em `operaciones-br.lici_adk.*`. BQ é warehouse de leitura — não armazena estado operacional mutável.
+3. **Cloud SQL Postgres é fonte de verdade operacional.** Editais, stages, comentários, movimentações, gates e súmulas TCU vivem no Postgres. Writes frequentes, transações ACID, queries de latência baixa.
+4. **Datastream sincroniza Cloud SQL → BQ.** Estado operacional replica automaticamente para o warehouse. Sem ETL manual.
+5. **Um backend só.** FastAPI único em Cloud Run, projeto `operaciones-br`. Endpoints novos se somam aos existentes.
+6. **Um frontend só.** Next.js em Cloud Run, servindo controle de editais, análise, histórico, config. Identidade visual Xertica (brand kit oficial).
+7. **Extrator é compartilhado.** O lici-adk já extrai o edital estruturado. O Analista Comercial e o Analista Licitatório consomem o mesmo output.
+8. **Auth Google OAuth @xertica.com.** Jurídico terceirizado recebe conta `@xertica.com` pelo Workspace ou acesso controlado por email whitelist.
+9. **Sem `--allow-unauthenticated`.** Cloud Run autenticado. Frontend SSR injeta token service-to-service. Zero exposição pública.
 
 ---
 
@@ -139,21 +142,35 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 │                           │ Persistor               │                │
 │                           │ (card + 2 análises)     │                │
 │                           └─────────────────────────┘                │
-└───┬────────────────────┬─────────────────────────┬───────────────────┘
-    │ Vertex AI          │ BigQuery                │ Drive API
-    ▼                    ▼                         ▼
-┌──────────────┐  ┌─────────────────────┐  ┌────────────────────────┐
-│ Gemini 2.5   │  │ operaciones-br      │  │ Google Drive           │
-│ Flash / Pro  │  │ .sales_intelligence │  │  Xertica Licitações/   │
-└──────────────┘  │ .lici_adk:          │  │    [UF]/[Processo]/    │
-                  │   .cards (nova)     │  │      ├─ Edital/        │
-                  │   .card_comentarios │  │      ├─ Atestados/     │
-                  │   .card_movimentac. │  │      ├─ Habilitação/   │
-                  │   .analises_editais │  │      ├─ Proposta/      │
-                  │   .analises_        │  │      └─ Contrato/      │
-                  │     juridicas(nova) │  │                        │
-                  │   .atestados_cache  │  │ read-only no MVP       │
-                  └─────────────────────┘  └────────────────────────┘
+└───┬────────────────────┬──────────────────┬──────────┬────────────┘
+    │ Vertex AI          │ Cloud SQL        │ Drive API│
+    ▼                    ▼                  │          │
+┌──────────────┐  ┌────────────────────┐   │          │
+│ Gemini 2.5   │  │ Cloud SQL Postgres  │   │          │
+│ Flash / Pro  │  │ operaciones-br      │   │          │
+└──────────────┘  │ (db-g1-small)       │   │          │
+                  │                     │   │          │
+                  │ editais             │   │          │
+                  │ edital_movimentacoes│   │          │
+                  │ edital_comentarios  │   │          │
+                  │ edital_gates        │   ▼          │
+                  │ tcu_sumulas         │  ┌──────────────────────┐
+                  │ tcu_sumulas_hist.   │  │ Google Drive         │
+                  │ atestados_cache     │  │ Xertica Licitações/  │
+                  │ usuarios            │  │  [UF]/[Processo]/    │
+                  └────────┬───────────┘  │   ├─ Edital/         │
+                           │ Datastream   │   ├─ Atestados/      │
+                           │ CDC → BQ     │   ├─ Habilitação/    │
+                           ▼              │   ├─ Proposta/       │
+                  ┌────────────────────┐  │   └─ Contrato/       │
+                  │ BigQuery           │  │                      │
+                  │ operaciones-br     │  │ read-only no MVP     │
+                  │ .lici_adk:         │  └──────────────────────┘
+                  │  .analises_editais │
+                  │  .analises_jur.    │
+                  │  .docs_protocolo   │
+                  │  .eventos_pipeline │
+                  └────────────────────┘
 ```
 
 ---
@@ -257,29 +274,63 @@ Sincronização no MVP: background job a cada 15 min verificando timestamp; arqu
 
 ---
 
-### 6.4 Kanban + Cards (substitui Trello)
+### 6.4 Sistema de Controle de Editais (substitui Trello)
 
-**Colunas:**
+**Não é kanban genérico.** É um pipeline de licitación com stages tipados, gates por checklist e estados terminais. x-lici termina em `homologado` — o que vem depois (empenho, entrega, contrato) vai para o SaaS de contratos (Fase 10).
 
-1. Oportunidades
-2. Em Análise Técnica
-3. Em Análise Jurídica
-4. Esclarecimento / Impugnação
-5. Aprovado — Montar Processo
-6. Aguardando Disputa
-7. Em Recurso / Contrarrazões
-8. Habilitação
-9. Ganho
-10. Perdido / Desclassificado
+**Stages (8):**
 
-**Checklist no card** (11 itens do Trello → automatizados):
-Em análise · Impugnação · Cadastrar Proposta · Pedido de Esclarecimento · Em recurso · Enviar Contrarrazões · Habilitação Original Enviada · Aguardando Ata/Contrato · Aguardando Empenho · Empenho Recebido · Material Entregue.
+| # | Stage | Quem opera |
+|---|---|---|
+| 1 | `identificacao` | Vendedor |
+| 2 | `analise` | Vendedor + Jurídico |
+| 3 | `pre_disputa` | Jurídico (esclarecimentos, impugnações) |
+| 4 | `proposta` | Vendedor + CE |
+| 5 | `disputa` | Vendedor |
+| 6 | `habilitacao` | Jurídico |
+| 7 | `recursos` | Jurídico |
+| 8 | `homologado` | Gestão |
 
-**Campos do card** (`lici_adk.cards`): `card_id`, `orgao`, `uf`, `uasg`, `numero_pregao`, `portal`, `objeto`, `valor_estimado`, `data_encerramento`, `prazo_questionamento`, `fase_atual`, `checklist_json`, `vendedor_email`, `drive_folder_id`, `drive_folder_url`, `analysis_id_comercial`, `analysis_id_juridica`, `classificacao`, `risco`, `prioridade`, `criado_por`, `criado_em`, `atualizado_em`.
+**Estados terminais (5):** `ganho` · `perdido` · `inabilitado` · `revogado` · `nao_participamos`
 
-**Comentários** (`card_comentarios`): `comentario_id`, `card_id`, `autor_email`, `texto` (markdown), `mencionados_json`, `criado_em`.
+Um edital em `homologado` com resultado `ganho` dispara (Fase 10) o handoff automático para o SaaS de contratos via API.
 
-**Movimentações** (`card_movimentacoes`): `mov_id`, `card_id`, `fase_origem`, `fase_destino`, `autor_email`, `motivo`, `criado_em`.
+**Gates por stage** — checklist tipado que o operador confere antes de avançar:
+
+| Stage | Gates mínimos |
+|---|---|
+| `identificacao` | edital baixado, órgão identificado, vendedor atribuído |
+| `analise` | análise comercial concluída, análise jurídica concluída |
+| `pre_disputa` | prazo de esclarecimento / impugnação verificado, documentos redigidos |
+| `proposta` | proposta técnica redigida, proposta comercial precificada |
+| `disputa` | credenciamento no portal, proposta enviada |
+| `habilitacao` | kit de habilitação completo, certidões válidas |
+| `recursos` | prazo de recurso verificado, contrarrazões redigidas (se necessário) |
+| `homologado` | ata de homologação salva no Drive |
+
+**Mapeamento do checklist do Trello:**
+
+| Item Trello | Stage correspondente | Observação |
+|---|---|---|
+| Em análise | `analise` | |
+| Pedido de Esclarecimento | `pre_disputa` | |
+| Impugnação | `pre_disputa` | |
+| Cadastrar Proposta | `proposta` | |
+| Em recurso | `recursos` | |
+| Enviar Contrarrazões | `recursos` | |
+| Habilitação Original Enviada | `habilitacao` | |
+| Aguardando Ata/Contrato | `homologado` | |
+| Aguardando Empenho | — | → SaaS de contratos |
+| Empenho Recebido | — | → SaaS de contratos |
+| Material Entregue | — | → SaaS de contratos |
+
+**Páginas do frontend:**
+- `/` — visão pipeline (colunas por stage, cards resumidos)
+- `/edital/[id]` — edital completo: análises + comentários + Drive + movimentação
+- `/upload` — upload do edital → cria registro → roda pipeline
+- `/historico` — busca/filtro (status, órgão, UF, vendedor, data)
+- `/config` — prompt customizável por usuário
+- `/admin` — monitoramento + editor de súmulas (`/admin/sumulas`)
 
 ---
 
@@ -336,21 +387,20 @@ Formato:
 
 Custo estimado: 1 acórdão → 5 min. 8 acórdãos → 1 tarde.
 
-#### Caminho C — Firestore editável + versionamento *(migração futura — Fase 8.5)*
+#### Caminho C — Postgres editável + versionamento *(migração futura — Fase 8.5)*
+
+Como `tcu_sumulas` já está no Postgres, a evolução natural é uma UI CRUD — sem Firestore, sem Cloud Function, sem GCS bucket extra.
 
 ```
-Firestore: tcu_sumulas (source of truth)
+Cloud SQL Postgres: tcu_sumulas (source of truth)
   ← jurídico edita via UI /admin/sumulas
-  ← append-only, updates com campo versao_anterior
-       │
-       │ backup diário (Cloud Function)
-       ▼
-GCS: gs://.../tcu_sumulas_snapshots/YYYY-MM-DD.yaml
+  ← trigger PostgreSQL: INSERT em tcu_sumulas_historico antes de cada UPDATE
+       (append-only automático)
 ```
 
-Runtime Analista Licitatório (Fase 8.5): lê Firestore `where("ativo", true)` → calcula hash → injeta no prompt → salva hash em `analises_juridicas.knowledge_version`.
+Runtime Analista Licitatório (Fase 8.5): lê `tcu_sumulas WHERE ativo = true` → calcula hash SHA-256 dos registros → injeta no prompt → salva hash em `analises_juridicas.knowledge_version`.
 
-UI `/admin/sumulas`: lista ativa · toggle · histórico de edições · assistente IA embutido (cola acórdão → estrutura automaticamente → humano revisa → salva).
+UI `/admin/sumulas`: lista ativa · toggle ativo/inativo · histórico de edições (`tcu_sumulas_historico`) · assistente IA embutido (cola acórdão → estrutura automaticamente → humano revisa → salva).
 
 #### Decisão registrada
 
@@ -411,85 +461,225 @@ empresa:
 
 ---
 
-## 7. Schemas BigQuery
+## 7. Schemas
 
-> **Nota — BQ para estado de kanban:** BQ é otimizado para analytics, não writes frequentes.
-> Para o MVP (<50 movimentações/dia) o padrão append-only funciona. **Trigger para reconsiderar:**
-> se volume ultrapassar ~500 updates/dia ou latência de leitura do kanban ficar >2s, migrar
-> estado operacional (`cards`, `comentarios`, `movimentacoes`) para Firestore — BQ continua como
-> warehouse de histórico e analytics.
+### 7a. Cloud SQL Postgres (estado operacional)
 
-### `cards` (nova)
+> **Fonte de verdade para tudo que muda frequentemente.** Writes ACID, queries de baixa latência, conexões pooláveis. Datastream CDC replica tudo para BQ automaticamente.
 
-PK: `card_id`. Particionada por `criado_em`, clusterizada por `[fase_atual, uf, vendedor_email]`.
+**Instance:** `operaciones-br / us-central1` · `db-g1-small` (~US$40/mês) · Postgres 16
 
-Campos: `card_id`, `orgao`, `uf`, `uasg`, `numero_pregao`, `portal`, `objeto`, `valor_estimado`, `data_encerramento`, `prazo_questionamento`, `fase_atual`, `checklist_json`, `vendedor_email`, `drive_folder_id`, `drive_folder_url`, `analysis_id_comercial`, `analysis_id_juridica`, `classificacao`, `risco`, `prioridade`, `criado_por`, `criado_em`, `atualizado_em`.
+#### `editais` (tabela principal)
 
-### `card_comentarios` (nova)
+PK: `edital_id` (UUID). Índices: `(fase_atual, uf)`, `(vendedor_email)`, `(data_encerramento)`.
 
-`comentario_id`, `card_id`, `autor_email`, `texto`, `mencionados_json`, `criado_em`.
+```sql
+edital_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+orgao              TEXT NOT NULL,
+uf                 CHAR(2) NOT NULL,
+uasg               TEXT,
+numero_pregao      TEXT,
+portal             TEXT,
+objeto             TEXT,
+valor_estimado     NUMERIC(15,2),
+data_encerramento  TIMESTAMPTZ,
+fase_atual         TEXT NOT NULL DEFAULT 'identificacao',
+  -- valores: identificacao | analise | pre_disputa | proposta |
+  --          disputa | habilitacao | recursos | homologado
+estado_terminal    TEXT,
+  -- valores: ganho | perdido | inabilitado | revogado | nao_participamos
+vendedor_email     TEXT,
+drive_folder_id    TEXT,
+drive_folder_url   TEXT,
+analysis_id_comercial UUID,
+analysis_id_juridica  UUID,
+classificacao      TEXT,
+risco              TEXT,
+prioridade         INTEGER DEFAULT 3,
+criado_por         TEXT NOT NULL,
+criado_em          TIMESTAMPTZ NOT NULL DEFAULT now(),
+atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
 
-### `card_movimentacoes` (nova)
+#### `edital_movimentacoes`
 
-`mov_id`, `card_id`, `fase_origem`, `fase_destino`, `autor_email`, `motivo`, `criado_em`.
+```sql
+mov_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+edital_id     UUID NOT NULL REFERENCES editais(edital_id),
+fase_origem   TEXT NOT NULL,
+fase_destino  TEXT NOT NULL,
+autor_email   TEXT NOT NULL,
+motivo        TEXT,
+criado_em     TIMESTAMPTZ NOT NULL DEFAULT now()
+```
 
-### `analises_juridicas` (nova)
+#### `edital_comentarios`
 
-`analysis_id`, `data_analise`, `card_id`, `user_email`, `conformidade_geral`, `score_conformidade`, `nivel_risco`, `minutas_count`, `relatorio_json`, `knowledge_version` (hash do commit do `tcu_sumulas.yaml`), `pipeline_ms`, `custom_prompt_used`.
+```sql
+comentario_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+edital_id      UUID NOT NULL REFERENCES editais(edital_id),
+autor_email    TEXT NOT NULL,
+texto          TEXT NOT NULL,  -- markdown
+mencionados    TEXT[],
+criado_em      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
 
-### `analises_editais` (já existe — lici-adk v1)
+#### `edital_gates`
 
-Migração: `ALTER TABLE analises_editais ADD COLUMN card_id STRING`.
+```sql
+gate_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+edital_id     UUID NOT NULL REFERENCES editais(edital_id),
+stage         TEXT NOT NULL,
+gate_key      TEXT NOT NULL,   -- ex: 'edital_baixado'
+concluido     BOOLEAN NOT NULL DEFAULT false,
+concluido_em  TIMESTAMPTZ,
+concluido_por TEXT,
+UNIQUE (edital_id, stage, gate_key)
+```
 
-### `atestados_somados_cache` (nova — performance)
+#### `tcu_sumulas`
 
-`card_id`, `categoria`, `volume_total`, `atestados_ids_json`, `calculado_em`.
-TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
+```sql
+sumula_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+id_legado          TEXT UNIQUE NOT NULL,  -- ex: 'TCU-S-001'
+tema               TEXT NOT NULL,
+enunciado          TEXT NOT NULL,
+base_legal         TEXT[],
+implicacao_pratica TEXT,
+aplicacao_ti       BOOLEAN NOT NULL DEFAULT true,
+acordaos_ref       TEXT[],
+ativo              BOOLEAN NOT NULL DEFAULT true,
+criado_em          TIMESTAMPTZ NOT NULL DEFAULT now(),
+atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+#### `tcu_sumulas_historico` (append-only via trigger)
+
+```sql
+hist_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+sumula_id     UUID NOT NULL,
+snapshot_json JSONB NOT NULL,
+alterado_por  TEXT,
+alterado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+#### `atestados_cache`
+
+```sql
+cache_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+edital_id     UUID NOT NULL REFERENCES editais(edital_id),
+categoria     TEXT NOT NULL,
+volume_total  NUMERIC(15,2),
+atestados_ids JSONB,
+calculado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+#### `usuarios`
+
+```sql
+usuario_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+email       TEXT UNIQUE NOT NULL,
+nome        TEXT,
+papel       TEXT NOT NULL DEFAULT 'vendedor',
+  -- valores: juridico | vendedor | diretor | admin
+ativo       BOOLEAN NOT NULL DEFAULT true,
+criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+---
+
+### 7b. BigQuery (analytics — somente leitura pelo app)
+
+> **Fonte de verdade analítica.** Nenhuma tabela BQ é escrita diretamente pelo backend de forma operacional. As tabelas `editais`, `edital_movimentacoes`, etc. chegam via Datastream CDC. As análises são escritas pelo Persistor após cada pipeline.
+
+**Dataset:** `operaciones-br.lici_adk`
+
+#### `analises_editais` (já existe — lici-adk v1)
+
+Migração: `ALTER TABLE analises_editais ADD COLUMN edital_id STRING`.
+Particionada por `data_analise`, clusterizada por `[uf, portal, status]`.
+
+#### `analises_juridicas` (nova)
+
+`analysis_id`, `data_analise`, `edital_id`, `user_email`, `conformidade_geral`, `score_conformidade`, `nivel_risco`, `minutas_count`, `relatorio_json`, `knowledge_version` (SHA-256 dos registros `tcu_sumulas` usados), `pipeline_ms`, `custom_prompt_used`.
+
+Particionada por `data_analise`, clusterizada por `[edital_id, nivel_risco]`.
+
+#### `documentos_protocolo` (nova — extraído de `relatorio_json`)
+
+`doc_id`, `analysis_id`, `edital_id`, `tipo` (`ESCLARECIMENTO` | `IMPUGNACAO`), `topico`, `numero_clausula`, `prazo_limite`, `texto_formal`, `base_legal`, `criado_em`.
+
+Separa o que estava embutido em `relatorio_json` STRING — permite consultas analíticas ("quais cláusulas mais impugnadas?", "taxa de impugnação por portal?").
+
+#### `eventos_pipeline` (nova — observabilidade)
+
+`evento_id`, `edital_id`, `agente` (`extrator` | `qualificador` | `analista_comercial` | `analista_licitatorio` | `persistor`), `status` (`ok` | `erro`), `latencia_ms`, `tokens_input`, `tokens_output`, `erro_msg`, `criado_em`.
+
+#### Configuração Datastream
+
+```
+Source: Cloud SQL Postgres (operaciones-br)
+Dest:   BigQuery dataset lici_adk
+Tabelas replicadas: editais, edital_movimentacoes, edital_comentarios,
+                    edital_gates, tcu_sumulas, usuarios
+Modo: CDC (Change Data Capture) — latencia ~1 min
+```
+
+
 
 ---
 
 ## 8. API Contract
 
-### Cards
+### Editais
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `POST` | `/cards` | Body: multipart (pdf, drive_folder_id?, vendedor_email?). Retorna `{card_id, status}` |
-| `GET` | `/cards` | Query: `fase`, `uf`, `vendedor_email`, `since`, `limit` |
-| `GET` | `/cards/{id}` | Card + análise comercial + jurídica (se existir) + comentários + movimentações |
-| `PATCH` | `/cards/{id}` | Atualiza `fase`, `vendedor`, `classificacao`, `risco` |
-| `DELETE` | `/cards/{id}` | Soft delete |
+| `POST` | `/editais` | Body: multipart (pdf, drive_folder_id?, vendedor_email?). Retorna `{edital_id, status}` |
+| `GET` | `/editais` | Query: `fase`, `uf`, `vendedor_email`, `since`, `limit` |
+| `GET` | `/editais/{id}` | Edital + análise comercial + jurídica (se existir) + comentários + movimentações |
+| `PATCH` | `/editais/{id}` | Atualiza `fase`, `estado_terminal`, `vendedor`, `classificacao`, `risco` |
+| `DELETE` | `/editais/{id}` | Soft delete |
+
+> **Alias legado:** `POST /cards` → alias de `POST /editais` para não quebrar scripts existentes.
 
 ### Comentários
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `POST` | `/cards/{id}/comentarios` | Body: `{texto, mencionados}` |
-| `GET` | `/cards/{id}/comentarios` | Lista |
+| `POST` | `/editais/{id}/comentarios` | Body: `{texto, mencionados}` |
+| `GET` | `/editais/{id}/comentarios` | Lista |
+
+### Gates
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `GET` | `/editais/{id}/gates` | Lista gates do stage atual |
+| `PATCH` | `/editais/{id}/gates/{gate_key}` | Marca gate como concluído |
 
 ### Análises
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `POST` | `/cards/{id}/analise_juridica` | Dispara on-demand |
-| `GET` | `/cards/{id}/analise_juridica` | Retorna `RelatorioLicitatorio` quando pronto |
+| `POST` | `/editais/{id}/analise_juridica` | Dispara on-demand |
+| `GET` | `/editais/{id}/analise_juridica` | Retorna `RelatorioLicitatorio` quando pronto |
 
 ### Drive
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `GET` | `/cards/{id}/drive/arvore` | Lista pastas e arquivos |
-| `POST` | `/cards/{id}/drive/upload` | `file` + `subpasta_destino` → sobe no Drive |
-| `POST` | `/cards/{id}/drive/sincronizar` | Força re-scan + atualiza cache |
-| `GET` | `/cards/{id}/drive/atestados_somados` | Retorna somatório com `kit_minimo_recomendado` e referências nominais dos arquivos |
+| `GET` | `/editais/{id}/drive/arvore` | Lista pastas e arquivos |
+| `POST` | `/editais/{id}/drive/upload` | `file` + `subpasta_destino` → sobe no Drive |
+| `POST` | `/editais/{id}/drive/sincronizar` | Força re-scan + atualiza cache |
+| `GET` | `/editais/{id}/drive/atestados_somados` | Retorna somatório com `kit_minimo_recomendado` e referências nominais dos arquivos |
 
 ### Kit de Habilitação e Documentos
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `GET` | `/cards/{id}/kit_habilitacao` | Retorna Bloco 6 (`KitHabilitacao`) — atestados recomendados + certidões + gap |
-| `GET` | `/cards/{id}/documentos` | Lista todos os documentos gerados (Bloco 4 + declarações do Grupo B) |
-| `GET` | `/cards/{id}/documentos/{tipo}` | `tipo`: `impugnacao` \| `esclarecimento` \| `declaracoes` \| `kit` — retorna texto pronto para copiar |
+| `GET` | `/editais/{id}/kit_habilitacao` | Retorna Bloco 6 (`KitHabilitacao`) — atestados recomendados + certidões + gap |
+| `GET` | `/editais/{id}/documentos` | Lista todos os documentos gerados (Bloco 4 + declarações do Grupo B) |
+| `GET` | `/editais/{id}/documentos/{tipo}` | `tipo`: `impugnacao` \| `esclarecimento` \| `declaracoes` \| `kit` — retorna texto pronto para copiar |
 
 **Auth:** todos exceto `/healthz` exigem SA ID token do frontend + header `X-User-Email` (`@xertica.com` + allowlist).
 
@@ -514,14 +704,16 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 ### Fase 3 — Deploy limpo em operaciones-br
 
 - [ ] Build + deploy `x-lici-backend` em `operaciones-br/us-central1`
-- [ ] IAM: `roles/aiplatform.user` + BQ + `run.invoker` para Amália
+- [ ] Provisionar **Cloud SQL Postgres 16** (`db-g1-small`, us-central1) + VPC connector
+- [ ] IAM: `roles/aiplatform.user` + BQ + `run.invoker` + `cloudsql.client` para SA backend
 - [ ] Smoke test E2E via HTTPS autenticado
+- [ ] Remover tabelas `cards`, `card_comentarios`, `card_movimentacoes` do BQ (substituídas por Cloud SQL + Datastream)
 
 ### Fase 4 — Somador de Atestados + Drive read-only
 
 - [ ] SA com Drive API + Domain-Wide Delegation configurada
-- [ ] Tool `somar_atestados_do_drive(card_id)` (Gemini Flash extrai de cada PDF)
-- [ ] Cache `atestados_somados_cache`
+- [ ] Tool `somar_atestados_do_drive(edital_id)` (Gemini Flash extrai de cada PDF)
+- [ ] Cache `atestados_cache` em Postgres (invalidação automática)
 - [ ] Analista Comercial consome somatório antes de declarar gap
 
 ### Fase 5 — Analista Licitatório
@@ -534,50 +726,52 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 - [ ] `backend/agents/gerador_documentos.py` — declarações padrão preenchidas com dados de `xertica_profile.yaml`
 - [ ] Campos empresa adicionados ao `xertica_profile.yaml` (CNPJ, representante legal, cargo, CPF)
 - [ ] Schemas `RelatorioLicitatorio` + 6 sub-blocos em `schemas.py`
-- [ ] Endpoint `POST /cards/{id}/analise_juridica` + tabela `analises_juridicas`
-- [ ] Endpoints `GET /cards/{id}/kit_habilitacao` + `GET /cards/{id}/documentos/{tipo}`
+- [ ] Endpoint `POST /editais/{id}/analise_juridica` + tabela `analises_juridicas` em BQ
+- [ ] Endpoints `GET /editais/{id}/kit_habilitacao` + `GET /editais/{id}/documentos/{tipo}`
 - [ ] Teste com edital Celepar: deve gerar IMPUGNAÇÃO (strict_match) + kit de atestados com `drive_file_name` + declarações preenchidas
 
-### Fase 6 — Kanban + Cards + Comentários
+### Fase 6 — Sistema de Controle de Editais
 
-- [ ] Tabelas BQ: `cards`, `card_comentarios`, `card_movimentacoes`
-- [ ] Endpoints `/cards/*` completos
-- [ ] `POST /cards` orquestra: Extrator → 2 analistas em paralelo → Persistor
-- [ ] Migração: `analises_editais ADD COLUMN card_id`
+- [ ] Schemas Cloud SQL: `editais`, `edital_movimentacoes`, `edital_comentarios`, `edital_gates`, `usuarios`
+- [ ] Datastream CDC configurado: Cloud SQL → BQ `lici_adk`
+- [ ] Endpoints `/editais/*` completos (stages, gates, comentários)
+- [ ] `POST /editais` orquestra: Extrator → 2 analistas em paralelo → Persistor
+- [ ] Migração: `analises_editais ADD COLUMN edital_id`
+- [ ] `tcu_sumulas` migradas do YAML para tabela Postgres
 
 ### Fase 7 — Frontend Next.js (identidade Xertica)
 
 - [ ] Scaffold Next.js 14 + Tailwind tokens brand kit + shadcn/ui + MUI Icons
 - [ ] NextAuth Google Provider (`hd=xertica.com`)
 - [ ] Dark mode · paletas · Poppins + Roboto via `next/font`
-- [ ] Páginas: `/` · `/card/[id]` · `/upload` · `/historico` · `/config` · `/admin`
+- [ ] Páginas: `/` · `/edital/[id]` · `/upload` · `/historico` · `/config` · `/admin`
 - [ ] Deploy Cloud Run `x-lici-web` em `operaciones-br/us-central1`
 
 ### Fase 8 — Drive read-write + Upload inteligente
 
-- [ ] `POST /cards/{id}/drive/upload` roteia para subpasta correta
+- [ ] `POST /editais/{id}/drive/upload` roteia para subpasta correta
 - [ ] Detector de tipo via Gemini Flash (edital → `Edital/`, atestado → `Atestados/`)
-- [ ] Notificação no card quando jurídico sobe arquivo direto no Drive
+- [ ] Notificação no edital quando jurídico sobe arquivo direto no Drive
 
 ### Fase 8.5 — Knowledge base: Caminho B → Caminho C
 
 > Executar somente após 2–3 meses em produção e com >8 súmulas ativas.
 
-- [ ] Criar coleção `tcu_sumulas` no Firestore + migrar súmulas do YAML
-- [ ] Cloud Function: snapshot diário → GCS `tcu_sumulas_snapshots/`
-- [ ] Backend: leitura Firestore em runtime + hash calculado dinâmico
-- [ ] UI `/admin/sumulas`: CRUD + assistente IA embutido + histórico de edições
-- [ ] `analises_juridicas.knowledge_version` passa a ser hash Firestore
+- [ ] UI `/admin/sumulas`: CRUD em Postgres + assistente IA embutido + histórico via `tcu_sumulas_historico`
+- [ ] Backend: leitura `tcu_sumulas WHERE ativo = true` em runtime + hash SHA-256 calculado dinâmico
+- [ ] `analises_juridicas.knowledge_version` passa a ser hash calculado dos registros Postgres
+- [ ] (Opcional) Export snapshot diário → GCS como backup cold
 
 ### Fase 9 — Admin / Observabilidade
 
-- [ ] `/admin`: latência por agente, taxa APTO, score médio, editais/semana, cards por fase
-- [ ] Pipeline visual por card
+- [ ] `/admin`: latência por agente, taxa APTO, score médio, editais/semana, editais por stage
+- [ ] Pipeline visual por edital
 - [ ] Logs Cloud Logging → SSE
 
-### Fase 10 — V2
+### Fase 10 — Integrações e V2
 
-- [ ] Notificações Google Chat (card próximo do vencimento)
+- [ ] **Integração SaaS de contratos:** handoff automático quando `estado_terminal = ganho` — POST webhook para SaaS com dados do edital + análise comercial + kit de habilitação
+- [ ] Notificações Google Chat (edital próximo do vencimento)
 - [ ] Alerta proativo por novo edital no PNCP
 - [ ] Agente 5: geração de minuta de proposta técnica
 
@@ -593,21 +787,27 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 | Auth | Google OAuth `@xertica.com` | NextAuth + SA token service-to-service |
 | Drive fonte da verdade | Read-only no MVP | Zero fricção com jurídico |
 | Knowledge jurídico | In-context (lei + YAML curado) | 150 KB cabe em 1 M tokens do Pro, zero RAG |
-| Kanban | Custom no app, substitui Trello | Controle total + integração com IA |
+| Estado operacional | **Cloud SQL Postgres 16** | ACID, writes frequentes, baixa latência; BQ via Datastream |
+| Analytics | **BigQuery** somente | Warehouse imutável; `analises_editais`, `analises_juridicas`, `documentos_protocolo`, `eventos_pipeline` |
+| Firestore | **Eliminado** | Cloud SQL cobre tudo; menos serviços, menos custo |
+| Datastream CDC | Cloud SQL → BQ | Sincronização automática, sem ETL manual |
+| Controle de editais | **8 stages + 5 estados terminais** | Pipeline licitatório real (não kanban genérico) |
+| Fronteira x-lici | termina em `homologado` | Pós-homologação (empenho, entrega, contrato) → SaaS de contratos (Fase 10) |
+| `documentos_protocolo` | Tabela BQ separada | Extrai de `relatorio_json`; habilita analytics sobre impugnações |
+| `knowledge_version` | SHA-256 dos registros `tcu_sumulas` | Rastreabilidade por análise; não depende de hash de arquivo |
 | Backend único | Sim | Um só FastAPI, zero duplicação |
 | Somador de atestados | Novo, crítico | Diferencial vs ferramentas genéricas |
 | Analista Licitatório | Separado do Comercial | Dois papéis, dois prompts, mesmo Extrator |
 | Sem `--allow-unauthenticated` | Frontend SSR injeta token | Segurança via IAM |
-| BQ para estado kanban | Aceitável no MVP (<50 mov/dia) | Trigger documentado em §7 |
-| `tcu_sumulas.yaml` — MVP | Caminho B (YAML + git + IA) | 8 súmulas não justificam UI CRUD; isolamento de regressão |
-| `tcu_sumulas.yaml` — V2 | Caminho C (Firestore + UI) | Fase 8.5 — após estabilização |
+| `tcu_sumulas` — MVP | Caminho B (YAML + git + IA) → migrar para Postgres na Fase 6 | 8 súmulas não justificam UI CRUD antes da estabilização |
+| `tcu_sumulas` — V2 | Caminho C (UI CRUD em Postgres) | Fase 8.5 — após estabilização; sem Firestore |
 | Identidade visual | Brand kit Xertica v.2 | Produto com cara de produto |
 | Impugnação vs Esclarecimento | Documentos distintos via campo `tipo` com prazos diferenciados | Art. 164 *caput* (impugnação −3 dias úteis) ≠ art. 164 §1º (esclarecimento −5 dias úteis); efeitos jurídicos diferentes |
 | Prazos calculados automaticamente | Sim, a partir de `data_encerramento` no Bloco 1 | Evita erro humano de contar prazo errado |
 | Kit de habilitação | Bloco 6 do Analista Licitatório | Jurídico recebe lista nominal de atestados + certidões faltantes em vez de montar manualmente |
 | Atestados referenciados por nome + file_id | Sim — somatório retorna `drive_file_name` e `drive_file_id` por atestado | Jurídico sabe exatamente qual PDF incluir no envelope |
 | Declarações padrão | Geradas automaticamente via templates + `xertica_profile.yaml` | Elimina retrabalho repetido em todo certame; jurídico só revisa e assina |
-| Formato de documentos no MVP | `text/plain` no card (botão Copiar) | Zero dependência de Docs API no MVP; migra para Google Docs API na Fase 8 |
+| Formato de documentos no MVP | `text/plain` no edital (botão Copiar) | Zero dependência de Docs API no MVP; migra para Google Docs API na Fase 8 |
 
 ---
 
@@ -616,9 +816,11 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 ### Ações GCP
 
 1. Habilitar **Drive API** no projeto (`gcloud services enable drive.googleapis.com`)
-2. **Domain-Wide Delegation** para a SA no Workspace Admin
-3. Criar pasta `Xertica Licitações/` no Drive e compartilhar com a SA
-4. (Fase 7) OAuth 2.0 client para NextAuth — JS origins + redirect URIs
+2. Habilitar **Datastream API** (`gcloud services enable datastream.googleapis.com`)
+3. **Domain-Wide Delegation** para a SA no Workspace Admin
+4. Criar pasta `Xertica Licitações/` no Drive e compartilhar com a SA
+5. (Fase 3) Provisionar Cloud SQL Postgres 16 + VPC connector + SA com `cloudsql.client`
+6. (Fase 7) OAuth 2.0 client para NextAuth — JS origins + redirect URIs
 
 ### Conteúdo jurídico
 
@@ -645,7 +847,8 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 | Analista Licitatório alucina artigo da lei | Alto | Lei 14.133 in-context como grounding. Log de artigos citados por análise. |
 | LGPD — jurídico terceirizado acessa dados Xertica | Médio | NDA formalizado. Allowlist. Audit log de acesso. |
 | Caminho C sem NDA formalizado | Médio | Responsabilidade ambígua → só migrar para C depois de NDA + produto estável |
-| BQ com carga acima do MVP | Baixo no MVP | Trigger em §7: >500 mov/dia → migrar estado para Firestore |
+| Cloud SQL connection pool saturado | Médio | Cloud Run max-instances + pgBouncer; upgrade para `db-custom-1-3840` se necessário |
+| Cloud SQL indisponível (manutenção GCP) | Baixo | Habilitar HA (regional replica) antes de ir para produção real |
 | Pasta Drive cresce e inviabiliza sync | Baixo no MVP | Sync incremental por timestamp. Fallback: GCS espelhado. |
 
 ---
@@ -674,8 +877,10 @@ TTL: invalidar quando Drive detectar arquivo novo na subpasta `Atestados/`.
 | 2026-04-18 | x-biding v0.1 rascunhado como produto paralelo. Revisão identificou `--allow-unauthenticated` inaceitável, acoplamento de backend frágil, timing prematuro. |
 | 2026-04-18 | Usuário confirmou: operador real é o jurídico; produto substitui Trello; Drive é fonte de verdade. |
 | 2026-04-18 | Consolidação: lici-adk + x-biding → **x-lici** (produto único). Brand Kit v.2 (navy `#14263D`, 4 paletas, Poppins/Roboto). Drive read-only no MVP. Somador de atestados como feature crítica. |
-| 2026-04-18 | Estratégia de curadoria de súmulas formalizada: Caminho B (YAML + IA) no MVP → Caminho C (Firestore + UI) na Fase 8.5. BQ para kanban: aceitável no MVP com trigger de migração documentado. |
+| 2026-04-18 | Estratégia de curadoria de súmulas formalizada: Caminho B (YAML + IA) no MVP → Caminho C (UI CRUD em Postgres) na Fase 8.5. |
 | 2026-04-18 | Analista Licitatório expandido para 6 blocos: Bloco 4 renomeado para `DocumentosProtocolo` com distinção ESCLARECIMENTO/IMPUGNACAO e prazos calculados. Bloco 6 `KitHabilitacao` adicionado com referências nominais do Drive. Novo §6.7 Gerador de Declarações padrão (Grupo A + B). Somador expandido com `drive_file_name`, `drive_file_id` e `kit_minimo_recomendado`. |
+| 2026-04-18 | **v2.3 — Decisão: Cloud SQL Postgres 16 substitui BQ/Firestore para estado operacional.** Datastream CDC replica Cloud SQL → BQ automaticamente. Firestore eliminado. `tcu_sumulas` migra para tabela Postgres com trigger append-only `tcu_sumulas_historico`. BQ fica apenas para: `analises_editais`, `analises_juridicas`, `documentos_protocolo`, `eventos_pipeline`. |
+| 2026-04-18 | **v2.3 — Reframe: "Kanban" → "Sistema de Controle de Editais"** com 8 stages (`identificacao → analise → pre_disputa → proposta → disputa → habilitacao → recursos → homologado`) + 5 estados terminais (`ganho \| perdido \| inabilitado \| revogado \| nao_participamos`). Fronteira x-lici: termina em `homologado`. Pós-homologação vai para SaaS de contratos (Fase 10, integração a definir). Fase 6 renomeada. |
 
 ---
 
@@ -703,6 +908,6 @@ A Fase 5 (Analista Licitatório) só começa quando `tcu_sumulas.yaml` estiver p
 
 ---
 
-*Versão: v2.2 · 2026-04-18*
+*Versão: v2.3 · 2026-04-18*
 *Canônico a partir desta data — substitui x-biding v0.1 completamente.*
 *Conflita com `architecture.md` apenas no nome: lici-adk é o motor; x-lici é o produto.*
