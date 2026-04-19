@@ -12,6 +12,7 @@ enquanto para garantir consistência do dict.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -73,6 +74,8 @@ class JobState(BaseModel):
     relatorio_juridico: RelatorioLicitatorio | None = None
     job_juridico_status: Literal["not_started", "running", "done", "failed"] = "not_started"
     error_juridico: str | None = None
+    # Fase 6 — edital_id do Postgres criado após pipeline
+    pg_edital_id: str | None = None
 
 
 # In-memory store (MVP — single instance).
@@ -103,7 +106,7 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             edital = pipeline_result.edital
             score = pipeline_result.parecer.score_aderencia if pipeline_result.parecer else None
             data: dict = {
-                "analysis_id": analysis_id,
+                "analysis_id_comercial": analysis_id,
                 "fase_atual": "identificacao",
                 "criado_por": "pipeline",
             }
@@ -126,8 +129,13 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
                 data["score_comercial"] = score
             if filename:
                 data["edital_filename"] = filename
+            # Persiste result completo para sobreviver a restarts
+            if pipeline_result.parecer:
+                data["result_json"] = json.dumps(pipeline_result.parecer.model_dump(), ensure_ascii=False, default=str)
             row = create_edital(data)
             eid = str(row["edital_id"])
+            # Guarda edital_id no job para que o polling possa redirecionar
+            _touch(job, pg_edital_id=eid)
             seed_gates(eid, "identificacao")
             log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": eid}})
         except Exception as pg_exc:  # noqa: BLE001
@@ -283,6 +291,16 @@ def _run_juridico(analysis_id: str, bid_config: BidConfig | None = None) -> None
             trace_id=analysis_id,
         )
         _touch(job, relatorio_juridico=relatorio, job_juridico_status="done")
+        # Persiste no Postgres para sobreviver a restarts
+        if job.pg_edital_id:
+            try:
+                from backend.tools.pg_tools import update_edital as _update_edital
+                _update_edital(job.pg_edital_id, {
+                    "relatorio_juridico_json": json.dumps(relatorio.model_dump(), ensure_ascii=False, default=str),
+                    "analysis_id_juridica": analysis_id,
+                })
+            except Exception as pg_exc:  # noqa: BLE001
+                log.warning("juridico.pg_persist_failed", extra={"error": str(pg_exc)})
         log.info(
             "juridico.done",
             extra={
@@ -541,19 +559,31 @@ async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
     row = await asyncio.to_thread(get_edital, edital_id_or_analysis_id)
     if row:
         eid = str(row["edital_id"])
-        commentarios = await asyncio.to_thread(list_comentarios, eid)
+        comentarios = await asyncio.to_thread(list_comentarios, eid)
         gates = await asyncio.to_thread(list_gates, eid)
         movs = await asyncio.to_thread(list_movimentacoes, eid)
+        serialized = _serialize_edital(row)
+        # Desserializa result_json e relatorio_juridico_json armazenados como JSONB
+        if serialized.get("result_json"):
+            v = serialized["result_json"]
+            serialized["result"] = json.loads(v) if isinstance(v, str) else v
+            del serialized["result_json"]
+        if serialized.get("relatorio_juridico_json"):
+            v = serialized["relatorio_juridico_json"]
+            serialized["relatorio_juridico"] = json.loads(v) if isinstance(v, str) else v
+            del serialized["relatorio_juridico_json"]
         return {
-            **_serialize_edital(row),
-            "comentarios": [_serialize_edital(c) for c in commentarios],
+            **serialized,
+            "comentarios": [_serialize_edital(c) for c in comentarios],
             "gates": [_serialize_edital(g) for g in gates],
             "movimentacoes": [_serialize_edital(m) for m in movs],
         }
-    # Fallback: job em memória (retrocompat)
+    # Fallback: job em memória (retrocompat — analysis_id efêmero)
     job = _JOBS.get(edital_id_or_analysis_id)
     if job:
-        return job.model_dump()
+        data = job.model_dump()
+        # Inclui pg_edital_id no response para o frontend redirecionar
+        return data
     raise HTTPException(status_code=404, detail="edital não encontrado")
 
 

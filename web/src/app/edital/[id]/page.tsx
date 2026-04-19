@@ -765,6 +765,41 @@ export default function EditalPage() {
       )}
 
       {/* ── Análise Jurídica ─────────────────────────────── */}
+      {/* Trigger button when not started yet */}
+      {!juridico && edital.status !== 'running' && edital.status !== 'queued' && (
+        <div className="card flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-white/80 text-sm">Análise Jurídica</p>
+            <p className="text-xs text-white/40 mt-0.5">
+              {edital.job_juridico_status === 'running'
+                ? 'Analisando edital com base na Lei 14.133/2021 e súmulas TCU…'
+                : edital.job_juridico_status === 'failed'
+                ? `Falha na análise jurídica`
+                : 'Não iniciada — dispare para gerar relatório jurídico, kit de habilitação e minutas de impugnação/esclarecimento.'}
+            </p>
+          </div>
+          {edital.job_juridico_status === 'running' ? (
+            <div className="flex items-center gap-2 text-primary-light text-sm shrink-0">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Analisando…
+            </div>
+          ) : edital.job_juridico_status !== 'running' && (
+            <button
+              onClick={async () => {
+                await fetch(`/api/proxy/editais/${edital.edital_id ?? edital.analysis_id}/analise_juridica`, { method: 'POST' });
+                load();
+              }}
+              className="btn btn-primary shrink-0"
+            >
+              Disparar análise jurídica
+            </button>
+          )}
+        </div>
+      )}
+
       {juridico && (
         <div className="space-y-4">
           <h2 className="font-poppins font-bold text-lg text-white">
@@ -875,43 +910,56 @@ export default function EditalPage() {
         </div>
       )}
 
-      {/* ── Comentários ─────────────────────────────────── */}
+      {/* ── Comentários (seção fixa, sempre visível) ────── */}
       {edital.edital_id && (
-        <Accordion title="Comentários" count={edital.comentarios?.length ?? 0}>
-          <div className="space-y-4 pt-2">
+        <div className="card space-y-4">
+          <h2 className="font-poppins font-bold text-base text-white flex items-center gap-2">
+            Comentários
+            {(edital.comentarios?.length ?? 0) > 0 && (
+              <span className="text-xs font-normal text-white/35 bg-white/10 rounded-full px-2 py-0.5">
+                {edital.comentarios!.length}
+              </span>
+            )}
+          </h2>
+          <div className="space-y-4">
             {edital.comentarios?.map(c => (
-              <div key={c.comentario_id} className="timeline-line">
-                <span className="timeline-dot mt-1" />
+              <div key={c.comentario_id} className="flex gap-3">
+                <div className="mt-1 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <span className="text-primary-light text-xs font-bold">
+                    {(c.autor_email?.split('@')[0]?.[0] ?? '?').toUpperCase()}
+                  </span>
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 text-xs text-white/35 mb-1">
-                    <span className="text-white/55 font-medium">{c.autor_email}</span>
+                    <span className="text-white/60 font-medium">{c.autor_email}</span>
                     <span>{new Date(c.criado_em).toLocaleString('pt-BR')}</span>
                   </div>
-                  <p className="text-sm text-white/75 whitespace-pre-wrap">{c.texto}</p>
+                  <p className="text-sm text-white/80 whitespace-pre-wrap">{c.texto}</p>
                 </div>
               </div>
             ))}
             {(edital.comentarios?.length ?? 0) === 0 && (
-              <p className="text-sm text-white/30 py-2">Nenhum comentário ainda.</p>
+              <p className="text-sm text-white/25 py-1">Nenhum comentário ainda.</p>
             )}
-            <div className="flex gap-3 mt-4 pt-3 border-t border-white/8">
-              <textarea
-                rows={2}
-                className="input flex-1 resize-none"
-                placeholder="Adicionar comentário…"
-                value={comentario}
-                onChange={e => setComentario(e.target.value)}
-              />
-              <button
-                onClick={postComentario}
-                disabled={!comentario.trim() || postingComment}
-                className="btn btn-primary self-end disabled:opacity-40"
-              >
-                {postingComment ? '…' : 'Enviar'}
-              </button>
-            </div>
           </div>
-        </Accordion>
+          <div className="flex gap-3 pt-3 border-t border-white/10">
+            <textarea
+              rows={2}
+              className="input flex-1 resize-none"
+              placeholder="Adicionar comentário…"
+              value={comentario}
+              onChange={e => setComentario(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) postComentario(); }}
+            />
+            <button
+              onClick={postComentario}
+              disabled={!comentario.trim() || postingComment}
+              className="btn btn-primary self-end disabled:opacity-40"
+            >
+              {postingComment ? '…' : 'Enviar'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Movimentações ───────────────────────────────── */}

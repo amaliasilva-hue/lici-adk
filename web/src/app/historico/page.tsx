@@ -2,7 +2,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 
-type Row = {
+const UF_LIST = ['','AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
+  'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+const STATUS_OPTIONS = ['', 'APTO', 'APTO COM RESSALVAS', 'INAPTO', 'NO-GO'];
+
+const STAGE_LABELS: Record<string, string> = {
+  identificacao: 'Identificação', analise: 'Análise', pre_disputa: 'Pré-disputa',
+  proposta: 'Proposta', disputa: 'Disputa', habilitacao: 'Habilitação',
+  recursos: 'Recursos', homologado: 'Homologado',
+};
+
+type Edital = {
   edital_id: string;
   orgao: string;
   uf: string;
@@ -10,140 +21,199 @@ type Row = {
   fase_atual: string;
   estado_terminal?: string;
   score_comercial?: number;
-  vendedor_email?: string;
-  numero_pregao?: string;
+  result_status?: string;
   criado_em?: string;
+  data_encerramento?: string;
+  vendedor_email?: string;
+  portal?: string;
+  numero_pregao?: string;
 };
 
-const STAGES: Record<string, string> = {
-  identificacao: 'Identificação', analise: 'Análise', pre_disputa: 'Pré-disputa',
-  proposta: 'Proposta', disputa: 'Disputa', habilitacao: 'Habilitação',
-  recursos: 'Recursos', homologado: 'Homologado',
-};
-
-const FASE_OPTS = ['', ...Object.keys(STAGES)];
-const UF_OPTS   = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function ScoreBadge({ score }: { score?: number }) {
+  if (score == null) return <span className="text-white/25">—</span>;
+  const cls = score >= 70 ? 'badge-green' : score >= 45 ? 'badge-blue' : 'badge-red';
+  return <span className={`badge ${cls}`}>{score}%</span>;
+}
 
 export default function HistoricoPage() {
-  const [rows, setRows]         = useState<Row[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [fase, setFase]         = useState('');
-  const [uf, setUf]             = useState('');
-  const [vendedor, setVendedor] = useState('');
-  const [limit, setLimit]       = useState(50);
+  const [editais, setEditais] = useState<Edital[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [orgaoFilter, setOrgaoFilter]     = useState('');
+  const [ufFilter, setUfFilter]           = useState('');
+  const [statusFilter, setStatusFilter]   = useState('');
+  const [scoreMin, setScoreMin]           = useState('');
+  const [vendedorFilter, setVendedorFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: String(limit) });
-      if (fase)    params.set('fase', fase);
-      if (uf)      params.set('uf', uf);
-      if (vendedor) params.set('vendedor_email', vendedor);
+      const params = new URLSearchParams({ limit: '200' });
+      if (ufFilter) params.set('uf', ufFilter);
+      if (vendedorFilter) params.set('vendedor_email', vendedorFilter);
       const r = await fetch(`/api/proxy/editais?${params}`);
-      if (r.ok) setRows(await r.json());
+      if (r.ok) setEditais(await r.json());
     } finally {
       setLoading(false);
     }
-  }, [fase, uf, vendedor, limit]);
+  }, [ufFilter, vendedorFilter]);
 
   useEffect(() => { load(); }, [load]);
 
+  // Client-side filters
+  const filtered = editais.filter(e => {
+    if (orgaoFilter && !e.orgao?.toLowerCase().includes(orgaoFilter.toLowerCase())) return false;
+    if (statusFilter) {
+      // status is stored in result_status field (or via score heuristic)
+      const s = e.result_status ?? '';
+      if (!s.toLowerCase().includes(statusFilter.toLowerCase())) return false;
+    }
+    if (scoreMin && (e.score_comercial ?? 0) < Number(scoreMin)) return false;
+    return true;
+  });
+
+  // Sort by criado_em desc
+  const sorted = [...filtered].sort((a, b) => {
+    const da = a.criado_em ? new Date(a.criado_em).getTime() : 0;
+    const db = b.criado_em ? new Date(b.criado_em).getTime() : 0;
+    return db - da;
+  });
+
   return (
     <div className="space-y-6">
-      <h1 className="font-poppins font-bold text-2xl text-white">Histórico de editais</h1>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-poppins font-bold text-2xl text-white">Histórico de Editais</h1>
+          <p className="text-sm text-white/40 mt-0.5">
+            {loading ? 'Carregando…' : `${sorted.length} registros`}
+          </p>
+        </div>
+        <Link href="/upload" className="btn btn-primary shrink-0">+ Novo edital</Link>
+      </div>
 
       {/* Filters */}
-      <div className="card flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">Fase</label>
-          <select value={fase} onChange={(e) => setFase(e.target.value)} className="input w-40">
-            {FASE_OPTS.map((f) => (
-              <option key={f} value={f}>{f ? STAGES[f] : '— todas —'}</option>
-            ))}
-          </select>
+      <div className="card">
+        <p className="text-xs text-white/40 uppercase tracking-wider font-semibold mb-3">Filtros</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div>
+            <label className="text-xs text-white/35 mb-1 block">Órgão</label>
+            <input
+              type="text"
+              value={orgaoFilter}
+              onChange={e => setOrgaoFilter(e.target.value)}
+              placeholder="Ex: PRODESP"
+              className="input w-full"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-white/35 mb-1 block">UF</label>
+            <select value={ufFilter} onChange={e => setUfFilter(e.target.value)} className="input w-full">
+              {UF_LIST.map(u => <option key={u} value={u}>{u || '— todas —'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-white/35 mb-1 block">Status</label>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input w-full">
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || '— todos —'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-white/35 mb-1 block">Score mín.</label>
+            <input
+              type="number"
+              min={0} max={100}
+              value={scoreMin}
+              onChange={e => setScoreMin(e.target.value)}
+              placeholder="0"
+              className="input w-full"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-white/35 mb-1 block">Vendedor</label>
+            <input
+              type="text"
+              value={vendedorFilter}
+              onChange={e => setVendedorFilter(e.target.value)}
+              placeholder="email@xertica.com"
+              className="input w-full"
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">UF</label>
-          <select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-28">
-            {UF_OPTS.map((u) => <option key={u} value={u}>{u || '— UF —'}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">Vendedor</label>
-          <input
-            type="email"
-            placeholder="email@xertica.com"
-            value={vendedor}
-            onChange={(e) => setVendedor(e.target.value)}
-            className="input w-52"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-white/40 mb-1 block">Limite</label>
-          <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="input w-24">
-            {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <button onClick={load} className="btn btn-primary">Filtrar</button>
       </div>
 
       {/* Table */}
-      {loading ? (
-        <div className="text-white/40 text-sm py-8 text-center">Carregando…</div>
-      ) : rows.length === 0 ? (
-        <div className="text-white/30 text-sm py-8 text-center">Nenhum edital encontrado.</div>
-      ) : (
-        <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-white/70">
-              <thead>
-                <tr className="text-left text-xs text-white/40 border-b border-white/10">
-                  <th className="px-4 py-3">Órgão</th>
-                  <th className="px-4 py-3">UF</th>
-                  <th className="px-4 py-3">Objeto</th>
-                  <th className="px-4 py-3">Fase</th>
-                  <th className="px-4 py-3">Score</th>
-                  <th className="px-4 py-3">Criado em</th>
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-white/35 border-b border-white/10">
+                <th className="py-3 px-4 font-normal">Órgão</th>
+                <th className="py-3 px-3 font-normal">UF</th>
+                <th className="py-3 px-3 font-normal hidden md:table-cell">Objeto</th>
+                <th className="py-3 px-3 font-normal">Stage</th>
+                <th className="py-3 px-3 font-normal hidden sm:table-cell">Estado</th>
+                <th className="py-3 px-3 font-normal">Score</th>
+                <th className="py-3 px-3 font-normal hidden lg:table-cell">Data</th>
+                <th className="py-3 px-4 font-normal"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-white/30 text-sm">Carregando…</td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.edital_id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link href={`/edital/${row.edital_id}`} className="hover:text-white">
-                        {row.orgao || '—'}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">{row.uf}</td>
-                    <td className="px-4 py-3 max-w-xs truncate">{row.objeto || '—'}</td>
-                    <td className="px-4 py-3">
-                      {row.estado_terminal ? (
-                        <span className={`badge ${row.estado_terminal === 'ganho' ? 'badge-green' : 'badge-red'}`}>
-                          {row.estado_terminal}
-                        </span>
-                      ) : (
-                        <span className="badge badge-blue">
-                          {STAGES[row.fase_atual] ?? row.fase_atual}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.score_comercial != null ? (
-                        <span className={`badge ${row.score_comercial >= 70 ? 'badge-green' : row.score_comercial >= 45 ? 'badge-blue' : 'badge-red'}`}>
-                          {row.score_comercial}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-white/40 text-xs">
-                      {row.criado_em ? new Date(row.criado_em).toLocaleDateString('pt-BR') : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              )}
+              {!loading && sorted.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-10 text-center text-white/20 text-sm">Nenhum edital encontrado com esses filtros.</td>
+                </tr>
+              )}
+              {sorted.map(e => (
+                <tr key={e.edital_id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td className="py-3 px-4">
+                    <Link href={`/edital/${e.edital_id}`} className="text-white/80 hover:text-white transition-colors font-medium truncate block max-w-[160px]">
+                      {e.orgao || '—'}
+                    </Link>
+                    {e.numero_pregao && <p className="text-[11px] text-white/30">{e.numero_pregao}</p>}
+                  </td>
+                  <td className="py-3 px-3 text-white/50">{e.uf}</td>
+                  <td className="py-3 px-3 hidden md:table-cell">
+                    <p className="text-white/55 text-xs max-w-xs truncate">{e.objeto || '—'}</p>
+                    {e.portal && <p className="text-[11px] text-white/25">{e.portal}</p>}
+                  </td>
+                  <td className="py-3 px-3">
+                    <span className="badge badge-gray text-[10px]">
+                      {STAGE_LABELS[e.fase_atual] ?? e.fase_atual}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3 hidden sm:table-cell">
+                    {e.estado_terminal ? (
+                      <span className={`badge ${e.estado_terminal === 'ganho' ? 'badge-green' : 'badge-red'}`}>
+                        {e.estado_terminal}
+                      </span>
+                    ) : (
+                      <span className="text-white/20 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3">
+                    <ScoreBadge score={e.score_comercial} />
+                  </td>
+                  <td className="py-3 px-3 hidden lg:table-cell text-white/30 text-xs">
+                    {e.criado_em ? new Date(e.criado_em).toLocaleDateString('pt-BR') : '—'}
+                  </td>
+                  <td className="py-3 px-4">
+                    <Link href={`/edital/${e.edital_id}`} className="btn btn-ghost btn-sm">
+                      Ver →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
