@@ -24,7 +24,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncGenerator
-from typing import override
+from typing import NamedTuple, override
 
 from google.adk.agents import BaseAgent, SequentialAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -36,13 +36,21 @@ from backend.agents.analista_comercial import analisar
 from backend.agents.extrator import extrair_edital
 from backend.agents.persistor import persistir
 from backend.agents.qualificador import qualificar
-from backend.models.schemas import EditalEstruturado, ParecerComercial, QualificadorResult
+from backend.models.schemas import BidConfig, EditalEstruturado, ParecerComercial, QualificadorResult
 from backend.tools.drive_tools import somar_atestados_do_drive
 from backend.tools.pg_tools import get_cache, set_cache
 
 log = logging.getLogger("lici_adk.orchestrator_adk")
 
 _APP_NAME = "lici_adk_pipeline"
+
+
+class PipelineResult(NamedTuple):
+    """Output completo do pipeline comercial — inclui edital e somatório para uso em Fase 5."""
+
+    parecer: ParecerComercial
+    edital: EditalEstruturado | None
+    somatorio_drive: dict | None
 
 
 # ── Sub-agentes ──────────────────────────────────────────────────────────────
@@ -227,8 +235,8 @@ async def analisar_edital_async(
     *,
     trace_id: str | None = None,
     edital_filename: str | None = None,
-) -> ParecerComercial:
-    """Pipeline ponta-a-ponta via ADK. Retorna ParecerComercial."""
+) -> PipelineResult:
+    """Pipeline ponta-a-ponta via ADK. Retorna PipelineResult (parecer + edital + somatório)."""
     trace_id = trace_id or str(uuid.uuid4())
     user_id = f"pipeline_{trace_id}"
     t0 = time.time()
@@ -264,6 +272,13 @@ async def analisar_edital_async(
         raise RuntimeError(f"Pipeline ADK não produziu parecer. trace_id={trace_id}")
 
     parecer = ParecerComercial.model_validate(final.state["parecer_json"])
+
+    edital_raw = final.state.get("edital_json")
+    edital_obj: EditalEstruturado | None = (
+        EditalEstruturado.model_validate(edital_raw) if edital_raw else None
+    )
+    somatorio_raw: dict | None = final.state.get("somatorio_drive_json")
+
     log.info(
         "adk.orchestrator.done",
         extra={
@@ -275,7 +290,7 @@ async def analisar_edital_async(
             }
         },
     )
-    return parecer
+    return PipelineResult(parecer=parecer, edital=edital_obj, somatorio_drive=somatorio_raw)
 
 
 def analisar_edital(
@@ -283,7 +298,7 @@ def analisar_edital(
     *,
     trace_id: str | None = None,
     edital_filename: str | None = None,
-) -> ParecerComercial:
+) -> PipelineResult:
     """Wrapper síncrono de `analisar_edital_async` — mantém compatibilidade com main.py."""
     return asyncio.run(
         analisar_edital_async(pdf_bytes, trace_id=trace_id, edital_filename=edital_filename)

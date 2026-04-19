@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from backend.agents.orchestrator_adk import analisar_edital
 from backend.agents.persistor import DEST_DATASET, DEST_PROJECT, DEST_TABLE
 from backend.logging_config import configure_logging
-from backend.models.schemas import ParecerComercial
+from backend.models.schemas import BidConfig, EditalEstruturado, ParecerComercial, RelatorioLicitatorio
 from backend.tools.pg_tools import ensure_schema, invalidate_cache, invalidate_all_cache
 from google.cloud import bigquery
 
@@ -60,6 +60,12 @@ class JobState(BaseModel):
     result: ParecerComercial | None = None
     error: str | None = None
     edital_filename: str | None = None
+    # Fase 5 — dados extras do pipeline + análise jurídica
+    edital_json: dict | None = None
+    somatorio_drive_json: dict | None = None
+    relatorio_juridico: RelatorioLicitatorio | None = None
+    job_juridico_status: Literal["not_started", "running", "done", "failed"] = "not_started"
+    error_juridico: str | None = None
 
 
 # In-memory store (MVP — single instance).
@@ -76,8 +82,15 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
     job = _JOBS[analysis_id]
     try:
         _touch(job, status="running", current_agent="extrator")
-        parecer = analisar_edital(pdf_bytes, trace_id=analysis_id, edital_filename=filename)
-        _touch(job, status="done", current_agent=None, result=parecer)
+        pipeline_result = analisar_edital(pdf_bytes, trace_id=analysis_id, edital_filename=filename)
+        _touch(
+            job,
+            status="done",
+            current_agent=None,
+            result=pipeline_result.parecer,
+            edital_json=pipeline_result.edital.model_dump() if pipeline_result.edital else None,
+            somatorio_drive_json=pipeline_result.somatorio_drive,
+        )
     except Exception as exc:  # noqa: BLE001
         log.exception("pipeline.failed", extra={"lici_adk": {"trace_id": analysis_id}})
         _touch(job, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
@@ -208,6 +221,176 @@ def historical_analysis(analysis_id: str) -> dict:
     if not rows:
         raise HTTPException(status_code=404, detail="análise não encontrada")
     return dict(rows[0])
+
+
+# ──────────────────────── Fase 5 — Análise Jurídica ─────────────────────────
+
+
+def _run_juridico(analysis_id: str, bid_config: BidConfig | None = None) -> None:
+    """Background task: executa o Analista Licitatório a partir do edital_json já armazenado."""
+    from backend.agents.analista_licitatorio import analisar_juridico
+
+    job = _JOBS.get(analysis_id)
+    if not job:
+        return
+    try:
+        edital = EditalEstruturado.model_validate(job.edital_json)
+        relatorio = analisar_juridico(
+            edital,
+            bid_config=bid_config,
+            somatorio_drive=job.somatorio_drive_json,
+            trace_id=analysis_id,
+        )
+        _touch(job, relatorio_juridico=relatorio, job_juridico_status="done")
+        log.info(
+            "juridico.done",
+            extra={
+                "lici_adk": {
+                    "trace_id": analysis_id,
+                    "score": relatorio.resumo_executivo.score_conformidade,
+                    "nivel_risco": relatorio.risco_juridico.nivel_risco,
+                }
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("juridico.failed", extra={"lici_adk": {"trace_id": analysis_id}})
+        _touch(job, job_juridico_status="failed", error_juridico=f"{type(exc).__name__}: {exc}")
+
+
+@app.post("/editais/{analysis_id}/analise_juridica", status_code=202)
+async def trigger_analise_juridica(
+    analysis_id: str,
+    background_tasks: BackgroundTasks,
+    bid_config: BidConfig | None = None,
+) -> dict:
+    """Dispara análise jurídica on-demand para um edital já analisado comercialmente.
+
+    Pré-requisito: POST /analyze deve ter sido concluído (status=done) para este analysis_id.
+    Polling: GET /editais/{analysis_id}/analise_juridica
+    """
+    job = _JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+    if job.status != "done":
+        raise HTTPException(status_code=409, detail="análise comercial ainda não concluída — aguarde status=done")
+    if not job.edital_json:
+        raise HTTPException(status_code=409, detail="edital_json não disponível (pipeline mais antigo?)")
+    if job.job_juridico_status == "running":
+        return {"analysis_id": analysis_id, "status": "running", "message": "análise jurídica já em andamento"}
+
+    _touch(job, job_juridico_status="running", error_juridico=None, relatorio_juridico=None)
+    background_tasks.add_task(_run_juridico, analysis_id, bid_config)
+    return {"analysis_id": analysis_id, "status": "running"}
+
+
+@app.get("/editais/{analysis_id}/analise_juridica")
+def get_analise_juridica(analysis_id: str) -> dict:
+    """Polling da análise jurídica. Retorna RelatorioLicitatorio quando status=done."""
+    job = _JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+    if job.job_juridico_status == "not_started":
+        return {"analysis_id": analysis_id, "status": "not_started"}
+    if job.job_juridico_status == "running":
+        return {"analysis_id": analysis_id, "status": "running"}
+    if job.job_juridico_status == "failed":
+        return {"analysis_id": analysis_id, "status": "failed", "error": job.error_juridico}
+    return {
+        "analysis_id": analysis_id,
+        "status": "done",
+        "relatorio": job.relatorio_juridico.model_dump() if job.relatorio_juridico else None,
+    }
+
+
+@app.get("/editais/{analysis_id}/kit_habilitacao")
+def get_kit_habilitacao(analysis_id: str) -> dict:
+    """Retorna o Bloco 6 (KitHabilitacao) da análise jurídica quando disponível."""
+    job = _JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+    if job.job_juridico_status != "done" or not job.relatorio_juridico:
+        raise HTTPException(status_code=404, detail="análise jurídica ainda não disponível")
+    return job.relatorio_juridico.kit_habilitacao.model_dump()
+
+
+@app.get("/editais/{analysis_id}/documentos")
+def list_documentos(analysis_id: str) -> dict:
+    """Lista todos os documentos gerados: minutas (Bloco 4) + declarações padrão (Grupo B)."""
+    from backend.agents.gerador_documentos import gerar_declaracoes, listar_tipos_disponiveis
+
+    job = _JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+
+    minutas: list[dict] = []
+    if job.relatorio_juridico:
+        for doc in job.relatorio_juridico.documentos_protocolo:
+            minutas.append({
+                "tipo": doc.tipo,
+                "topico": doc.topico,
+                "numero_clausula": doc.numero_clausula,
+                "prazo_limite": doc.prazo_limite,
+            })
+
+    # Declarações disponíveis (sempre geráveis quando edital_json existe)
+    declaracoes_disponiveis = listar_tipos_disponiveis() if job.edital_json else []
+
+    return {
+        "analysis_id": analysis_id,
+        "minutas_pre_sessao": minutas,
+        "declaracoes_disponiveis": declaracoes_disponiveis,
+    }
+
+
+@app.get("/editais/{analysis_id}/documentos/{tipo}")
+def get_documento(analysis_id: str, tipo: str) -> dict:
+    """Retorna texto pronto para copiar de um documento específico.
+
+    tipo: impugnacao | esclarecimento | declaracoes | kit
+    Para declarações individuais: nao_emprega_menor | idoneidade | habilitacao |
+                                   fato_superveniente | pleno_conhecimento |
+                                   autenticidade | vinculo_tecnicos | credenciamento
+    """
+    from backend.agents.gerador_documentos import gerar_declaracoes, listar_tipos_disponiveis
+
+    job = _JOBS.get(analysis_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+
+    # Minutas pré-sessão (Bloco 4)
+    if tipo in ("impugnacao", "esclarecimento") and job.relatorio_juridico:
+        docs = [
+            d for d in job.relatorio_juridico.documentos_protocolo
+            if d.tipo == tipo.upper()
+        ]
+        if not docs:
+            raise HTTPException(status_code=404, detail=f"nenhum documento do tipo {tipo} gerado")
+        return {
+            "tipo": tipo,
+            "documentos": [d.model_dump() for d in docs],
+        }
+
+    # Kit de habilitação (Bloco 6)
+    if tipo == "kit":
+        if not job.relatorio_juridico:
+            raise HTTPException(status_code=404, detail="análise jurídica não disponível")
+        return {"tipo": "kit", "kit_habilitacao": job.relatorio_juridico.kit_habilitacao.model_dump()}
+
+    # Declarações padrão (Grupo B)
+    if tipo == "declaracoes" or tipo in listar_tipos_disponiveis():
+        if not job.edital_json:
+            raise HTTPException(status_code=409, detail="edital_json não disponível")
+        edital = EditalEstruturado.model_validate(job.edital_json)
+        condicionais = [tipo] if tipo not in ("declaracoes",) and tipo in listar_tipos_disponiveis() else None
+        declaracoes = gerar_declaracoes(edital, incluir_condicionais=condicionais)
+        if tipo != "declaracoes":
+            texto = declaracoes.get(tipo)
+            if not texto:
+                raise HTTPException(status_code=404, detail=f"tipo de declaração desconhecido: {tipo}")
+            return {"tipo": tipo, "texto": texto}
+        return {"tipo": "declaracoes", "declaracoes": declaracoes}
+
+    raise HTTPException(status_code=400, detail=f"tipo desconhecido: {tipo}. Use: impugnacao | esclarecimento | declaracoes | kit | <tipo_declaracao>")
 
 
 # ──────────────────────── Drive re-scan (Cloud Scheduler) ────────────────────

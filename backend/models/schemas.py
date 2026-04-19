@@ -223,3 +223,110 @@ class ParecerComercial(BaseModel):
 
 # Alias de retrocompatibilidade — remove na Fase 3
 ParecerFinal = ParecerComercial
+
+
+# ════════════════════════════════════════════════════════════════════════
+# ANALISTA LICITATÓRIO — Fase 5
+# ════════════════════════════════════════════════════════════════════════
+
+class PrazosCalculados(BaseModel):
+    """Prazos legais calculados a partir de data_encerramento (Python, não LLM)."""
+
+    data_limite_esclarecimento: Optional[str] = None  # −5 dias úteis, art. 164 §1º
+    data_limite_impugnacao: Optional[str] = None      # −3 dias úteis, art. 164 caput
+    nota: str = "Cálculo em dias corridos (MVP — verificar feriados antes de protocolar)."
+
+
+class FichaProcesso(BaseModel):
+    orgao: str
+    uf: Optional[str] = None
+    objeto: str
+    modalidade: Optional[str] = None
+    valor_estimado: Optional[float] = None
+    data_encerramento: Optional[str] = None
+    duracao_contrato: Optional[str] = None
+    portal: Optional[str] = None
+    resumo_executivo: str
+    prazos_calculados: PrazosCalculados = Field(default_factory=PrazosCalculados)
+
+
+class AtestadoAnalise(BaseModel):
+    permite_somatorio: bool
+    exige_parcela_maior_relevancia: bool
+    percentual_minimo: Optional[float] = None  # % do volume/valor exigido como PMR
+    restricao_temporal: bool = False            # cláusula temporal → IRREGULAR (TCU-S-003)
+    restricao_local: bool = False               # cláusula geográfica → IRREGULAR (TCU-S-004)
+    conformidade: Literal["CONFORME", "IRREGULAR", "RESTRITIVO", "INCONCLUSIVO"]
+    fundamentacao: str
+    alertas: list[str] = Field(default_factory=list)
+
+
+class RiscoJuridico(BaseModel):
+    indicadores_economicos: list[str] = Field(default_factory=list)
+    clausulas_restritivas: list[str] = Field(default_factory=list)
+    riscos: list[str] = Field(default_factory=list)
+    nivel_risco: Literal["BAIXO", "MEDIO", "ALTO", "CRITICO"]
+
+
+class DocumentoProtocolo(BaseModel):
+    tipo: Literal["ESCLARECIMENTO", "IMPUGNACAO"]
+    topico: str
+    numero_clausula: Optional[str] = None
+    clausula_questionada: str
+    prazo_limite: Optional[str] = None  # DD/MM/AAAA — calculado pelo sistema
+    destinatario: str                   # "Pregoeiro" | "Autoridade competente"
+    texto_formal: str                   # texto pronto para protocolar
+    base_legal: list[str] = Field(default_factory=list)
+
+
+class CertidaoChecklist(BaseModel):
+    nome: str
+    obrigatorio: bool = True
+    validade_dias: int
+
+
+class AtestadoRecomendado(BaseModel):
+    drive_file_id: Optional[str] = None
+    drive_file_name: Optional[str] = None
+    contratante: Optional[str] = None
+    volume_contribuido: Optional[float] = None
+    satisfaz_parcela_maior_relevancia: bool = False
+
+
+class KitHabilitacao(BaseModel):
+    atestados_recomendados: list[AtestadoRecomendado] = Field(default_factory=list)
+    declaracoes_necessarias: list[str] = Field(default_factory=list)
+    certidoes_checklist: list[CertidaoChecklist] = Field(default_factory=list)
+    gap_habilitacao: str = ""
+
+
+class ResumoExecutivo(BaseModel):
+    conformidade_geral: Literal["CONFORME", "IRREGULAR", "RESTRITIVO", "INCONCLUSIVO"]
+    score_conformidade: int = Field(ge=0, le=100)
+    pontos_criticos: list[str] = Field(default_factory=list)
+    recomendacao: Literal["participar", "impugnar antes", "aguardar retificação"]
+    proximos_passos: list[str] = Field(default_factory=list)
+
+
+class RelatorioLicitatorio(BaseModel):
+    """Relatório jurídico completo — 6 blocos (Fase 5)."""
+
+    ficha_processo: FichaProcesso
+    atestado_analise: AtestadoAnalise
+    risco_juridico: RiscoJuridico
+    documentos_protocolo: list[DocumentoProtocolo] = Field(default_factory=list)
+    resumo_executivo: ResumoExecutivo
+    kit_habilitacao: KitHabilitacao
+
+    # Metadados de rastreio
+    trace_id: Optional[str] = None
+    knowledge_version: Optional[str] = None  # SHA-256 de tcu_sumulas.yaml
+    pipeline_ms: Optional[int] = None
+
+
+class BidConfig(BaseModel):
+    """Configuração customizável por usuário para a análise jurídica (/config)."""
+
+    custom_instrucoes: Optional[str] = None
+    focar_clausulas: list[str] = Field(default_factory=list)
+    ignorar_clausulas: list[str] = Field(default_factory=list)
