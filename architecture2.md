@@ -709,12 +709,13 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 - [x] PRODESP + Celepar rodados: pipeline ADK produz `ParecerComercial` corretamente (~120s vs 347s v1)
 - [x] `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial` (alias retrocompatível)
 
-### Fase 3 — Deploy limpo em operaciones-br
+### Fase 3 — Deploy limpo em operaciones-br ✅
 
-- [ ] Build + deploy `x-lici-backend` em `operaciones-br/us-central1`
-- [ ] Provisionar **Cloud SQL Postgres 16** (`db-g1-small`, us-central1) + VPC connector
-- [ ] IAM: `roles/aiplatform.user` + BQ + `run.invoker` + `cloudsql.client` para SA backend
-- [ ] Smoke test E2E via HTTPS autenticado
+- [x] Build + deploy `lici-adk-backend` imagem `gcr.io/operaciones-br/lici-adk-backend:v2` em `operaciones-br/us-central1`
+- [x] Provisionar **Cloud SQL Postgres 16** (`db-g1-small`, us-central1) instância `x-lici-pg` — DB `xlici`, user `lici_app`, senha em SecretManager `lici-db-password`
+- [x] SA `lici-adk-backend@operaciones-br.iam.gserviceaccount.com` com 6 roles: `aiplatform.user`, `bigquery.dataEditor`, `bigquery.jobUser`, `cloudsql.client`, `secretmanager.secretAccessor`, `run.invoker`
+- [x] Cloud Run `lici-adk-backend` atualizado: Cloud SQL Auth Proxy via `--add-cloudsql-instances`, SA dedicada, 2 CPU / 2 GiB, min-instances=1
+- [x] Smoke test E2E: PRODESP → `APTO COM RESSALVAS`, score `66`, pipeline ~180s
 
 ### Fase 4 — Somador de Atestados + Drive read-only
 
@@ -891,6 +892,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 | 2026-04-18 | **v2.3 — Reframe: "Kanban" → "Sistema de Controle de Editais"** com 8 stages (`identificacao → analise → pre_disputa → proposta → disputa → habilitacao → recursos → homologado`) + 5 estados terminais (`ganho \| perdido \| inabilitado \| revogado \| nao_participamos`). Fronteira x-lici: termina em `homologado`. Pós-homologação vai para SaaS de contratos (Fase 10, integração a definir). Fase 6 renomeada. |
 | 2026-04-18 | **v2.4 — Correções:** `licitación` → `licitação`; `CardExecutivo` → `ResumoExecutivo`; `deleted_at TIMESTAMPTZ` adicionado à tabela `editais` + `DELETE` endpoint documentado; `X-User-Email` documentado como dual-token (SA ID token + JWT NextAuth — header sozinho é forjável); Cloud Scheduler job adicionado à Fase 4 com trigger de invalidação do `atestados_cache`; item fantasma "Remover tabelas cards..." removido da Fase 3 (nunca foram criadas); §11 numeração corrigida (Operacional: 7–8 → 9–10). || 2026-04-18–19 | **Fase 1 concluída (commit `a73c7b8`):** E2E Celepar rodado — APTO COM RESSALVAS, score 62, 130s, 8 evidências. Bugs corrigidos: `payload_truncado` (smart trim 3 camadas em `analista_comercial.py`) + `strict_match temporal → bloqueio_camada_1` (Camada 1 regra 7). |
 | 2026-04-19 | **Fase 2 concluída — Refactor para ADK (v2.5):** `orchestrator_adk.py` criado com `SequentialAgent(google-adk 1.31)`. 4 sub-agentes `BaseAgent`: `_ExtratorAgent`, `_QualificadorAgent`, `_AnalistaComercialAgent`, `_PersistorAgent`. Estado via `session.state` + `EventActions(state_delta)`. `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial` (alias retrocompatível). PRODESP + Celepar revalidados (~120s, funcionamento correto). |
+| 2026-04-19 | **Fase 3 concluída (v2.6):** SA `lici-adk-backend` criada com 6 IAM roles. Cloud SQL Postgres 16 `x-lici-pg` provisionado (`db-g1-small`, us-central1) com DB `xlici` + user `lici_app` + senha em Secret Manager. Imagem `v2` buildada via Cloud Build. Cloud Run atualizado com SA dedicada + Cloud SQL Auth Proxy (sem VPC connector — Public IP + Auth Proxy é suficiente para MVP). Smoke test PRODESP: APTO COM RESSALVAS, score 66, pipeline ~180s. |
 ---
 
 ## 15. Próximos passos concretos
@@ -904,7 +906,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 
 **Frente B — Dev (paralelo, não bloqueia Frente A):**
 4. ✅ Fase 2 — ADK SequentialAgent concluído (`orchestrator_adk.py`)
-5. Fase 3 — deploy limpo em `operaciones-br` + Cloud SQL provisionado
+5. ✅ Fase 3 — deploy limpo em `operaciones-br` + Cloud SQL `x-lici-pg` provisionado
 6. Fase 4 — somador de atestados + Drive API read-only
 
 A Fase 5 (Analista Licitatório) só começa quando `tcu_sumulas.yaml` estiver pronto. Frente A desbloqueia Frente B nesse ponto.
