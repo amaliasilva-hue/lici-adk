@@ -1,149 +1,258 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-type Job = {
-  analysis_id: string;
-  status: 'queued' | 'running' | 'done' | 'failed';
-  current_agent?: string | null;
-  error?: string;
-};
+const UF_LIST = [
+  'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
+  'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO',
+];
+
+type UploadStage = 'idle' | 'uploading' | 'queued' | 'running' | 'done' | 'failed';
 
 const AGENT_LABELS: Record<string, string> = {
-  extrator:     'Extratando dados…',
-  qualificador: 'Qualificando requisitos…',
-  analista:     'Analisando aderência…',
+  extrator:    'Extraindo dados do edital…',
+  qualificador:'Qualificando evidências no BigQuery…',
+  analista:    'Analisando aderência comercial…',
 };
 
 export default function UploadPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile]   = useState<File | null>(null);
-  const [busy, setBusy]   = useState(false);
-  const [job,  setJob]    = useState<Job | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [drag, setDrag]   = useState(false);
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDrag(false);
+  const [file, setFile]           = useState<File | null>(null);
+  const [dragging, setDragging]   = useState(false);
+  const [orgao, setOrgao]         = useState('');
+  const [uf, setUf]               = useState('');
+  const [vendedor, setVendedor]   = useState('');
+  const [driveFolder, setDriveFolder] = useState('');
+  const [stage, setStage]         = useState<UploadStage>('idle');
+  const [currentAgent, setCurrentAgent] = useState<string | null>(null);
+  const [analysisId, setAnalysisId]     = useState<string | null>(null);
+  const [pgEditalId, setPgEditalId]     = useState<string | null>(null);
+  const [errorMsg, setErrorMsg]         = useState<string | null>(null);
+  const [score, setScore]               = useState<number | null>(null);
+  const [resultStatus, setResultStatus] = useState<string | null>(null);
+
+  const onDragOver  = (e: React.DragEvent) => { e.preventDefault(); setDragging(true); };
+  const onDragLeave = () => setDragging(false);
+  const onDrop      = (e: React.DragEvent) => {
+    e.preventDefault(); setDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f?.type === 'application/pdf') setFile(f);
-    else setError('Somente arquivos .pdf são aceitos.');
-  }
+    if (f && f.name.toLowerCase().endsWith('.pdf')) setFile(f);
+  };
+
+  const poll = useCallback(async (id: string) => {
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const r = await fetch(`/api/proxy/editais/${id}`);
+        if (!r.ok) continue;
+        const data = await r.json();
+        if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
+        if (data.status === 'queued') continue;
+        if (data.status === 'failed') { setStage('failed'); setErrorMsg(data.error ?? 'Falha no pipeline'); return; }
+        // done — pega o edital_id do Postgres
+        const eid = data.pg_edital_id || data.edital_id || id;
+        setPgEditalId(eid);
+        setScore(data.score_comercial ?? data.result?.score_aderencia ?? null);
+        setResultStatus(data.result?.status ?? null);
+        setStage('done');
+        return;
+      } catch { continue; }
+    }
+    setStage('failed');
+    setErrorMsg('Tempo limite excedido. Verifique o pipeline.');
+  }, []);
 
   async function submit() {
     if (!file) return;
-    setError(null);
-    setJob(null);
-    setBusy(true);
-    setElapsed(0);
-    const t0 = Date.now();
-    const tick = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    setStage('uploading'); setErrorMsg(null);
+    const form = new FormData();
+    form.append('file', file);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await fetch('/api/proxy/analyze', { method: 'POST', body: fd });
-      if (!r.ok) throw new Error(`Erro ${r.status}: ${await r.text()}`);
-      const created: Job = await r.json();
-      setJob(created);
-
-      // polling
-      while (true) {
-        await new Promise((res) => setTimeout(res, 3000));
-        const pr = await fetch(`/api/proxy/analyze/${created.analysis_id}`);
-        if (!pr.ok) throw new Error(`Polling error ${pr.status}`);
-        const j: Job = await pr.json();
-        setJob(j);
-        if (j.status === 'done' || j.status === 'failed') break;
-      }
-    } catch (e: any) {
-      setError(e.message ?? String(e));
-    } finally {
-      clearInterval(tick);
-      setBusy(false);
-    }
+      const r = await fetch('/api/proxy/analyze', { method: 'POST', body: form });
+      if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.detail ?? `HTTP ${r.status}`); }
+      const data = await r.json();
+      setAnalysisId(data.analysis_id);
+      setStage('running');
+      await poll(data.analysis_id);
+    } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
   }
 
-  // Redirect to edital detail when done
-  if (job?.status === 'done') {
-    router.push(`/edital/${job.analysis_id}`);
-    return null;
+  function scoreColor(s: number | null) {
+    if (s == null) return 'text-white/40';
+    if (s >= 70) return 'text-green-accent';
+    if (s >= 45) return 'text-primary-light';
+    return 'text-danger';
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <h1 className="font-poppins font-bold text-2xl text-white">Novo edital</h1>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="text-sm text-white/40">
+        <Link href="/" className="hover:text-white">Pipeline</Link>
+        <span className="mx-2">/</span>
+        <span className="text-white/70">Novo edital</span>
+      </div>
+
+      <h1 className="font-poppins font-bold text-2xl text-white">Upload de Edital</h1>
 
       {/* Drop zone */}
       <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={onDrop}
-        className={`card cursor-pointer border-2 transition-all flex flex-col items-center gap-3 py-12 text-center ${
-          drag ? 'border-primary bg-primary/10' : 'border-dashed border-white/20 hover:border-primary/50'
-        }`}
+        onClick={() => stage === 'idle' && inputRef.current?.click()}
+        onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+        className={[
+          'rounded-2xl border-2 border-dashed p-10 text-center transition-all',
+          dragging ? 'border-primary-light bg-primary/10' : 'border-white/15 hover:border-white/30',
+          file ? 'border-green-accent/40 bg-green-accent/5' : '',
+          stage !== 'idle' ? 'pointer-events-none opacity-60' : 'cursor-pointer',
+        ].join(' ')}
       >
-        <svg className="w-12 h-12 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
         {file ? (
-          <div>
-            <p className="text-white font-medium">{file.name}</p>
-            <p className="text-sm text-white/40">{(file.size / 1024).toFixed(0)} KB</p>
+          <div className="space-y-1">
+            <p className="text-green-accent font-semibold text-lg">{file.name}</p>
+            <p className="text-white/40 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            {stage === 'idle' && (
+              <button onClick={e => { e.stopPropagation(); setFile(null); }} className="text-xs text-white/30 hover:text-danger mt-2">
+                remover
+              </button>
+            )}
           </div>
         ) : (
-          <div>
-            <p className="text-white/60">Arraste o PDF aqui ou clique para selecionar</p>
-            <p className="text-xs text-white/30 mt-1">Máx 30 MB · apenas .pdf</p>
+          <div className="space-y-2">
+            <svg className="w-10 h-10 text-white/20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-white/50">Arraste o PDF aqui ou <span className="text-primary-light">clique para selecionar</span></p>
+            <p className="text-white/25 text-xs">Apenas PDF · máx. 30 MB</p>
           </div>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="application/pdf"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) setFile(f);
-          }}
-        />
+        <input ref={inputRef} type="file" accept=".pdf" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="card border-danger/50 text-danger text-sm">{error}</div>
-      )}
-
-      {/* Progress */}
-      {busy && job && (
-        <div className="card space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-white/60">
-              {job.current_agent ? AGENT_LABELS[job.current_agent] ?? 'Processando…' : 'Iniciando…'}
-            </span>
-            <span className="text-white/40">{elapsed}s</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all"
-              style={{ width: `${Math.min(elapsed * 2, 90)}%` }}
-            />
+      {/* Metadados opcionais */}
+      {stage === 'idle' && (
+        <div className="card space-y-4">
+          <p className="text-xs text-white/40 uppercase tracking-wider font-semibold">Metadados opcionais</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Órgão</label>
+              <input type="text" value={orgao} onChange={e => setOrgao(e.target.value)}
+                placeholder="Ex: PRODESP" className="input w-full" />
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">UF</label>
+              <select value={uf} onChange={e => setUf(e.target.value)} className="input w-full">
+                <option value="">— selecione —</option>
+                {UF_LIST.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Vendedor (email)</label>
+              <input type="email" value={vendedor} onChange={e => setVendedor(e.target.value)}
+                placeholder="vendedor@xertica.com" className="input w-full" />
+            </div>
+            <div>
+              <label className="text-xs text-white/40 mb-1 block">Drive Folder ID (opcional)</label>
+              <input type="text" value={driveFolder} onChange={e => setDriveFolder(e.target.value)}
+                placeholder="1BxiM..." className="input w-full" />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={submit}
-        disabled={!file || busy}
-        className="btn btn-primary w-full py-3 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {busy ? 'Analisando…' : 'Analisar edital'}
-      </button>
+      {/* Progresso */}
+      {(stage === 'uploading' || stage === 'queued' || stage === 'running') && (
+        <div className="card space-y-4">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 animate-spin text-primary-light shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            <div>
+              <p className="text-white font-medium text-sm">
+                {stage === 'uploading' && 'Enviando PDF…'}
+                {stage === 'queued'    && 'Na fila — aguardando…'}
+                {stage === 'running'   && (AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…')}
+              </p>
+              {analysisId && <p className="text-white/30 text-xs font-mono mt-0.5">{analysisId}</p>}
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            {['Extração', 'Qualificação', 'Análise'].map((label, i) => {
+              const isDone = (i === 0 && currentAgent && currentAgent !== 'extrator') ||
+                             (i === 1 && currentAgent === 'analista') ||
+                             (i === 2 && stage === 'done');
+              const isActive = (i === 0 && (stage === 'queued' || currentAgent === 'extrator')) ||
+                               (i === 1 && currentAgent === 'qualificador') ||
+                               (i === 2 && currentAgent === 'analista');
+              return (
+                <div key={label} className="flex-1 space-y-1">
+                  <div className={`h-1.5 rounded-full transition-colors ${isDone ? 'bg-green-accent' : isActive ? 'bg-primary-light' : 'bg-white/10'}`} />
+                  <p className={`text-[10px] text-center ${isActive ? 'text-white/60' : 'text-white/25'}`}>{label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Resultado */}
+      {stage === 'done' && (
+        <div className="section-card section-card-green space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-green-accent text-2xl">✓</span>
+            <p className="text-white font-semibold">Análise concluída</p>
+          </div>
+          {(score != null || resultStatus) && (
+            <div className="flex gap-6 items-center">
+              {score != null && (
+                <div>
+                  <p className="text-xs text-white/40 mb-0.5">Score</p>
+                  <p className={`text-4xl font-bold font-poppins score-number ${scoreColor(score)}`}>{score}%</p>
+                </div>
+              )}
+              {resultStatus && (
+                <div>
+                  <p className="text-xs text-white/40 mb-0.5">Status</p>
+                  <p className="text-white font-semibold">{resultStatus}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex gap-3 flex-wrap">
+            {pgEditalId && (
+              <button onClick={() => router.push(`/edital/${pgEditalId}`)} className="btn btn-primary">
+                Ver análise completa →
+              </button>
+            )}
+            <button onClick={() => router.push('/')} className="btn btn-ghost">Voltar ao pipeline</button>
+          </div>
+        </div>
+      )}
+
+      {/* Erro */}
+      {stage === 'failed' && (
+        <div className="alert-danger rounded-xl p-4 space-y-3">
+          <p className="font-semibold text-danger">Falha na análise</p>
+          {errorMsg && <p className="text-sm opacity-80 text-white/70">{errorMsg}</p>}
+          <button onClick={() => { setStage('idle'); setErrorMsg(null); }} className="btn btn-sm btn-ghost">
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {/* CTA */}
+      {stage === 'idle' && (
+        <div className="flex justify-end gap-3">
+          <Link href="/" className="btn btn-ghost">Cancelar</Link>
+          <button onClick={submit} disabled={!file} className="btn btn-primary disabled:opacity-40">
+            Analisar edital
+          </button>
+        </div>
+      )}
     </div>
   );
 }

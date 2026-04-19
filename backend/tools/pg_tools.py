@@ -125,6 +125,10 @@ CREATE TABLE IF NOT EXISTS editais (
     classificacao      TEXT,
     risco              TEXT,
     prioridade         INTEGER     NOT NULL DEFAULT 3,
+    score_comercial    NUMERIC(5,1),
+    edital_filename    TEXT,
+    result_json        JSONB,
+    relatorio_juridico_json JSONB,
     criado_por         TEXT        NOT NULL DEFAULT 'sistema',
     criado_em          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -200,6 +204,15 @@ STAGES_ORDER = ["identificacao", "analise", "pre_disputa", "proposta", "disputa"
 ESTADOS_TERMINAIS = ["ganho", "perdido", "inabilitado", "revogado", "nao_participamos"]
 
 
+_DDL_EDITAIS_MIGRATIONS = [
+    # Adiciona colunas que podem estar faltando em tabelas já existentes (idempotente via IF NOT EXISTS)
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS score_comercial NUMERIC(5,1)",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_filename TEXT",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS result_json JSONB",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS relatorio_juridico_json JSONB",
+]
+
+
 def ensure_schema() -> None:
     """Cria todas as tabelas Postgres se não existirem (idempotente)."""
     try:
@@ -211,6 +224,9 @@ def ensure_schema() -> None:
             conn.execute(text(_DDL_COMENTARIOS))
             conn.execute(text(_DDL_GATES))
             conn.execute(text(_DDL_USUARIOS))
+            # Migrations — adicionam colunas se não existirem (safe para tabelas já criadas)
+            for migration in _DDL_EDITAIS_MIGRATIONS:
+                conn.execute(text(migration))
             conn.commit()
         log.info("pg.schema_ok")
     except Exception as exc:
