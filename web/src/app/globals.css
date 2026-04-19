@@ -24,7 +24,7 @@ body {
   box-shadow: 0 2px 16px rgba(0,0,0,0.28);
 }
 .card-flat {
-  @apply rounded-xl border border-white/8 p-4;
+  @apply rounded-xl border border-white/10 p-4;
   background: rgba(20, 38, 61, 0.9);
 }
 
@@ -54,7 +54,7 @@ body {
   @apply block text-xs text-white/40 mb-0.5 uppercase tracking-wide;
 }
 .info-grid-item span {
-  @apply text-white/85 font-medium tabular-nums;
+  @apply text-white/80 font-medium tabular-nums;
 }
 
 /* ── Score display ───────────────────────────────────────── */
@@ -65,7 +65,7 @@ body {
 
 /* ── Evidence rows ───────────────────────────────────────── */
 .evidence-row {
-  @apply flex items-start gap-3 py-2.5 border-b border-white/6 last:border-0;
+  @apply flex items-start gap-3 py-2.5 border-b border-white/5 last:border-0;
 }
 .evidence-icon {
   @apply flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm;
@@ -82,7 +82,7 @@ body {
 
 /* ── Contract row (without attestation) ──────────────────── */
 .contract-row {
-  @apply flex items-start gap-3 py-2.5 border-b border-white/6 last:border-0;
+  @apply flex items-start gap-3 py-2.5 border-b border-white/5 last:border-0;
 }
 .contract-row-source {
   @apply text-sm font-medium text-white/80 truncate;
@@ -96,7 +96,7 @@ body {
   @apply border-l-2 border-orange-400/70 pl-3 py-2;
 }
 .gap-item-title {
-  @apply text-sm font-medium text-white/85;
+  @apply text-sm font-medium text-white/80;
 }
 .gap-item-sub {
   @apply text-xs text-white/50 mt-0.5;
@@ -135,7 +135,7 @@ select.input option { background: #1B3351; color: #e2ecf4; }
   background: rgba(16, 30, 50, 0.85);
 }
 .stage-col-title {
-  @apply text-xs font-semibold uppercase tracking-wider text-white/45 mb-1 flex items-center justify-between;
+  @apply text-xs font-semibold uppercase tracking-wider text-white/40 mb-1 flex items-center justify-between;
 }
 
 /* ── Kanban card ─────────────────────────────────────────── */
@@ -167,7 +167,7 @@ select.input option { background: #1B3351; color: #e2ecf4; }
 }
 .accordion > summary::-webkit-details-marker { display: none; }
 .accordion-body {
-  @apply p-4 pt-0 border-t border-white/8;
+  @apply p-4 pt-0 border-t border-white/10;
 }
 
 /* ── Alert box ───────────────────────────────────────────── */
@@ -205,6 +205,6 @@ select.input option { background: #1B3351; color: #e2ecf4; }
 
 /* ── Divider ─────────────────────────────────────────────── */
 .divider {
-  @apply border-t border-white/8 my-4;
+  @apply border-t border-white/10 my-4;
 }
 
