@@ -26,7 +26,14 @@ from backend.agents.orchestrator_adk import analisar_edital
 from backend.agents.persistor import DEST_DATASET, DEST_PROJECT, DEST_TABLE
 from backend.logging_config import configure_logging
 from backend.models.schemas import BidConfig, EditalEstruturado, ParecerComercial, RelatorioLicitatorio
-from backend.tools.pg_tools import ensure_schema, invalidate_cache, invalidate_all_cache
+from backend.tools.pg_tools import (
+    ensure_schema, invalidate_cache, invalidate_all_cache,
+    create_edital, get_edital, list_editais, update_edital, soft_delete_edital,
+    add_movimentacao, list_movimentacoes,
+    add_comentario, list_comentarios,
+    seed_gates, list_gates, set_gate,
+    STAGES_ORDER, ESTADOS_TERMINAIS,
+)
 from google.cloud import bigquery
 
 configure_logging()
@@ -91,6 +98,40 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             edital_json=pipeline_result.edital.model_dump() if pipeline_result.edital else None,
             somatorio_drive_json=pipeline_result.somatorio_drive,
         )
+        # Fase 6 — persiste registro no Cloud SQL (best-effort, não falha o job)
+        try:
+            edital = pipeline_result.edital
+            score = pipeline_result.parecer.score_aderencia if pipeline_result.parecer else None
+            data: dict = {
+                "analysis_id": analysis_id,
+                "fase_atual": "identificacao",
+                "criado_por": "pipeline",
+            }
+            if edital:
+                if edital.orgao:
+                    data["orgao"] = edital.orgao
+                if edital.uf:
+                    data["uf"] = edital.uf
+                if edital.uasg:
+                    data["uasg"] = edital.uasg
+                if edital.objeto:
+                    data["objeto"] = edital.objeto
+                if edital.valor_estimado:
+                    data["valor_estimado"] = edital.valor_estimado
+                if edital.portal:
+                    data["portal"] = edital.portal
+                if edital.data_encerramento:
+                    data["data_encerramento"] = edital.data_encerramento
+            if score is not None:
+                data["score_comercial"] = score
+            if filename:
+                data["edital_filename"] = filename
+            row = create_edital(data)
+            eid = str(row["edital_id"])
+            seed_gates(eid, "identificacao")
+            log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": eid}})
+        except Exception as pg_exc:  # noqa: BLE001
+            log.warning("pipeline.pg_persist_failed", extra={"error": str(pg_exc)})
     except Exception as exc:  # noqa: BLE001
         log.exception("pipeline.failed", extra={"lici_adk": {"trace_id": analysis_id}})
         _touch(job, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
@@ -415,3 +456,191 @@ async def drive_rescan(body: _RescanRequest | None = None) -> dict:
     count = await asyncio.to_thread(invalidate_all_cache)
     log.info("drive_rescan.full", extra={"rows_deleted": count})
     return {"invalidated": count, "edital_id": None}
+
+
+# ──────────────────────── Fase 6 — Sistema de Controle de Editais ────────────
+
+class _CriarEditalRequest(BaseModel):
+    orgao: str = ""
+    uf: str = "XX"
+    uasg: str | None = None
+    numero_pregao: str | None = None
+    portal: str | None = None
+    objeto: str | None = None
+    valor_estimado: float | None = None
+    data_encerramento: str | None = None  # ISO string
+    vendedor_email: str | None = None
+    drive_folder_id: str | None = None
+    drive_folder_url: str | None = None
+    prioridade: int = 3
+    criado_por: str = "sistema"
+
+
+class _PatchEditalRequest(BaseModel):
+    orgao: str | None = None
+    uf: str | None = None
+    uasg: str | None = None
+    numero_pregao: str | None = None
+    portal: str | None = None
+    objeto: str | None = None
+    valor_estimado: float | None = None
+    data_encerramento: str | None = None
+    fase_atual: str | None = None
+    estado_terminal: str | None = None
+    vendedor_email: str | None = None
+    drive_folder_id: str | None = None
+    drive_folder_url: str | None = None
+    classificacao: str | None = None
+    risco: str | None = None
+    prioridade: int | None = None
+    motivo_movimentacao: str | None = None
+    autor_email: str = "sistema"
+
+
+def _serialize_edital(row: dict) -> dict:
+    """Converte tipos Postgres para JSON-safe."""
+    import decimal
+    out = {}
+    for k, v in row.items():
+        if hasattr(v, "isoformat"):
+            out[k] = v.isoformat()
+        elif isinstance(v, decimal.Decimal):
+            out[k] = float(v)
+        else:
+            out[k] = v
+    return out
+
+
+@app.post("/editais", status_code=201)
+async def criar_edital(body: _CriarEditalRequest) -> dict:
+    """Cria um registro de edital no sistema de controle (sem PDF)."""
+    data = {k: v for k, v in body.model_dump().items() if v is not None and k != "criado_por"}
+    data["criado_por"] = body.criado_por
+    data["fase_atual"] = "identificacao"
+    row = await asyncio.to_thread(create_edital, data)
+    # Seed gates do stage inicial
+    await asyncio.to_thread(seed_gates, str(row["edital_id"]), "identificacao")
+    return _serialize_edital(row)
+
+
+@app.get("/editais")
+async def listar_editais(
+    fase: str | None = None,
+    uf: str | None = None,
+    vendedor_email: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    rows = await asyncio.to_thread(list_editais, fase, uf, vendedor_email, limit)
+    return [_serialize_edital(r) for r in rows]
+
+
+@app.get("/editais/{edital_id_or_analysis_id}")
+async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
+    """Retorna edital + comentários + gates. Aceita tanto edital_id (UUID Postgres) quanto analysis_id (job em memória)."""
+    # Primeiro tenta como edital no Postgres
+    row = await asyncio.to_thread(get_edital, edital_id_or_analysis_id)
+    if row:
+        eid = str(row["edital_id"])
+        commentarios = await asyncio.to_thread(list_comentarios, eid)
+        gates = await asyncio.to_thread(list_gates, eid)
+        movs = await asyncio.to_thread(list_movimentacoes, eid)
+        return {
+            **_serialize_edital(row),
+            "comentarios": [_serialize_edital(c) for c in commentarios],
+            "gates": [_serialize_edital(g) for g in gates],
+            "movimentacoes": [_serialize_edital(m) for m in movs],
+        }
+    # Fallback: job em memória (retrocompat)
+    job = _JOBS.get(edital_id_or_analysis_id)
+    if job:
+        return job.model_dump()
+    raise HTTPException(status_code=404, detail="edital não encontrado")
+
+
+@app.patch("/editais/{edital_id}")
+async def patch_edital(edital_id: str, body: _PatchEditalRequest) -> dict:
+    """Atualiza campos do edital. Se fase_atual mudar, registra movimentação e semeia gates."""
+    # Busca estado atual
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+
+    # Valida nova fase
+    if body.fase_atual and body.fase_atual not in STAGES_ORDER:
+        raise HTTPException(status_code=400, detail=f"fase_atual inválida. Válidas: {STAGES_ORDER}")
+    if body.estado_terminal and body.estado_terminal not in ESTADOS_TERMINAIS:
+        raise HTTPException(status_code=400, detail=f"estado_terminal inválido. Válidos: {ESTADOS_TERMINAIS}")
+
+    fase_origem = current["fase_atual"]
+    data = {k: v for k, v in body.model_dump(exclude={"motivo_movimentacao", "autor_email"}).items() if v is not None}
+
+    row = await asyncio.to_thread(update_edital, edital_id, data)
+    if not row:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+
+    # Se mudou de fase, registra movimentação + semeia gates do novo stage
+    if body.fase_atual and body.fase_atual != fase_origem:
+        await asyncio.to_thread(
+            add_movimentacao, edital_id, fase_origem, body.fase_atual,
+            body.autor_email, body.motivo_movimentacao
+        )
+        await asyncio.to_thread(seed_gates, edital_id, body.fase_atual)
+
+    return _serialize_edital(row)
+
+
+@app.delete("/editais/{edital_id}", status_code=204)
+async def delete_edital(edital_id: str) -> None:
+    ok = await asyncio.to_thread(soft_delete_edital, edital_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+
+
+class _ComentarioRequest(BaseModel):
+    texto: str
+    autor_email: str = "sistema"
+    mencionados: list[str] = []
+
+
+@app.post("/editais/{edital_id}/comentarios", status_code=201)
+async def post_comentario(edital_id: str, body: _ComentarioRequest) -> dict:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    row = await asyncio.to_thread(add_comentario, edital_id, body.autor_email, body.texto, body.mencionados)
+    return _serialize_edital(row)
+
+
+@app.get("/editais/{edital_id}/comentarios")
+async def get_comentarios(edital_id: str) -> list[dict]:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    rows = await asyncio.to_thread(list_comentarios, edital_id)
+    return [_serialize_edital(r) for r in rows]
+
+
+@app.get("/editais/{edital_id}/gates")
+async def get_gates(edital_id: str, stage: str | None = None) -> list[dict]:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    rows = await asyncio.to_thread(list_gates, edital_id, stage)
+    return [_serialize_edital(r) for r in rows]
+
+
+class _GatePatchRequest(BaseModel):
+    concluido: bool
+    autor_email: str = "sistema"
+
+
+@app.patch("/editais/{edital_id}/gates/{gate_key}")
+async def patch_gate(edital_id: str, gate_key: str, body: _GatePatchRequest) -> dict:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    stage = current["fase_atual"]
+    row = await asyncio.to_thread(set_gate, edital_id, stage, gate_key, body.concluido, body.autor_email)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"gate '{gate_key}' não encontrado para stage '{stage}'")
+    return _serialize_edital(row)
