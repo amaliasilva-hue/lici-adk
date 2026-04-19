@@ -71,7 +71,6 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
         _touch(job, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
 
 
-@app.get("/healthz")
 @app.get("/health")
 def healthz() -> dict:
     return {"status": "ok", "jobs_in_memory": len(_JOBS)}
