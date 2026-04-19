@@ -37,6 +37,8 @@ from backend.agents.extrator import extrair_edital
 from backend.agents.persistor import persistir
 from backend.agents.qualificador import qualificar
 from backend.models.schemas import EditalEstruturado, ParecerComercial, QualificadorResult
+from backend.tools.drive_tools import somar_atestados_do_drive
+from backend.tools.pg_tools import get_cache, set_cache
 
 log = logging.getLogger("lici_adk.orchestrator_adk")
 
@@ -75,6 +77,88 @@ class _QualificadorAgent(BaseAgent):
         )
 
 
+class _SomadorAgent(BaseAgent):
+    """Soma atestados da pasta Drive do edital (Fase 4).
+
+    Fluxo:
+      1. Lê `drive_folder_id` do edital.
+      2. Verifica cache Postgres (`atestados_cache`).
+      3. Se cache miss ou não configurado, chama `somar_atestados_do_drive()`.
+      4. Persiste no cache e publica `somatorio_drive_json` no estado ADK.
+
+    Falha silenciosa: se Drive não acessível, publica `None` no estado —
+    o Analista Comercial continua sem o somatório.
+    """
+
+    @override
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        edital = EditalEstruturado.model_validate(ctx.session.state["edital_json"])
+        trace_id = ctx.session.state.get("trace_id")
+        folder_id: str | None = getattr(edital, "drive_folder_id", None)
+
+        somatorio_dict: dict | None = None
+
+        if folder_id:
+            # 1. Tenta cache Postgres
+            try:
+                cached = await asyncio.to_thread(get_cache, edital.id or trace_id or "")
+                if cached:
+                    log.info(
+                        "adk.somador.cache_hit",
+                        extra={"lici_adk": {"trace_id": trace_id, "edital_id": edital.id}},
+                    )
+                    somatorio_dict = cached
+            except Exception:
+                log.exception("adk.somador.cache_read_failed")
+
+            # 2. Cache miss — chama Drive
+            if somatorio_dict is None:
+                try:
+                    edital_id = edital.id or trace_id or ""
+                    valor_est = getattr(edital, "valor_estimado", None)
+                    vol_exigido = getattr(edital, "volume_exigido_principal", 0.0)
+                    somatorio = await asyncio.to_thread(
+                        somar_atestados_do_drive,
+                        edital_id,
+                        drive_folder_id=folder_id,
+                        volume_exigido=float(vol_exigido or 0),
+                        valor_estimado_edital=float(valor_est) if valor_est else None,
+                    )
+                    somatorio_dict = somatorio.to_dict()
+                    # 3. Persiste cache (falha silenciosa)
+                    try:
+                        await asyncio.to_thread(set_cache, edital_id, somatorio)
+                    except Exception:
+                        log.exception("adk.somador.cache_write_failed")
+                    log.info(
+                        "adk.somador.drive_ok",
+                        extra={
+                            "lici_adk": {
+                                "trace_id": trace_id,
+                                "pdfs_ok": somatorio.pdfs_processados,
+                                "pdfs_err": somatorio.pdfs_com_erro,
+                                "drive_indisponivel": somatorio.drive_indisponivel,
+                            }
+                        },
+                    )
+                except Exception:
+                    log.exception(
+                        "adk.somador.drive_failed",
+                        extra={"lici_adk": {"trace_id": trace_id}},
+                    )
+        else:
+            log.info(
+                "adk.somador.sem_folder_id",
+                extra={"lici_adk": {"trace_id": trace_id}},
+            )
+
+        yield Event(
+            author=self.name,
+            content=types.Content(role="model", parts=[types.Part(text="somador_ok")]),
+            actions=EventActions(state_delta={"somatorio_drive_json": somatorio_dict}),
+        )
+
+
 class _AnalistaComercialAgent(BaseAgent):
     """Produz o ParecerComercial com score, gaps e evidências."""
 
@@ -82,8 +166,9 @@ class _AnalistaComercialAgent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         edital = EditalEstruturado.model_validate(ctx.session.state["edital_json"])
         qual = QualificadorResult.model_validate(ctx.session.state["qualificador_json"])
+        somatorio = ctx.session.state.get("somatorio_drive_json")  # dict | None
         log.info("adk.analista_comercial.start", extra={"lici_adk": {"trace_id": ctx.session.state.get("trace_id")}})
-        parecer = await asyncio.to_thread(analisar, edital, qual)
+        parecer = await asyncio.to_thread(analisar, edital, qual, somatorio_drive=somatorio)
         parecer.trace_id = ctx.session.state.get("trace_id")
         yield Event(
             author=self.name,
@@ -122,10 +207,11 @@ class _PersistorAgent(BaseAgent):
 
 _pipeline = SequentialAgent(
     name="lici_adk_pipeline",
-    description="Extrator → Qualificador → Analista Comercial → Persistor",
+    description="Extrator → Qualificador → Somador → Analista Comercial → Persistor",
     sub_agents=[
         _ExtratorAgent(name="extrator"),
         _QualificadorAgent(name="qualificador"),
+        _SomadorAgent(name="somador"),
         _AnalistaComercialAgent(name="analista_comercial"),
         _PersistorAgent(name="persistor"),
     ],

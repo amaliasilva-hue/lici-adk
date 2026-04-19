@@ -98,6 +98,16 @@ Thresholds: APTO ≥75 | APTO COM RESSALVAS 41-74 | INAPTO ≤40.
 - modelo_inovacao_etec=true → recomendar narrativa FDM (Fair Decision Making) como diferencial.
 - Adesão a Ata: se órgão-alvo bate com modalidades_publicas_reais → sugerir como atalho.
 
+=================== SOMADOR DE ATESTADOS DRIVE (Fase 4) ===================
+Se o campo `somatorio_drive` estiver presente no payload (não-nulo e `drive_indisponivel=false`),
+use os volumes somados ANTES de declarar gap de volumetria. Exemplos:
+  - `somatorio_drive.atestados_por_categoria.GWS = 480000` → Xertica possui 480k licenças GWS
+    comprovadas em atestados Drive; aplique ANTES de penalizar por gap de volumetria GWS.
+  - `kit_minimo_recomendado` lista os atestados que individualmente atendem parcela_maior_relevancia.
+Referencie-os em `evidencias_por_requisito` com `fonte_tabela = 'atestados'` e
+`tipo_evidencia = 'atestado'`, usando `drive_file_name` como `fonte_id`.
+Se `drive_indisponivel=true` ou `somatorio_drive=null`, ignore-o completamente.
+
 =================== ANTI-ALUCINAÇÃO (#10) ===================
 Se o Qualificador devolveu ZERO resultados para um requisito, NUNCA invente capacidade.
 Declare GAP TOTAL, score máximo 40, recomende captação de atestado com cliente similar.
@@ -278,16 +288,34 @@ def _normalize_enums(d: dict) -> dict:
     return d
 
 
-def analisar(edital: EditalEstruturado, qualificador: QualificadorResult) -> ParecerComercial:
-    """Produz o parecer final."""
+def analisar(
+    edital: EditalEstruturado,
+    qualificador: QualificadorResult,
+    *,
+    somatorio_drive: dict | None = None,
+) -> ParecerComercial:
+    """Produz o parecer final.
+
+    Args:
+        edital: edital estruturado pelo Extrator.
+        qualificador: resultado do Qualificador (atestados, contratos, deals, certs).
+        somatorio_drive: dict serializado de AtestadoSomatorio (Fase 4).
+            Opcional — se None ou `drive_indisponivel=True`, é ignorado silenciosamente.
+    """
     _init()
     model = GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
 
     q_dict = _trim_qualificador(qualificador.model_dump())
+    somatorio_dict = (
+        somatorio_drive
+        if somatorio_drive and not somatorio_drive.get("drive_indisponivel")
+        else None
+    )
     payload = {
         "edital": edital.model_dump(),
         "qualificador": q_dict,
         "xertica_profile": _profile_resumido(),
+        "somatorio_drive": somatorio_dict,
     }
     payload_json = json.dumps(payload, ensure_ascii=False, default=str)
     original_chars = len(payload_json)

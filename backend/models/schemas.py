@@ -91,6 +91,11 @@ class EditalEstruturado(BaseModel):
     # --- Keywords derivadas (o Qualificador usa como termos de busca) ---
     keywords_busca: list[str] = Field(default_factory=list)
 
+    # --- Fase 4: Drive + Somador de Atestados ---
+    id: Optional[str] = None  # UUID interno do edital (chave no cache Postgres)
+    drive_folder_id: Optional[str] = None  # ID da pasta raiz do edital no Google Drive
+    volume_exigido_principal: Optional[float] = None  # volume total exigido (mesma unidade da volumetria)
+
 
 # ════════════════════════════════════════════════════════════════════════
 # QUALIFICADOR — matches recuperados do BigQuery
