@@ -16,26 +16,100 @@ body {
   min-height: 100vh;
 }
 
-/* ── Glass card ─────────────────────────────────────────── */
+/* ── Base card ───────────────────────────────────────────── */
 .card {
-  @apply rounded-2xl border border-white/10 p-5;
-  background: rgba(27, 51, 81, 0.7);
-  backdrop-filter: blur(12px);
+  @apply rounded-xl border border-white/10 p-5;
+  background: rgba(27, 51, 81, 0.75);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
+}
+.card-flat {
+  @apply rounded-xl border border-white/8 p-4;
+  background: rgba(20, 38, 61, 0.9);
+}
+
+/* ── Section card (with accent left border) ─────────────── */
+.section-card {
+  @apply rounded-xl border border-white/10 p-5;
+  background: rgba(27, 51, 81, 0.75);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
+}
+.section-card-green  { border-left: 3px solid #C0FF7D; }
+.section-card-blue   { border-left: 3px solid #047EA9; }
+.section-card-orange { border-left: 3px solid #FFAA4D; }
+.section-card-pink   { border-left: 3px solid #FF89FF; }
+.section-card-red    { border-left: 3px solid #E14849; }
+
+/* ── Section title ───────────────────────────────────────── */
+.section-title {
+  @apply font-poppins font-bold text-sm uppercase tracking-wider text-white/50 mb-3;
+}
+
+/* ── Info grid ───────────────────────────────────────────── */
+.info-grid {
+  @apply grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm;
+}
+.info-grid-item label {
+  @apply block text-xs text-white/40 mb-0.5 uppercase tracking-wide;
+}
+.info-grid-item span {
+  @apply text-white/85 font-medium tabular-nums;
+}
+
+/* ── Score display ───────────────────────────────────────── */
+.score-number {
+  @apply font-poppins font-bold leading-none tabular-nums;
+  font-size: 3.5rem;
+}
+
+/* ── Evidence rows ───────────────────────────────────────── */
+.evidence-row {
+  @apply flex items-start gap-3 py-2.5 border-b border-white/6 last:border-0;
+}
+.evidence-icon {
+  @apply flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm;
+}
+.evidence-meta {
+  @apply flex-1 min-w-0;
+}
+.evidence-source {
+  @apply text-sm font-medium text-white/90 truncate;
+}
+.evidence-excerpt {
+  @apply text-xs text-white/50 line-clamp-2 mt-0.5;
+}
+
+/* ── Contract row (without attestation) ──────────────────── */
+.contract-row {
+  @apply flex items-start gap-3 py-2.5 border-b border-white/6 last:border-0;
+}
+.contract-row-source {
+  @apply text-sm font-medium text-white/80 truncate;
+}
+.contract-row-excerpt {
+  @apply text-xs text-white/50 line-clamp-2 mt-0.5;
+}
+
+/* ── Gap item ───────────────────────────────────────────── */
+.gap-item {
+  @apply border-l-2 border-orange-400/70 pl-3 py-2;
+}
+.gap-item-title {
+  @apply text-sm font-medium text-white/85;
+}
+.gap-item-sub {
+  @apply text-xs text-white/50 mt-0.5;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition text-sm;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium transition text-sm;
 }
-.btn-primary {
-  @apply bg-primary text-white hover:bg-primary-light;
-}
-.btn-ghost {
-  @apply text-primary hover:bg-white/10;
-}
-.btn-danger {
-  @apply bg-danger text-white hover:opacity-80;
-}
+.btn-primary { @apply bg-primary text-white hover:bg-primary-light; }
+.btn-ghost   { @apply text-primary-light hover:bg-white/10; }
+.btn-danger  { @apply bg-danger text-white hover:opacity-80; }
+.btn-sm      { @apply px-3 py-1 text-xs; }
 
 /* ── Badges ──────────────────────────────────────────────── */
 .badge {
@@ -46,35 +120,91 @@ body {
 .badge-red    { @apply bg-danger/20        text-danger; }
 .badge-blue   { @apply bg-primary/20       text-primary-light; }
 .badge-gray   { @apply bg-white/10         text-white/60; }
+.badge-orange { background: rgba(255,170,77,0.18); color: #ffaa4d; }
 
 /* ── Form inputs ─────────────────────────────────────────── */
 .input {
   @apply w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white
          placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-primary;
 }
+select.input option { background: #1B3351; color: #e2ecf4; }
 
 /* ── Stage pill (kanban columns) ─────────────────────────── */
 .stage-col {
-  @apply flex-shrink-0 w-56 rounded-2xl border border-white/10 p-3 flex flex-col gap-2;
-  background: rgba(20, 38, 61, 0.8);
+  @apply flex-shrink-0 w-52 rounded-xl border border-white/10 p-3 flex flex-col gap-2;
+  background: rgba(16, 30, 50, 0.85);
 }
 .stage-col-title {
-  @apply text-xs font-semibold uppercase tracking-wider text-white/50 mb-1;
+  @apply text-xs font-semibold uppercase tracking-wider text-white/45 mb-1 flex items-center justify-between;
 }
 
 /* ── Kanban card ─────────────────────────────────────────── */
 .kanban-card {
-  @apply card p-3 cursor-pointer hover:border-primary/50 transition-all;
+  @apply rounded-xl border border-white/10 p-3 cursor-pointer transition-all;
+  background: rgba(27, 51, 81, 0.8);
+}
+.kanban-card:hover {
+  border-color: rgba(4,126,169,0.5);
+  box-shadow: 0 0 0 1px rgba(4,126,169,0.2);
 }
 
-/* ── Timeline dot ────────────────────────────────────────── */
+/* ── Timeline ────────────────────────────────────────────── */
 .timeline-dot {
   @apply w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0 mt-1;
 }
+.timeline-line {
+  @apply flex gap-3 text-sm;
+}
 
 /* ── Accordion ───────────────────────────────────────────── */
-details > summary {
-  @apply list-none cursor-pointer select-none flex items-center justify-between;
+.accordion {
+  @apply rounded-xl border border-white/10 overflow-hidden;
+  background: rgba(27, 51, 81, 0.75);
 }
-details > summary::-webkit-details-marker { display: none; }
+.accordion > summary {
+  @apply list-none cursor-pointer select-none flex items-center justify-between p-4
+         font-poppins font-semibold text-sm text-white hover:bg-white/5 transition;
+}
+.accordion > summary::-webkit-details-marker { display: none; }
+.accordion-body {
+  @apply p-4 pt-0 border-t border-white/8;
+}
+
+/* ── Alert box ───────────────────────────────────────────── */
+.alert-danger {
+  @apply p-3 rounded-lg text-sm;
+  background: rgba(225,72,73,0.12);
+  border: 1px solid rgba(225,72,73,0.3);
+  color: #f87171;
+}
+.alert-warning {
+  @apply p-3 rounded-lg text-sm;
+  background: rgba(255,170,77,0.12);
+  border: 1px solid rgba(255,170,77,0.3);
+  color: #ffaa4d;
+}
+.alert-success {
+  @apply p-3 rounded-lg text-sm;
+  background: rgba(192,255,125,0.10);
+  border: 1px solid rgba(192,255,125,0.3);
+  color: #C0FF7D;
+}
+.alert-info {
+  @apply p-3 rounded-lg text-sm;
+  background: rgba(4,126,169,0.12);
+  border: 1px solid rgba(4,126,169,0.3);
+  color: #00BEFF;
+}
+
+/* ── Copy box (for legal documents) ─────────────────────── */
+.copy-box {
+  @apply rounded-lg p-4 text-xs font-mono text-white/75 whitespace-pre-wrap;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── Divider ─────────────────────────────────────────────── */
+.divider {
+  @apply border-t border-white/8 my-4;
+}
 
