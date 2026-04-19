@@ -270,8 +270,8 @@ O campo `analysis_id` no response **mantém o mesmo nome** (string UUID) para n�
 Sincronização no MVP: background job a cada 15 min verificando timestamp; arquivo novo → re-processa somatório + notifica edital.
 
 **Autenticação Drive:**
-- SA do backend com Domain-Wide Delegation — impersona o email do usuário do request
-- Fallback: SA com acesso direto às pastas compartilhadas (se DWD não for aprovado)
+- SA do backend com acesso direto às pastas compartilhadas — compartilhar pasta `Xertica Licitações/` com `lici-adk-backend@operaciones-br.iam.gserviceaccount.com` como Viewer
+- Domain-Wide Delegation **não é necessária** — acesso direto via drive.readonly ADC é suficiente no MVP
 
 ---
 
@@ -794,7 +794,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 | Região | `us-central1` | Gemini 2.5 Pro + custo |
 | Orquestração | ADK `SequentialAgent` na Fase 2 | Padrão Google |
 | Auth | Google OAuth `@xertica.com` | NextAuth + SA token service-to-service |
-| Drive fonte da verdade | Read-only no MVP | Zero fricção com jurídico |
+| Drive fonte da verdade | SA com acesso direto à pasta compartilhada | Sem DWD — zero dependência de Workspace Admin |
 | Knowledge jurídico | In-context (lei + YAML curado) | 150 KB cabe em 1 M tokens do Pro, zero RAG |
 | Estado operacional | **Cloud SQL Postgres 16** | ACID, writes frequentes, baixa latência; BQ via Datastream |
 | Analytics | **BigQuery** somente | Warehouse imutável; `analises_editais`, `analises_juridicas`, `documentos_protocolo`, `eventos_pipeline` |
@@ -824,12 +824,10 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 
 ### Ações GCP
 
-1. Habilitar **Drive API** no projeto (`gcloud services enable drive.googleapis.com`)
+1. Habilitar **Drive API** no projeto (`gcloud services enable drive.googleapis.com`) ✅
 2. Habilitar **Datastream API** (`gcloud services enable datastream.googleapis.com`)
-3. **Domain-Wide Delegation** para a SA no Workspace Admin
-4. Criar pasta `Xertica Licitações/` no Drive e compartilhar com a SA
-5. (Fase 3) Provisionar Cloud SQL Postgres 16 + VPC connector + SA com `cloudsql.client`
-6. (Fase 7) OAuth 2.0 client para NextAuth — JS origins + redirect URIs
+3. Compartilhar pasta `Xertica Licitações/` no Drive com `lici-adk-backend@operaciones-br.iam.gserviceaccount.com` como **Viewer** (Domain-Wide Delegation não é necessária)
+4. (Fase 7) OAuth 2.0 client para NextAuth — JS origins + redirect URIs
 
 ### Conteúdo jurídico
 
@@ -848,7 +846,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | Jurídico resiste à mudança | Alto | Drive continua como ferramenta deles. App read-only no MVP. |
-| Domain-Wide Delegation negada | Médio | Fallback: SA com acesso direto à pasta compartilhada |
+| Domain-Wide Delegation negada | Médio | **Não necessária** — SA com acesso direto à pasta compartilhada é a abordagem definitiva |
 | Somador extrai volume errado | Alto | Dry-run com 10+ atestados reais antes de confiar |
 | Minuta jurídica com erro grave | Crítico | **Humano no loop obrigatório:** minuta é sugestão, jurídico aprova antes de protocolar |
 | Declaração gerada com dados incorretos | Alto | `xertica_profile.yaml` precisa ter CNPJ, representante e cargo atualizados antes do primeiro uso |
@@ -893,7 +891,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 | 2026-04-18 | **v2.4 — Correções:** `licitación` → `licitação`; `CardExecutivo` → `ResumoExecutivo`; `deleted_at TIMESTAMPTZ` adicionado à tabela `editais` + `DELETE` endpoint documentado; `X-User-Email` documentado como dual-token (SA ID token + JWT NextAuth — header sozinho é forjável); Cloud Scheduler job adicionado à Fase 4 com trigger de invalidação do `atestados_cache`; item fantasma "Remover tabelas cards..." removido da Fase 3 (nunca foram criadas); §11 numeração corrigida (Operacional: 7–8 → 9–10). || 2026-04-18–19 | **Fase 1 concluída (commit `a73c7b8`):** E2E Celepar rodado — APTO COM RESSALVAS, score 62, 130s, 8 evidências. Bugs corrigidos: `payload_truncado` (smart trim 3 camadas em `analista_comercial.py`) + `strict_match temporal → bloqueio_camada_1` (Camada 1 regra 7). |
 | 2026-04-19 | **Fase 2 concluída — Refactor para ADK (v2.5):** `orchestrator_adk.py` criado com `SequentialAgent(google-adk 1.31)`. 4 sub-agentes `BaseAgent`: `_ExtratorAgent`, `_QualificadorAgent`, `_AnalistaComercialAgent`, `_PersistorAgent`. Estado via `session.state` + `EventActions(state_delta)`. `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial` (alias retrocompatível). PRODESP + Celepar revalidados (~120s, funcionamento correto). |
 | 2026-04-19 | **Fase 3 concluída (v2.6):** SA `lici-adk-backend` criada com 6 IAM roles. Cloud SQL Postgres 16 `x-lici-pg` provisionado (`db-g1-small`, us-central1) com DB `xlici` + user `lici_app` + senha em Secret Manager. Imagem `v2` buildada via Cloud Build. Cloud Run atualizado com SA dedicada + Cloud SQL Auth Proxy (sem VPC connector — Public IP + Auth Proxy é suficiente para MVP). Smoke test PRODESP: APTO COM RESSALVAS, score 66, pipeline ~180s. |
-| 2026-04-19 | **Fase 4 concluída (v2.7):** Drive API habilitada. `backend/tools/drive_tools.py` criado com `somar_atestados_do_drive()` — Gemini Flash multimodal extrai campos de cada PDF de atestado, soma por categoria (GWS/GCP/GMP/UST/bolsa_horas/interacoes_chatbot), calcula `kit_minimo_recomendado` (≥parcela_maior_relevancia art.67 §1º). `backend/tools/pg_tools.py` criado com cache `atestados_cache` em Postgres + `ensure_schema()` + CRUD (get/set/invalidate). `_SomadorAgent` adicionado ao pipeline ADK entre Qualificador e Analista; cache Postgres hit/miss automático. `analista_comercial.py` aceita `somatorio_drive: dict | None` — payload inclui somatório; SYSTEM_PROMPT atualizado para usar volume Drive antes de declarar gap. `EditalEstruturado` ganhou `drive_folder_id`, `id` e `volume_exigido_principal`. Cloud Run v3 (imagem `:v3`, revisão `00005-5t6`) + secret `XLICI_DB_PASS` via revisão `00006-ldj`. Cloud Scheduler `lici-drive-rescan` criado: `*/15 * * * *`, chama `POST /internal/drive/rescan` com OIDC, invalida `atestados_cache`. **DWD (Domain-Wide Delegation) pendente de ação manual no Google Workspace Admin por Amália** — código já tem graceful fallback sem DWD (acessa pasta compartilhada diretamente com a SA). |
+| 2026-04-19 | **Fase 4 concluída (v2.7):** Drive API habilitada. `backend/tools/drive_tools.py` criado com `somar_atestados_do_drive()` — Gemini Flash multimodal extrai campos de cada PDF de atestado, soma por categoria (GWS/GCP/GMP/UST/bolsa_horas/interacoes_chatbot), calcula `kit_minimo_recomendado` (≥parcela_maior_relevancia art.67 §1º). `backend/tools/pg_tools.py` criado com cache `atestados_cache` em Postgres + `ensure_schema()` + CRUD (get/set/invalidate). `_SomadorAgent` adicionado ao pipeline ADK entre Qualificador e Analista; cache Postgres hit/miss automático. `analista_comercial.py` aceita `somatorio_drive: dict | None` — payload inclui somatório; SYSTEM_PROMPT atualizado para usar volume Drive antes de declarar gap. `EditalEstruturado` ganhou `drive_folder_id`, `id` e `volume_exigido_principal`. Cloud Run v3 (imagem `:v3`, revisão `00005-5t6`) + secret `XLICI_DB_PASS` via revisão `00006-ldj`. Cloud Scheduler `lici-drive-rescan` criado: `*/15 * * * *`, chama `POST /internal/drive/rescan` com OIDC, invalida `atestados_cache`. **Auth Drive: SA com acesso direto às pastas compartilhadas — Domain-Wide Delegation não é necessária** (Amália não tem acesso ao Workspace Admin — fallback ADC é a abordagem definitiva). |
 ---
 
 ## 15. Próximos passos concretos
@@ -903,7 +901,7 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 **Frente A — Amália (1–2 dias):**
 1. ✅ E2E Celepar — APTO COM RESSALVAS, score 62 — Fase 1 concluída
 2. Curar 8 súmulas via prompt do §6.6 → `git commit backend/knowledge/tcu_sumulas.yaml`
-3. Padronizar pastas Drive em 2–3 processos recentes
+3. Padronizar pastas Drive em 2–3 processos recentes e **compartilhar cada pasta com `lici-adk-backend@operaciones-br.iam.gserviceaccount.com` como Viewer**
 
 **Frente B — Dev (paralelo, não bloqueia Frente A):**
 4. ✅ Fase 2 — ADK SequentialAgent concluído (`orchestrator_adk.py`)
