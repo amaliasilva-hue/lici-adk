@@ -2,18 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Roboto:wght@400;500&display=swap');
+
 :root {
-  --bg: #f7f8fb;
+  --font-poppins: 'Poppins', sans-serif;
+  --font-roboto:  'Roboto',  sans-serif;
 }
 
 body {
-  background: var(--bg);
-  color: #0f1a3a;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #14263D;
+  color: #e2ecf4;
+  font-family: var(--font-roboto);
+  min-height: 100vh;
 }
 
-.card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-5; }
-.btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition; }
-.btn-primary { @apply bg-xertica-600 text-white hover:bg-xertica-700; }
-.btn-ghost { @apply text-xertica-700 hover:bg-xertica-50; }
-.badge { @apply inline-block px-2 py-0.5 rounded-full text-xs font-semibold; }
+/* ── Glass card ─────────────────────────────────────────── */
+.card {
+  @apply rounded-2xl border border-white/10 p-5;
+  background: rgba(27, 51, 81, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition text-sm;
+}
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-light;
+}
+.btn-ghost {
+  @apply text-primary hover:bg-white/10;
+}
+.btn-danger {
+  @apply bg-danger text-white hover:opacity-80;
+}
+
+/* ── Badges ──────────────────────────────────────────────── */
+.badge {
+  @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold;
+}
+.badge-green  { @apply bg-green-accent/20 text-green-accent; }
+.badge-pink   { @apply bg-pink-accent/20  text-pink-accent; }
+.badge-red    { @apply bg-danger/20        text-danger; }
+.badge-blue   { @apply bg-primary/20       text-primary-light; }
+.badge-gray   { @apply bg-white/10         text-white/60; }
+
+/* ── Form inputs ─────────────────────────────────────────── */
+.input {
+  @apply w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white
+         placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-primary;
+}
+
+/* ── Stage pill (kanban columns) ─────────────────────────── */
+.stage-col {
+  @apply flex-shrink-0 w-56 rounded-2xl border border-white/10 p-3 flex flex-col gap-2;
+  background: rgba(20, 38, 61, 0.8);
+}
+.stage-col-title {
+  @apply text-xs font-semibold uppercase tracking-wider text-white/50 mb-1;
+}
+
+/* ── Kanban card ─────────────────────────────────────────── */
+.kanban-card {
+  @apply card p-3 cursor-pointer hover:border-primary/50 transition-all;
+}
+
+/* ── Timeline dot ────────────────────────────────────────── */
+.timeline-dot {
+  @apply w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0 mt-1;
+}
+
+/* ── Accordion ───────────────────────────────────────────── */
+details > summary {
+  @apply list-none cursor-pointer select-none flex items-center justify-between;
+}
+details > summary::-webkit-details-marker { display: none; }
+

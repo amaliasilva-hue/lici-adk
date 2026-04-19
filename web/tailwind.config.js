@@ -4,14 +4,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        xertica: {
-          50: '#eef4ff',
-          100: '#dbe5ff',
-          500: '#3b5bdb',
-          600: '#2f49b3',
-          700: '#26397f',
-          900: '#0f1a3a',
-        },
+        navy:     '#14263D',
+        primary:  '#047EA9',
+        'primary-light': '#00BEFF',
+        'green-accent':  '#C0FF7D',
+        'pink-accent':   '#FF89FF',
+        danger:   '#E14849',
+        'surface':  '#1B3351',
+        'surface-2':'#243D57',
+      },
+      fontFamily: {
+        poppins: ['var(--font-poppins)', 'Poppins', 'sans-serif'],
+        roboto:  ['var(--font-roboto)',  'Roboto',  'sans-serif'],
       },
     },
   },

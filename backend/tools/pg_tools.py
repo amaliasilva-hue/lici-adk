@@ -102,18 +102,310 @@ CREATE INDEX IF NOT EXISTS atestados_cache_calculado_em_idx
     ON atestados_cache (calculado_em DESC);
 """
 
+# ── Fase 6 — Sistema de Controle de Editais ──────────────────────────────────
+
+_DDL_EDITAIS = """
+CREATE TABLE IF NOT EXISTS editais (
+    edital_id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    orgao              TEXT        NOT NULL DEFAULT '',
+    uf                 CHAR(2)     NOT NULL DEFAULT 'XX',
+    uasg               TEXT,
+    numero_pregao      TEXT,
+    portal             TEXT,
+    objeto             TEXT,
+    valor_estimado     NUMERIC(15,2),
+    data_encerramento  TIMESTAMPTZ,
+    fase_atual         TEXT        NOT NULL DEFAULT 'identificacao',
+    estado_terminal    TEXT,
+    vendedor_email     TEXT,
+    drive_folder_id    TEXT,
+    drive_folder_url   TEXT,
+    analysis_id_comercial UUID,
+    analysis_id_juridica  UUID,
+    classificacao      TEXT,
+    risco              TEXT,
+    prioridade         INTEGER     NOT NULL DEFAULT 3,
+    criado_por         TEXT        NOT NULL DEFAULT 'sistema',
+    criado_em          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at         TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS editais_fase_uf_idx ON editais (fase_atual, uf);
+CREATE INDEX IF NOT EXISTS editais_vendedor_idx ON editais (vendedor_email);
+CREATE INDEX IF NOT EXISTS editais_encerramento_idx ON editais (data_encerramento);
+"""
+
+_DDL_MOVIMENTACOES = """
+CREATE TABLE IF NOT EXISTS edital_movimentacoes (
+    mov_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    edital_id     UUID        NOT NULL REFERENCES editais(edital_id),
+    fase_origem   TEXT        NOT NULL,
+    fase_destino  TEXT        NOT NULL,
+    autor_email   TEXT        NOT NULL,
+    motivo        TEXT,
+    criado_em     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS edital_movimentacoes_edital_idx ON edital_movimentacoes (edital_id);
+"""
+
+_DDL_COMENTARIOS = """
+CREATE TABLE IF NOT EXISTS edital_comentarios (
+    comentario_id  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    edital_id      UUID        NOT NULL REFERENCES editais(edital_id),
+    autor_email    TEXT        NOT NULL,
+    texto          TEXT        NOT NULL,
+    mencionados    TEXT[]      NOT NULL DEFAULT '{}',
+    criado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS edital_comentarios_edital_idx ON edital_comentarios (edital_id, criado_em DESC);
+"""
+
+_DDL_GATES = """
+CREATE TABLE IF NOT EXISTS edital_gates (
+    gate_id       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    edital_id     UUID        NOT NULL REFERENCES editais(edital_id),
+    stage         TEXT        NOT NULL,
+    gate_key      TEXT        NOT NULL,
+    concluido     BOOLEAN     NOT NULL DEFAULT FALSE,
+    concluido_em  TIMESTAMPTZ,
+    concluido_por TEXT,
+    UNIQUE (edital_id, stage, gate_key)
+);
+"""
+
+_DDL_USUARIOS = """
+CREATE TABLE IF NOT EXISTS usuarios (
+    usuario_id  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email       TEXT        UNIQUE NOT NULL,
+    nome        TEXT,
+    papel       TEXT        NOT NULL DEFAULT 'vendedor',
+    ativo       BOOLEAN     NOT NULL DEFAULT TRUE,
+    criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+# Gates padrão por stage
+STAGE_GATES: dict[str, list[str]] = {
+    "identificacao": ["edital_baixado", "orgao_identificado", "vendedor_atribuido"],
+    "analise": ["analise_comercial_concluida", "analise_juridica_concluida"],
+    "pre_disputa": ["prazo_verificado", "documentos_redigidos"],
+    "proposta": ["proposta_tecnica_redigida", "proposta_comercial_precificada"],
+    "disputa": ["credenciamento_portal", "proposta_enviada"],
+    "habilitacao": ["kit_habilitacao_completo", "certidoes_validas"],
+    "recursos": ["prazo_recurso_verificado", "contrarrazoes_redigidas"],
+    "homologado": ["ata_salva_drive"],
+}
+
+STAGES_ORDER = ["identificacao", "analise", "pre_disputa", "proposta", "disputa", "habilitacao", "recursos", "homologado"]
+ESTADOS_TERMINAIS = ["ganho", "perdido", "inabilitado", "revogado", "nao_participamos"]
+
 
 def ensure_schema() -> None:
-    """Cria tabela `atestados_cache` se não existir (idempotente)."""
+    """Cria todas as tabelas Postgres se não existirem (idempotente)."""
     try:
         engine = get_engine()
         with engine.connect() as conn:
             conn.execute(text(_DDL_ATESTADOS_CACHE))
+            conn.execute(text(_DDL_EDITAIS))
+            conn.execute(text(_DDL_MOVIMENTACOES))
+            conn.execute(text(_DDL_COMENTARIOS))
+            conn.execute(text(_DDL_GATES))
+            conn.execute(text(_DDL_USUARIOS))
             conn.commit()
         log.info("pg.schema_ok")
     except Exception as exc:
         log.error("pg.ensure_schema_failed", extra={"error": str(exc)})
         raise
+
+
+# ── CRUD editais ──────────────────────────────────────────────────────────────
+
+def create_edital(data: dict) -> dict:
+    """Insere novo edital e retorna a row criada."""
+    engine = get_engine()
+    cols = ", ".join(data.keys())
+    vals = ", ".join(f":{k}" for k in data.keys())
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(f"INSERT INTO editais ({cols}) VALUES ({vals}) RETURNING *"),
+            data,
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def get_edital(edital_id: str) -> Optional[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM editais WHERE edital_id = :eid AND deleted_at IS NULL"),
+            {"eid": edital_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def list_editais(
+    fase: str | None = None,
+    uf: str | None = None,
+    vendedor_email: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    engine = get_engine()
+    wheres = ["deleted_at IS NULL"]
+    params: dict = {"limit": min(limit, 200)}
+    if fase:
+        wheres.append("fase_atual = :fase")
+        params["fase"] = fase
+    if uf:
+        wheres.append("uf = :uf")
+        params["uf"] = uf
+    if vendedor_email:
+        wheres.append("vendedor_email = :ve")
+        params["ve"] = vendedor_email
+    where_sql = "WHERE " + " AND ".join(wheres)
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"SELECT * FROM editais {where_sql} ORDER BY atualizado_em DESC LIMIT :limit"),
+            params,
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def update_edital(edital_id: str, data: dict) -> Optional[dict]:
+    if not data:
+        return get_edital(edital_id)
+    data["atualizado_em"] = "NOW()"
+    sets = ", ".join(
+        f"{k} = NOW()" if v == "NOW()" else f"{k} = :{k}"
+        for k, v in data.items()
+    )
+    params = {k: v for k, v in data.items() if v != "NOW()"}
+    params["eid"] = edital_id
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(f"UPDATE editais SET {sets} WHERE edital_id = :eid AND deleted_at IS NULL RETURNING *"),
+            params,
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping) if row else None
+
+
+def soft_delete_edital(edital_id: str) -> bool:
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("UPDATE editais SET deleted_at = NOW() WHERE edital_id = :eid AND deleted_at IS NULL"),
+            {"eid": edital_id},
+        )
+        conn.commit()
+    return result.rowcount > 0
+
+
+# ── CRUD movimentações ────────────────────────────────────────────────────────
+
+def add_movimentacao(edital_id: str, fase_origem: str, fase_destino: str, autor_email: str, motivo: str | None = None) -> dict:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO edital_movimentacoes (edital_id, fase_origem, fase_destino, autor_email, motivo)
+                VALUES (:eid, :fo, :fd, :ae, :motivo) RETURNING *
+            """),
+            {"eid": edital_id, "fo": fase_origem, "fd": fase_destino, "ae": autor_email, "motivo": motivo},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def list_movimentacoes(edital_id: str) -> list[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM edital_movimentacoes WHERE edital_id = :eid ORDER BY criado_em DESC"),
+            {"eid": edital_id},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+# ── CRUD comentários ──────────────────────────────────────────────────────────
+
+def add_comentario(edital_id: str, autor_email: str, texto: str, mencionados: list[str] | None = None) -> dict:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO edital_comentarios (edital_id, autor_email, texto, mencionados)
+                VALUES (:eid, :ae, :texto, :mencionados) RETURNING *
+            """),
+            {"eid": edital_id, "ae": autor_email, "texto": texto, "mencionados": mencionados or []},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def list_comentarios(edital_id: str, limit: int = 100) -> list[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM edital_comentarios WHERE edital_id = :eid ORDER BY criado_em ASC LIMIT :limit"),
+            {"eid": edital_id, "limit": limit},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+# ── CRUD gates ────────────────────────────────────────────────────────────────
+
+def seed_gates(edital_id: str, stage: str) -> None:
+    """Insere os gates padrão de um stage se ainda não existirem."""
+    gate_keys = STAGE_GATES.get(stage, [])
+    if not gate_keys:
+        return
+    engine = get_engine()
+    with engine.connect() as conn:
+        for key in gate_keys:
+            conn.execute(
+                text("""
+                    INSERT INTO edital_gates (edital_id, stage, gate_key)
+                    VALUES (:eid, :stage, :key)
+                    ON CONFLICT (edital_id, stage, gate_key) DO NOTHING
+                """),
+                {"eid": edital_id, "stage": stage, "key": key},
+            )
+        conn.commit()
+
+
+def list_gates(edital_id: str, stage: str | None = None) -> list[dict]:
+    engine = get_engine()
+    params: dict = {"eid": edital_id}
+    extra = ""
+    if stage:
+        extra = " AND stage = :stage"
+        params["stage"] = stage
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"SELECT * FROM edital_gates WHERE edital_id = :eid{extra} ORDER BY stage, gate_key"),
+            params,
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def set_gate(edital_id: str, stage: str, gate_key: str, concluido: bool, autor_email: str) -> Optional[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                UPDATE edital_gates
+                SET concluido = :c,
+                    concluido_em = CASE WHEN :c THEN NOW() ELSE NULL END,
+                    concluido_por = CASE WHEN :c THEN :ae ELSE NULL END
+                WHERE edital_id = :eid AND stage = :stage AND gate_key = :key
+                RETURNING *
+            """),
+            {"eid": edital_id, "stage": stage, "key": gate_key, "c": concluido, "ae": autor_email},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping) if row else None
 
 
 # ── CRUD cache ───────────────────────────────────────────────────────────────
