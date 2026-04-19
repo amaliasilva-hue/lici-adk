@@ -182,9 +182,9 @@ export default function UploadPage() {
           </div>
           <div className="flex gap-1.5">
             {['Extração', 'Qualificação', 'Análise'].map((label, i) => {
-              const isDone = (i === 0 && currentAgent && currentAgent !== 'extrator') ||
-                             (i === 1 && currentAgent === 'analista') ||
-                             (i === 2 && stage === 'done');
+              const isDone = (i === 0 && !!currentAgent && currentAgent !== 'extrator') ||
+                             (i === 1 && (currentAgent === 'analista' || currentAgent === 'persistor')) ||
+                             false;
               const isActive = (i === 0 && (stage === 'queued' || currentAgent === 'extrator')) ||
                                (i === 1 && currentAgent === 'qualificador') ||
                                (i === 2 && currentAgent === 'analista');
