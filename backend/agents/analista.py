@@ -74,6 +74,10 @@ e NÃO calcule score:
   5. Qualificador devolveu ZERO atestados E ZERO contratos para os requisitos técnicos
      centrais E o edital exige atestado como habilitação MANDATÓRIA → INAPTO
   6. nivel_parceria_exigido superior ao de `qualificacao_empresa.parcerias_formais` → INAPTO
+  7. edital.strict_match_atestados=true AND edital.restricao_temporal_experiencia_meses definido
+     AND qualificador.atestados está VAZIO (zero atestados dentro do prazo) → INAPTO;
+     preencha bloqueio_camada_1='strict_match_atestados: sem atestado nos últimos N meses — habilitação técnica inviável'
+     (contratos sem atestado NÃO substituem atestados quando strict_match_atestados=true)
 
 CAMADA 2 — Score 0-100 (só roda se Camada 1 passar integralmente)
 Soma ponderada (total 100):
@@ -143,6 +147,45 @@ Se o requisito tem múltiplas fontes, escolha A MAIS FORTE (atestado > contrato 
 
 # Limite conservador para não estourar contexto do Pro (~1M, mas qualidade cai bem antes).
 PAYLOAD_CHAR_LIMIT = 180_000
+
+# ── Limites por fonte — trim inteligente antes de serializar.
+_MAX_ATESTADOS = 15
+_MAX_CONTRATOS_COM = 10
+_MAX_CONTRATOS_SEM = 5
+_MAX_DEALS_WON = 5
+_MAX_DEALS_LOST = 3
+_MAX_CERTIFICADOS = 20
+_MAX_FIELD_CHARS = 800  # fallback: corta campos de texto longos
+
+
+def _trim_qualificador(q: dict) -> dict:
+    """Limita listas do qualificador pelo número de registros (shallow copy)."""
+    q = dict(q)
+    q["atestados"] = q.get("atestados", [])[:_MAX_ATESTADOS]
+    q["contratos_com_atestado"] = q.get("contratos_com_atestado", [])[:_MAX_CONTRATOS_COM]
+    q["contratos_sem_atestado"] = q.get("contratos_sem_atestado", [])[:_MAX_CONTRATOS_SEM]
+    q["deals_won"] = q.get("deals_won", [])[:_MAX_DEALS_WON]
+    q["deals_lost"] = q.get("deals_lost", [])[:_MAX_DEALS_LOST]
+    q["certificados"] = q.get("certificados", [])[:_MAX_CERTIFICADOS]
+    return q
+
+
+def _trim_longos(q: dict) -> dict:
+    """Fallback: trunca campos de texto longos dentro de cada registro."""
+    import copy
+    _TEXT = (
+        "resumodoatestado", "resumodocontrato", "detalhamentoservicos",
+        "resumo_analise", "fatores_sucesso", "licoes_aprendidas",
+    )
+    q = copy.deepcopy(q)
+    for lista in ("atestados", "contratos_com_atestado", "contratos_sem_atestado", "deals_won", "deals_lost"):
+        for rec in q.get(lista, []):
+            for field in _TEXT:
+                val = rec.get(field)
+                if isinstance(val, str) and len(val) > _MAX_FIELD_CHARS:
+                    rec[field] = val[:_MAX_FIELD_CHARS] + "…[truncado]"
+    return q
+
 
 # ── Normalização defensiva: o Pro às vezes inventa variações dos enums apesar do prompt.
 # Em vez de falhar a validação, mapeamos sinônimos comuns para os literais válidos.
@@ -240,18 +283,31 @@ def analisar(edital: EditalEstruturado, qualificador: QualificadorResult) -> Par
     _init()
     model = GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
 
+    q_dict = _trim_qualificador(qualificador.model_dump())
     payload = {
         "edital": edital.model_dump(),
-        "qualificador": qualificador.model_dump(),
+        "qualificador": q_dict,
         "xertica_profile": _profile_resumido(),
     }
     payload_json = json.dumps(payload, ensure_ascii=False, default=str)
-    if len(payload_json) > PAYLOAD_CHAR_LIMIT:
+    original_chars = len(payload_json)
+    if original_chars > PAYLOAD_CHAR_LIMIT:
+        # Tier-2: corta campos de texto longos dentro dos registros
         log.warning(
-            "analista.payload_truncado",
-            extra={"original_chars": len(payload_json), "limit": PAYLOAD_CHAR_LIMIT},
+            "analista.payload_grande_apos_trim",
+            extra={"chars": original_chars, "limit": PAYLOAD_CHAR_LIMIT},
         )
-        payload_json = payload_json[:PAYLOAD_CHAR_LIMIT]
+        payload["qualificador"] = _trim_longos(q_dict)
+        payload_json = json.dumps(payload, ensure_ascii=False, default=str)
+        if len(payload_json) > PAYLOAD_CHAR_LIMIT:
+            # Tier-3: last resort — nunca deveria chegar aqui
+            log.error(
+                "analista.payload_ainda_grande",
+                extra={"chars": len(payload_json), "limit": PAYLOAD_CHAR_LIMIT},
+            )
+            # Mantém payload válido, não trunca no meio do JSON
+            payload["qualificador"]["atestados"] = payload["qualificador"]["atestados"][:5]
+            payload_json = json.dumps(payload, ensure_ascii=False, default=str)
 
     t0 = time.time()
     response = model.generate_content(
