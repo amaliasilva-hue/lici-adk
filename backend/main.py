@@ -22,10 +22,10 @@ from typing import Literal
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from backend.agents.orchestrator import analisar_edital
+from backend.agents.orchestrator_adk import analisar_edital
 from backend.agents.persistor import DEST_DATASET, DEST_PROJECT, DEST_TABLE
 from backend.logging_config import configure_logging
-from backend.models.schemas import ParecerFinal
+from backend.models.schemas import ParecerComercial
 from google.cloud import bigquery
 
 configure_logging()
@@ -45,7 +45,7 @@ class JobState(BaseModel):
     estimated_seconds: int = 35
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    result: ParecerFinal | None = None
+    result: ParecerComercial | None = None
     error: str | None = None
     edital_filename: str | None = None
 

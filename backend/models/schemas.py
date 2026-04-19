@@ -192,8 +192,8 @@ class GapIdentificado(BaseModel):
     recomendacao: str
 
 
-class ParecerFinal(BaseModel):
-    """Saída do Agente 3 (Analista).
+class ParecerComercial(BaseModel):
+    """Saída do Agente 3 (Analista Comercial).
 
     `score_aderencia` é `None` quando a Camada 1 de bloqueadores duros ativa
     (ver ARCHITECTURE.md §Lógica de Decisão). Nesses casos `status` é `INAPTO` ou
@@ -214,3 +214,7 @@ class ParecerFinal(BaseModel):
     edital_orgao: Optional[str] = None
     edital_modalidade: Optional[str] = None
     trace_id: Optional[str] = None
+
+
+# Alias de retrocompatibilidade — remove na Fase 3
+ParecerFinal = ParecerComercial
