@@ -683,3 +683,80 @@ certidoes_empresa:
   soc_reports:
     - {tipo: "SOC 2 Type II", status: null, validade: null}
 
+# ══════════════════════════════════════════════════════════════════════
+# CÂMBIO — usado para converter atestados internacionais em BRL
+# Atualizar trimestralmente. Valores aproximados de referência.
+# Quando ausente, o Analista assume conversão impossível e mantém valor original.
+# ══════════════════════════════════════════════════════════════════════
+cambio:
+  data_referencia: "2026-04-17"
+  fonte: "PTAX/BCB (manual)"
+  taxas_para_brl:
+    BRL: 1.00
+    USD: 5.10
+    EUR: 5.55
+    PEN: 1.36     # Sol peruano
+    COP: 0.0013   # Peso colombiano
+    MXN: 0.30     # Peso mexicano
+    ARS: 0.0050   # Peso argentino
+    CLP: 0.0054   # Peso chileno
+    UYU: 0.13     # Peso uruguaio
+
+# ══════════════════════════════════════════════════════════════════════
+# HEURÍSTICA NACIONALIDADE DE ATESTADOS — usada quando o BQ não tem campo `pais`
+# O Qualificador classifica um atestado como INTERNACIONAL se nomedaconta/objeto/resumo
+# casarem com qualquer destes termos (case-insensitive, substring).
+# ══════════════════════════════════════════════════════════════════════
+heuristica_internacional:
+  termos_internacionais:
+    # Países/regiões
+    - "peru"
+    - "perú"
+    - "peruano"
+    - "colombia"
+    - "colômbia"
+    - "colombiano"
+    - "mexico"
+    - "méxico"
+    - "mexicano"
+    - "chile"
+    - "chileno"
+    - "argentina"
+    - "argentino"
+    - "uruguai"
+    - "uruguay"
+    - "ecuador"
+    - "equador"
+    - "bolivia"
+    - "bolívia"
+    - "paraguai"
+    - "paraguay"
+    - "venezuela"
+    - "españa"
+    - "espanha"
+    # Organismos típicos LATAM
+    - "ministerio publico"
+    - "ministerio público"
+    - "ministerio de"
+    - "fiscalía"
+    - "fiscalia de la nacion"
+    - "poder judicial"
+    - "poder judiciario del peru"
+    - "poder judiciário do peru"
+    - "universidad del"
+    - "universidad pedagógica"
+    - "universidad pedagogica"
+    - "almacenes exito"
+    - "ferreyros"
+    - "mutual ser"
+    # Moedas no texto
+    - "soles"
+    - "s/."
+    - "us$"
+    - "usd"
+    - "u$s"
+    - "cop$"
+  # Termos que NUNCA marcam como internacional (override de falsos positivos)
+  termos_excluir:
+    - "novo méxico (sao paulo)"  # placeholder de exemplo
+

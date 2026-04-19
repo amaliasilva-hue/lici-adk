@@ -112,6 +112,12 @@ class AtestadoMatch(BaseModel):
     linkdeacesso: Optional[str] = None
     nrodocontrato: Optional[str] = None
     keyword_hit: Optional[str] = None  # qual termo casou
+    # Cascata Nacional → Internacional (Fase 6) — preenchido por heurística no Qualificador
+    origem: Literal["nacional", "internacional"] = "nacional"
+    moeda_original: Optional[str] = None  # "BRL" | "USD" | "PEN" | "COP" | ...
+    valor_original: Optional[float] = None
+    valor_brl_convertido: Optional[float] = None
+    cambio_aplicado: Optional[float] = None
 
 
 class ContratoMatch(BaseModel):
@@ -163,6 +169,10 @@ class QualificadorResult(BaseModel):
     queries_executadas: int = 0
     modo_busca: Literal["like", "strict", "familia"] = "like"
 
+    # Fase 6 — agregados pré-calculados para o Analista construir cascata
+    atestados_nacionais_count: int = 0
+    atestados_internacionais_count: int = 0
+
 
 # ════════════════════════════════════════════════════════════════════════
 # ANALISTA — parecer final
@@ -197,6 +207,67 @@ class GapIdentificado(BaseModel):
     recomendacao: str
 
 
+# ── Fase 6: Cascata de comprovação por requisito ─────────────────────────
+NivelStatus = Literal["atende", "parcial", "nao_atende"]
+
+
+class ContribuinteEvidencia(BaseModel):
+    """Item individual que contribui para um nível da cascata."""
+    fonte: Literal["atestado", "contrato", "drive_pdf"]
+    fonte_id: Optional[str] = None  # id BQ, drive_file_id ou nº contrato
+    rotulo: str  # ex: "SEBRAE/RN — Atestado 50"
+    valor: Optional[float] = None
+    unidade: Optional[str] = None
+    moeda_original: Optional[str] = None
+    valor_original: Optional[float] = None
+    link: Optional[str] = None
+
+
+class NivelComprovacao(BaseModel):
+    """Um nível da cascata (nacional, internacional, captação)."""
+    nivel: Literal["nacional", "internacional", "captacao"]
+    status: NivelStatus
+    valor_acumulado: float = 0.0
+    unidade: Optional[str] = None
+    delta: Optional[float] = None  # negativo = falta, positivo = sobra
+    contribuintes: list[ContribuinteEvidencia] = Field(default_factory=list)
+    observacao: Optional[str] = None  # ex: "requer tradução juramentada"
+
+
+class EquivalenciaPE(BaseModel):
+    """Pedido de Esclarecimento sugerido para um requisito.
+
+    Quando a comprovação depende de equivalência semântica (ex: UST IA ↔ CP-PROF-SVC-CREDITS),
+    o Analista emite este bloco com um score 0-100 indicando a probabilidade do PE
+    ser aceito pelo pregoeiro.
+    """
+    motivo: str  # ex: "categoria UST IA não bate com SKU CP-PROF-SVC-CREDITS"
+    pergunta_sugerida: str  # texto pronto para protocolar
+    pe_score: int = Field(ge=0, le=100)  # 0=quase certo de rejeitar, 100=quase certo de aceitar
+    impacto_se_aceito: str  # ex: "Requisito (c) PSO passa a ser ATENDIDO"
+
+
+class RequisitoCascata(BaseModel):
+    """Análise em cascata por requisito quantitativo do edital."""
+    requisito: str  # ex: "Tecnologia Google Cloud Platform (GCP) — R$ 52.000.000,00"
+    minimo_exigido: float
+    unidade: str  # "BRL" | "licencas" | "requisicoes_api" | "UST"
+    niveis: list[NivelComprovacao] = Field(default_factory=list)
+    status_consolidado: NivelStatus  # status considerando todos os níveis aplicáveis
+    nivel_que_satisfaz: Optional[Literal["nacional", "internacional", "captacao", "nenhum"]] = None
+    equivalencia_pe: Optional[EquivalenciaPE] = None  # presente se há equivalência semântica
+
+
+class CenarioParecer(BaseModel):
+    """Cenário de avaliação (conservador vs otimista com PE aceitos)."""
+    nome: Literal["conservador", "otimista"]
+    score_aderencia: Optional[int] = Field(default=None, ge=0, le=100)
+    status: Literal["APTO", "APTO COM RESSALVAS", "INAPTO", "NO-GO"]
+    requisitos_atendidos_count: int = 0
+    requisitos_total: int = 0
+    descricao: str  # explicação curta das premissas
+
+
 class ParecerComercial(BaseModel):
     """Saída do Agente 3 (Analista Comercial).
 
@@ -214,6 +285,10 @@ class ParecerComercial(BaseModel):
     estrategia: str
     alertas: list[str] = Field(default_factory=list)
     campos_trello: dict = Field(default_factory=dict)
+
+    # Fase 6 — Cascata de comprovação e cenários
+    requisitos_cascata: list[RequisitoCascata] = Field(default_factory=list)
+    cenarios: list[CenarioParecer] = Field(default_factory=list)
 
     # Metadados de rastreio
     edital_orgao: Optional[str] = None
