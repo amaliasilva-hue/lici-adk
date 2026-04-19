@@ -1,176 +1,552 @@
-# Súmulas e posicionamentos TCU aplicáveis a licitações de TI
-#
-# ATENÇÃO: rascunho gerado por IA — revisar com jurídico antes de usar em produção.
-# Para substituir: editar este arquivo e fazer git commit.
-# knowledge_version = SHA-256 deste arquivo calculado em runtime.
-#
-# Formato de curadoria: architecture2.md §6.6 (Caminho B).
-# Prompt de curadoria disponível na seção §6.6 do architecture2.md.
+# =====================================================================
+# JURISPRUDÊNCIA DO TCU APLICÁVEL A LICITAÇÕES DE TI
+# Lei 14.133/2021 (Nova Lei de Licitações e Contratos)
+# Compilação de 8 entendimentos consolidados
+# Atualizado até abril/2026
+# =====================================================================
+
+metadados:
+  fonte_primaria: "Lei 14.133/2021 (planalto.gov.br)"
+  base_jurisprudencial: "Acórdãos do Plenário do TCU (2007-2026)"
+  manual_tcu: "Licitações e Contratos – Orientações e Jurisprudência do TCU"
+  aplicabilidade: "Licitações de TI/software/cloud em órgãos e entidades federais"
 
 sumulas:
 
-  - id: TCU-S-001
-    tema: Somatório de atestados para comprovação de capacidade técnica
+  # -------------------------------------------------------------------
+  - id: 1
+    tema: "Somatório de atestados de capacidade técnica"
     enunciado: >
-      O TCU admite o somatório de atestados de capacidade técnica para fins de
-      habilitação, desde que a exigência seja pertinente e compatível com o objeto
-      licitado. Cada atestado pode contribuir parcialmente para o volume total exigido,
-      sendo vedado exigir que um único documento comprove a totalidade do objeto.
+      O somatório de atestados para comprovação da qualificação técnico-operacional
+      é a regra geral, em prestígio à ampliação da competitividade. A vedação ao
+      somatório é medida excepcionalíssima, admitida apenas mediante motivação
+      técnica robusta que demonstre que a execução em maior escala altera a
+      natureza e eleva a complexidade do serviço a patamar incompatível com a
+      soma de experiências menores.
     base_legal:
-      - "Lei 14.133/2021, art. 67"
-      - "Lei 14.133/2021, art. 67 § 2º"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 67, caput, incs. I e II (qualificação técnico-profissional e técnico-operacional)"
+        - "Art. 67, §2º (teto de 50% e vedação de limitações de tempo e local)"
+        - "Art. 15, III (comprovação de capacidade técnico-operacional)"
+      sumula_tcu: "Súmula TCU nº 263"
+      texto_chave: >
+        Art. 67, §2º: "Observado o disposto no caput e no §1º deste artigo, será
+        admitida a exigência de atestados com quantidades mínimas de até 50%
+        (cinquenta por cento) das parcelas de que trata o referido parágrafo,
+        vedadas limitações de tempo e de locais específicos relativas aos atestados."
     implicacao_pratica: >
-      Quando o edital proíbe ou não menciona o somatório, o licitante deve questionar
-      via pedido de esclarecimento e, se mantida a restrição, impugnar com base no
-      art. 67. Sinalizar IRREGULAR quando o edital vedar explicitamente o somatório.
-    aplicacao_ti: true
+      Edital que proíbe somatório de atestados sem motivação técnica específica
+      é nulo por restringir indevidamente a competitividade. O licitante deve:
+      (1) impugnar o edital em até 3 dias úteis antes da abertura (art. 164);
+      (2) em caso de inabilitação, interpor recurso administrativo em 3 dias úteis
+      (art. 165, I); (3) representar ao TCU (arts. 235/237 RITCU) com pedido
+      de cautelar de suspensão; (4) eventual mandado de segurança em 120 dias.
+    aplicabilidade_ti: >
+      Plenamente aplicável em licitações de TI (cloud, SaaS, fábrica de software,
+      outsourcing, sustentação de sistemas). Em TI, o somatório é ainda mais
+      defensável porque objetos típicos raramente apresentam ganho de complexidade
+      proporcional ao aumento de escala. O Acórdão 1.211/2021-Plenário aplicou
+      o princípio do formalismo moderado em pregão de desenvolvimento de sistemas,
+      admitindo juntada de novos atestados para suprir insuficiência.
     acordaos_referencia:
-      - "Acórdão 2.150/2015-TCU-Plenário"
-      - "Acórdão 1.214/2013-TCU-Plenário"
-      - "Acórdão 825/2019-TCU-Plenário"
+      - numero: "2.150/2008-Plenário"
+        tese: "Vedação ao somatório só cabível quando aumento de quantitativos acarrete aumento de complexidade técnica ou desproporção quantidades/prazos."
+      - numero: "1.231/2012-Plenário"
+        relator: "Min. Walton Alencar Rodrigues"
+        tese: "É indevida a proibição de somatório quando a aptidão puder ser satisfatoriamente demonstrada por mais de um atestado."
+      - numero: "2.387/2014-Plenário"
+        relator: "Min. Benjamin Zymler"
+        tese: "Em terceirização de mão de obra, admite-se restrição apenas se atestados não forem concomitantes."
+      - numero: "2.291/2021-Plenário"
+        relator: "Min. Bruno Dantas"
+        tese: "Quando atestado único não for imprescindível, deve-se permitir o somatório para ampliar a competição."
+      - numero: "1.153/2024-Plenário"
+        relator: "Min. Antonio Anastasia"
+        tese: "Critérios objetivos para excepcionalmente justificar vedação: complexidade incontestavelmente elevada + desproporcionalidade quantitativos/prazos."
+      - numero: "2.839/2025-Plenário"
+        relator: "Min. Jhonatan de Jesus"
+        data_julgamento: "03/12/2025"
+        tese: "Decisão paradigmática mais recente: vedação ao somatório é medida excepcionalíssima, justificável apenas quando execução conjunta altere natureza e eleve complexidade a patamar incompatível."
 
-  - id: TCU-S-002
-    tema: Parcela de maior relevância — limite percentual e motivação
+  # -------------------------------------------------------------------
+  - id: 2
+    tema: "Parcelas de maior relevância ou valor significativo"
     enunciado: >
-      A exigência de parcela de maior relevância (PMR) deve ser motivada e proporcional
-      ao objeto. Percentuais superiores a 50% do volume ou valor total tendem a ser
-      considerados restritivos salvo justificativa técnica robusta. Quando baseada em
-      valor, a PMR deve corresponder a pelo menos 4% do valor estimado do contrato
-      (art. 67 §1º), não podendo ser artificialmente elevada para restringir a competição.
+      A exigência de atestados de capacidade técnica deve restringir-se às parcelas
+      de maior relevância técnica OU de valor significativo do objeto, assim
+      consideradas aquelas com valor individual igual ou superior a 4% do valor
+      total estimado. Atestados sobre parcelas de menor relevância são ilegais,
+      e o quantitativo exigido não pode superar 50% do previsto para a contratação,
+      salvo justificativa técnica excepcional.
     base_legal:
-      - "Lei 14.133/2021, art. 67 § 1º"
-      - "Lei 14.133/2021, art. 67 § 2º"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 67, §1º (parcelas de maior relevância ou valor significativo ≥ 4%)"
+        - "Art. 67, §2º (teto de 50% do quantitativo)"
+        - "Art. 18, IX (motivação do ETP)"
+        - "Art. 67, §9º (subcontratação limitada a 25%)"
+      sumula_tcu: "Súmula TCU nº 263"
+      texto_chave: >
+        Art. 67, §1º: "A exigência de atestados será restrita às parcelas de maior
+        relevância ou valor significativo do objeto da licitação, assim consideradas
+        as que tenham valor individual igual ou superior a 4% (quatro por cento)
+        do valor total estimado da contratação."
+      observacao: >
+        A Lei 14.133/2021 adotou o conectivo "OU" (alternativo), diferentemente
+        da Lei 8.666/1993, que exigia relevância E valor significativo cumulativamente.
     implicacao_pratica: >
-      Se o edital exige PMR > 50% sem justificativa técnica ou PMR que impeça a
-      participação de qualificados, impugnar. Verificar se o percentual declarado
-      está dentro dos limites legais e se há motivação na nota de instrução.
-    aplicacao_ti: true
+      Se o edital exigir atestado sobre parcela inferior a 4% do valor estimado
+      sem demonstrar sua relevância técnica no ETP, ou exigir quantitativo
+      superior a 50% sem justificativa, o licitante deve impugnar em 3 dias úteis,
+      invocando art. 67, §§ 1º e 2º, Súmula TCU 263 e Acórdãos 1.697/2023,
+      2.144/2022 e 1.604/2025-Plenário. Ausência de motivação no ETP (art. 18, IX)
+      configura vício autônomo.
+    aplicabilidade_ti: >
+      Em licitações de TI, a "parcela de maior relevância técnica" pode ser
+      cloud IaaS/PaaS/SaaS específico, DevSecOps, migração de workloads críticos,
+      integração com legado, ou AMS — sempre motivada no ETP/TR. O teto de 50%
+      aplica-se a licenças, usuários, chamados/mês, UST/mês ou volume de
+      armazenamento. Em TI, o §9º do art. 67 é especialmente útil: permite
+      qualificação por atestado de subcontratado até 25% do objeto (ex.:
+      certificações em nuvem específica).
     acordaos_referencia:
-      - "Acórdão 1.084/2020-TCU-Plenário"
-      - "Acórdão 2.079/2021-TCU-Plenário"
-      - "Acórdão 3.262/2019-TCU-Plenário"
+      - numero: "Súmula TCU nº 263 (Acórdão 32/2011-Plenário)"
+        tese: "Exigência limitada às parcelas de maior relevância e valor significativo, proporcional à dimensão e complexidade do objeto."
+      - numero: "2.924/2019-Plenário"
+        tese: "Irregular exigência de atestado com quantitativo superior a 50%, salvo especificidade do objeto justificada no processo."
+      - numero: "2.144/2022-Plenário"
+        relator: "Min. Bruno Dantas"
+        tese: "Confirma o teto de 50% conforme art. 67, §2º da Lei 14.133/2021."
+      - numero: "1.697/2023-Plenário"
+        tese: "É ilegal exigir atestados sobre parcelas de menor relevância; percentuais acima de 50% exigem justificativa técnica excepcional."
+      - numero: "1.777/2024-Plenário"
+        tese: "Exigências de qualificação técnica devem ser estritamente necessárias, pertinentes e proporcionais."
+      - numero: "1.604/2025-Plenário"
+        tese: "Pacificou teto de 50% inclusive em contratação por postos de trabalho; art. 67, §2º revogou tacitamente item 10.6, c.2, do Anexo VII-A da IN-Seges/ME 5/2017."
+      - numero: "1.508/2020-Plenário (UST em TI)"
+        tese: "Métricas UST inadequadas sem padronização; paradigma para contratações de desenvolvimento e sustentação de software."
+      - numero: "157/2024-Plenário"
+        relator: "Min. Antonio Anastasia"
+        tese: "Parâmetro de referência para contratação de cloud via USIN (TCU como órgão gerenciador)."
 
-  - id: TCU-S-003
-    tema: Restrição temporal na comprovação de capacidade técnica — vedação
+  # -------------------------------------------------------------------
+  - id: 3
+    tema: "Vedação de restrição temporal de atestados"
     enunciado: >
-      É vedado exigir que atestados de capacidade técnica tenham sido emitidos dentro
-      de período determinado (ex.: "nos últimos 3 anos") quando tal restrição não for
-      justificada pela natureza tecnológica do objeto. A experiência técnica não se
-      torna irrelevante pelo simples decurso do tempo, especialmente em serviços de TI
-      com contratos de longa duração ou produtos com ciclo de vida estável.
+      É vedada qualquer limitação temporal aos atestados de capacidade técnica,
+      abrangendo tanto prazo de validade quanto exigência de execução em período
+      determinado (ex.: "últimos 36 meses"). A única exceção legal é o art. 67,
+      §5º, aplicável exclusivamente a serviços contínuos, no qual o prazo mínimo
+      de execução não pode superar 3 anos, sempre com justificativa no ETP.
     base_legal:
-      - "Lei 14.133/2021, art. 67 § 2º"
-      - "Lei 14.133/2021, art. 5º (isonomia e competitividade)"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 67, §2º (vedação expressa de limitações de tempo)"
+        - "Art. 67, §5º (exceção para serviços contínuos, prazo ≤ 3 anos)"
+        - "Art. 5º (princípios); Art. 11 (objetivos); Art. 14 (vedações)"
+        - "Art. 37, XXI, CF/88"
+      texto_chave: >
+        Art. 67, §2º, parte final: "vedadas limitações de tempo e de locais
+        específicos relativas aos atestados."
+        Art. 67, §5º: "Em se tratando de serviços contínuos, o edital poderá
+        exigir certidão ou atestado que demonstre que o licitante tenha executado
+        serviços similares ao objeto da licitação, em períodos sucessivos ou não,
+        por um prazo mínimo, que não poderá ser superior a 3 (três) anos."
+      interpretacao_oficial_tcu: >
+        Guia Licitações e Contratos (item 5.5.2): "limitações de tempo" abrange
+        exigência de prazo de validade do atestado OU de que o objeto tenha sido
+        executado em determinado período.
     implicacao_pratica: >
-      Detectar qualquer cláusula do tipo "atestados emitidos nos últimos X anos".
-      Se sem justificativa técnica robusta → sinalizar IRREGULAR e gerar minuta de
-      impugnação com base no art. 67 §2º e TCU-S-003.
-    aplicacao_ti: true
+      Cláusula do tipo "atestado dos últimos 60 meses" em licitação que NÃO seja
+      de serviço contínuo é nula. O licitante deve impugnar em 3 dias úteis
+      citando art. 67, §2º, Acórdãos 2032/2020-Plenário e 18965/2021-2ª Câmara.
+      Em serviços contínuos, o prazo é limitado a 3 anos E exige justificativa
+      técnica documentada no ETP quanto à essencialidade (Acórdão 503/2021-Plenário).
+    aplicabilidade_ti: >
+      Em TI, qualquer cláusula exigindo atestados "dos últimos X meses" é em
+      regra ilegal, salvo se a contratação for serviço contínuo (sustentação,
+      service desk, AMS) — nessa hipótese, prazo ≤ 3 anos e justificativa no ETP.
+      A rápida evolução tecnológica pode justificar experiência recente em
+      tecnologia específica (cloud, Kubernetes, IA), mas a motivação deve estar
+      documentada no ETP, sob pena de configurar direcionamento.
     acordaos_referencia:
-      - "Acórdão 2.150/2015-TCU-Plenário"
-      - "Acórdão 1.521/2016-TCU-Plenário"
-      - "Acórdão 1.633/2014-TCU-Plenário"
+      - numero: "2032/2020-Plenário"
+        relator: "Min. Subst. Marcos Bemquerer Costa"
+        tese: "Limitação temporal de atestados sem justificativa técnica caracteriza risco de restrição à competitividade."
+      - numero: "18965/2021-2ª Câmara"
+        tese: "Ausência de justificativa técnica de limitação temporal contraria os princípios da motivação e da competitividade."
+      - numero: "503/2021-Plenário"
+        tese: "Em serviços continuados, exigência de experiência mínima deve ser fundamentada em estudos prévios do órgão (essencialidade, quantitativo, risco, complexidade)."
+      - numero: "2144/2022-Plenário"
+        relator: "Min. Bruno Dantas"
+        tese: "Confirma aplicação do art. 67, §2º da Lei 14.133/2021."
+      - numero: "1604/2025-Plenário"
+        tese: "Art. 67, §2º da Lei 14.133/2021 prevalece sobre normas infralegais que imponham exigências superiores."
+      - numero: "1211/2021-Plenário"
+        relator: "Min. Walton Alencar Rodrigues"
+        tese: "Formalismo moderado em TI: admissível juntada de atestados para suprir insuficiência."
 
-  - id: TCU-S-004
-    tema: Restrição geográfica (local/regional) na habilitação — vedação
+  # -------------------------------------------------------------------
+  - id: 4
+    tema: "Vedação de restrição geográfica/local de atestados"
     enunciado: >
-      É vedada a exigência de que o licitante comprove experiência em determinada
-      região geográfica, estado ou município. Tal restrição viola os princípios da
-      isonomia e da ampla concorrência (art. 5º) e a vedação constitucional de
-      distinguir bens e serviços por origem geográfica (CF, art. 19 III).
+      É vedado condicionar a aceitação de atestados à execução em determinado
+      município, estado, região ou raio geográfico. A restrição geográfica é
+      excepcional e exige motivação técnica robusta demonstrando que a
+      localização é indispensável à execução. Atestados de experiência pregressa
+      não podem ter restrição geográfica, ainda que o objeto futuro exija
+      atendimento presencial local.
     base_legal:
-      - "Lei 14.133/2021, art. 67 § 2º"
-      - "Lei 14.133/2021, art. 5º (isonomia)"
-      - "Constituição Federal, art. 19 III"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 67, §2º (vedação expressa de locais específicos)"
+        - "Art. 5º (isonomia, competitividade)"
+        - "Art. 9º (vedação a preferências indevidas)"
+        - "Art. 14, I (veda preferência por naturalidade, sede ou domicílio)"
+        - "Art. 37, XXI, CF/88"
+      texto_chave: >
+        Art. 67, §2º, parte final: "vedadas limitações de tempo e de locais
+        específicos relativas aos atestados."
+      interpretacao_oficial_tcu: >
+        Guia Licitações e Contratos (item 5.5.2): "locais específicos" =
+        "exigência de que o objeto tenha sido executado em determinado local".
     implicacao_pratica: >
-      Qualquer cláusula que exija atestado com escopo geográfico restrito (ex.:
-      "órgão público do mesmo estado", "clientela do Paraná") deve ser impugnada.
-      Sinalizar IRREGULAR e gerar impugnação citando TCU-S-004.
-    aplicacao_ti: true
+      Edital que exige atestado de cliente em determinado estado, município ou
+      "órgão federal sediado no DF" é nulo. Remédios: impugnação (art. 164)
+      com base no art. 67, §2º, art. 5º, art. 9º, art. 14, I; recurso
+      administrativo (art. 165); representação ao TCU (art. 171) com pedido de
+      cautelar; mandado de segurança. Jurisprudência do STJ (REsp 466.286/SP)
+      confirma que limitação geográfica afronta o caráter competitivo.
+    aplicabilidade_ti: >
+      TI é área inerentemente nacional e frequentemente global (cloud hyperscalers
+      operam em múltiplas regiões; software é digital; serviços de desenvolvimento
+      são remotos). Exigências como "atestado de execução em órgão do DF" ou
+      "atestado de cliente no estado X" são nulas por violação do art. 67, §2º.
+      Para cloud/SaaS executados remotamente, não há justificativa legítima para
+      restrição geográfica — seria direcionamento explícito. Exceção restrita:
+      suporte presencial/field service, em que se pode exigir estrutura local
+      futura (não o atestado anterior).
     acordaos_referencia:
-      - "Acórdão 2.150/2015-TCU-Plenário"
-      - "Acórdão 677/2018-TCU-Plenário"
-      - "Acórdão 1.406/2014-TCU-Plenário"
+      - numero: "1567/2018-Plenário"
+        relator: "Min. Augusto Nardes"
+        tese: "Caracteriza restrição à competitividade a exigência de atestado em tipologia específica sem imprescindibilidade comprovada."
+      - numero: "2066/2016-Plenário"
+        tese: "Cláusulas que vedem ou restrinjam apresentação de atestados de determinadas tipologias contrariam o art. 37, XXI, CF/88."
+      - numero: "520/2015-2ª Câmara"
+        tese: "Restrição geográfica (raio km) é excepcional; só cabível em perecibilidade, urgência ou interesse público demonstrado."
+      - numero: "2079/2005-1ª Câmara; 1580/2005-1ª Câmara"
+        tese: "Fundamentam vedação a cláusulas que restrinjam o universo de licitantes em razão de localização sem justificativa."
+      - numero: "1733/2010-Plenário; 1502/2009-Plenário"
+        tese: "Precedentes históricos sobre vedação à limitação de tipologia/local de atestados."
 
-  - id: TCU-S-005
-    tema: Capital mínimo / patrimônio líquido — limite de 10% do valor estimado
+  # -------------------------------------------------------------------
+  - id: 5
+    tema: "Capital mínimo / patrimônio líquido na habilitação econômico-financeira"
     enunciado: >
-      A exigência de capital social mínimo ou patrimônio líquido mínimo para fins
-      de qualificação econômico-financeira não pode exceder 10% do valor estimado
-      da contratação, sob pena de restrição indevida à competição. O percentual deve
-      ser motivado e compatível com o risco efetivo da contratação.
+      A exigência de capital social mínimo ou patrimônio líquido mínimo é
+      faculdade da Administração, limitada a 10% do valor estimado da contratação,
+      somente aplicável a compras para entrega futura, execução de obras e
+      serviços. É ilegal a exigência de capital social INTEGRALIZADO mínimo —
+      admite-se apenas o capital subscrito. A escolha entre capital e patrimônio
+      líquido é alternativa, não cumulativa (Súmula TCU 275).
     base_legal:
-      - "Lei 14.133/2021, art. 69 § 4º"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 69, caput (habilitação econômico-financeira objetiva)"
+        - "Art. 69, §4º (capital OU patrimônio líquido, até 10%)"
+        - "Art. 69, §3º (relação de compromissos assumidos)"
+        - "Art. 69, §6º (empresas constituídas há menos de 2 anos)"
+      sumula_tcu: "Súmula TCU nº 275"
+      texto_chave: >
+        Art. 69, §4º: "A Administração, nas compras para entrega futura e na
+        execução de obras e serviços, poderá estabelecer no edital a exigência
+        de capital mínimo ou de patrimônio líquido mínimo equivalente a até 10%
+        (dez por cento) do valor estimado da contratação."
+        Súmula TCU 275: "Para fins de qualificação econômico-financeira, a
+        Administração pode exigir das licitantes, de forma não cumulativa,
+        capital social mínimo, patrimônio líquido mínimo ou garantias (...)."
     implicacao_pratica: >
-      Verificar se capital mínimo / PL exigido ≤ 10% do valor estimado. Se
-      ultrapassar, sinalizar IRREGULAR e recomendar pedido de esclarecimento ou
-      impugnação. Calcular: valor_capital_exigido / valor_estimado_contrato × 100.
-    aplicacao_ti: true
+      Exigência acima de 10% do valor estimado, ou exigência de capital
+      INTEGRALIZADO (em vez de subscrito), é ilegal. O licitante deve impugnar
+      invocando art. 69, §4º, Súmula TCU 275 e Acórdãos 138/2024 e 610/2025-Plenário.
+      O Acórdão 2724/2025-Plenário admite cumulação de exigências (PL + liquidez
+      + compromissos + capital circulante), desde que cada uma seja motivada
+      individualmente no processo.
+    aplicabilidade_ti: >
+      Empresas de TI frequentemente têm capital reduzido e PL pequeno (ativos
+      intangíveis, modelo cloud), mesmo com alto faturamento. Em bens comuns de
+      TI (licenças, hardware de prateleira), exigência de capital/PL tende a ser
+      desproporcional — não há "entrega futura" de alto risco. Em serviços
+      continuados de TI (outsourcing, sustentação), admite-se até 10% com
+      motivação. Proteção crucial para startups: §6º limita análise ao último
+      exercício quando a empresa tem menos de 2 anos.
     acordaos_referencia:
-      - "Acórdão 1.193/2013-TCU-Plenário"
-      - "Acórdão 2.200/2019-TCU-Plenário"
+      - numero: "Súmula TCU nº 275"
+        tese: "Capital, PL ou garantia, de forma NÃO cumulativa, em compras futuras/obras/serviços."
+      - numero: "138/2024-Plenário"
+        relator: "Min. Vital do Rêgo"
+        data: "07/02/2024"
+        tese: "É ilegal a exigência de capital social INTEGRALIZADO mínimo de 10% — extrapola o comando legal."
+      - numero: "610/2025-Plenário"
+        data: "DOU 27/03/2025"
+        tese: "Exigência de capital integralizado afronta o art. 69, §4º da Lei 14.133/2021; cita Acórdão 138/2024."
+      - numero: "2724/2025-Plenário"
+        relator: "Min. Benjamin Zymler"
+        data: "18/11/2025"
+        tese: "Admite exigência cumulativa de (i) declaração de compromissos, (ii) liquidez ≥ 1, (iii) PL até 10%, (iv) capital circulante para 2 meses, desde que motivadas."
+      - numero: "2326/2019-Plenário; 2365/2017-Plenário; 170/2007-Plenário"
+        tese: "Precedentes históricos sobre ilegalidade do capital integralizado."
 
-  - id: TCU-S-006
-    tema: Índices financeiros de rentabilidade e lucratividade — vedação
+  # -------------------------------------------------------------------
+  - id: 6
+    tema: "Vedação de índices de rentabilidade e lucratividade"
     enunciado: >
-      São vedados como critérios de qualificação econômico-financeira os índices de
-      lucratividade, rentabilidade, EBITDA, margem líquida ou similares. A qualificação
-      econômico-financeira deve se restringir a índices contábeis de liquidez, solvência
-      e endividamento, além de capital mínimo ou patrimônio líquido quando cabível e
-      motivado (art. 69 §2º e §3º).
+      É expressamente vedada a exigência de índices de rentabilidade ou
+      lucratividade (ROA, ROE, ROI, margem líquida, EBITDA margin) e de valores
+      mínimos de faturamento anterior. São admitidos apenas índices usualmente
+      adotados no mercado (liquidez geral, liquidez corrente, solvência geral —
+      geralmente ≥ 1), desde que justificados no processo com parâmetros
+      atualizados de mercado e pertinência ao objeto licitado.
     base_legal:
-      - "Lei 14.133/2021, art. 69 § 2º"
-      - "Lei 14.133/2021, art. 69 § 3º"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 69, caput (rol taxativo de documentos)"
+        - "Art. 69, §2º (vedação de faturamento mínimo e índices de rentabilidade/lucratividade)"
+        - "Art. 69, §5º (vedação de índices não usualmente adotados)"
+      sumula_tcu: "Súmula TCU nº 289 (Acórdão 354/2016-Plenário)"
+      texto_chave: >
+        Art. 69, §2º: "Para o atendimento do disposto no caput deste artigo, é
+        vedada a exigência de valores mínimos de faturamento anterior e de
+        índices de rentabilidade ou lucratividade."
+        Súmula TCU 289: "A exigência de índices contábeis de capacidade financeira,
+        a exemplo dos de liquidez, deve estar justificada no processo da licitação,
+        conter parâmetros atualizados de mercado e atender às características do
+        objeto licitado, sendo vedado o uso de índice cuja fórmula inclua
+        rentabilidade ou lucratividade."
     implicacao_pratica: >
-      Se o edital exige ROE, ROA, EBITDA, margem líquida ou qualquer índice de
-      rentabilidade → IRREGULAR, gerar impugnação. O Analista deve inspecionar
-      a seção de qualificação econômico-financeira do edital.
-    aplicacao_ti: true
+      Edital que exija margem líquida mínima, EBITDA positivo, ROE/ROA mínimo
+      ou faturamento anual mínimo é flagrantemente ilegal. O licitante deve
+      impugnar invocando art. 69, §§ 2º e 5º, Súmula TCU 289 e Acórdão
+      1214/2013-Plenário. O TCU tem histórico de julgar procedentes
+      representações sobre o tema, determinando alteração do edital e ciência
+      ao órgão licitante; em casos graves, há multa ao gestor.
+    aplicabilidade_ti: >
+      Proteção crítica para TI: startups e empresas SaaS frequentemente
+      apresentam rentabilidade negativa nos primeiros anos (alto CAC,
+      reinvestimento agressivo), e provedores de cloud podem ter faturamento
+      elevado com lucratividade contábil baixa. A vedação do §2º impede
+      barreira injustificada a essas empresas. Liquidez corrente/geral ≥ 1
+      costuma ser atingível por empresas de TI bem geridas, sendo o parâmetro
+      adequado e não discriminatório.
     acordaos_referencia:
-      - "Acórdão 1.570/2019-TCU-Plenário"
-      - "Acórdão 2.172/2016-TCU-Plenário"
+      - numero: "Súmula TCU 289 (Acórdão 354/2016-Plenário)"
+        relator: "Min. José Múcio Monteiro"
+        tese: "Vedação expressa a índices com fórmula de rentabilidade ou lucratividade."
+      - numero: "1214/2013-Plenário"
+        relator: "Min. Aroldo Cedraz"
+        tese: "Referência obrigatória em terceirização: liquidez (LG, SG, LC ≥ 1), PL até 10%, veda rentabilidade/lucratividade."
+      - numero: "2135/2013-Plenário"
+        relator: "Min. André de Carvalho"
+        tese: "Índices só em nível suficiente para assegurar cumprimento; acompanhados de justificativa técnica."
+      - numero: "291/2007-Plenário"
+        tese: "Fixação de índices deve ter estudo técnico aprofundado constante do processo licitatório."
+      - numero: "2227/2023-Plenário; 555/2025-Plenário"
+        tese: "Exigência de Disponibilidade Financeira Líquida ≥ orçamento do órgão é restrição indevida."
+      - numero: "3265/2016-2ª Câmara"
+        relator: "Min. Ana Arraes"
+        tese: "Para serviços continuados, justificativas que demonstrem necessidade e adequação dos requisitos econômico-financeiros."
 
-  - id: TCU-S-007
-    tema: Garantia contratual — limite de 5% do valor do contrato
+  # -------------------------------------------------------------------
+  - id: 7
+    tema: "Garantia contratual — limite, base de cálculo e modalidade"
     enunciado: >
-      A garantia contratual não pode exceder 5% do valor do contrato como regra geral
-      (art. 96). Em contratos de grande vulto (acima de R$ 200 milhões) com alta
-      complexidade técnica e devidamente motivados, o limite pode ser elevado até 10%.
-      O contratado pode optar entre caução em dinheiro ou títulos, seguro-garantia ou
-      fiança bancária — vedada a imposição de modalidade específica pelo edital.
+      A garantia contratual é facultativa e limita-se a 5% do valor inicial do
+      contrato, podendo ser majorada para até 10% mediante justificativa técnica
+      de complexidade e riscos. Apenas em obras e serviços de engenharia de
+      grande vulto admite-se até 30% (com seguro-garantia e cláusula de retomada).
+      A escolha da modalidade cabe ao contratado — Administração não pode
+      restringir no edital, salvo exceção legal do art. 102. Em contratos
+      contínuos plurianuais, o percentual incide sobre o valor ANUAL.
     base_legal:
-      - "Lei 14.133/2021, art. 96"
-      - "Lei 14.133/2021, art. 96 § 3º"
-      - "Lei 14.133/2021, art. 96 § 5º"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 96 (exigência facultativa; modalidades à escolha do contratado)"
+        - "Art. 98 (limite de 5%, até 10% com justificativa; valor anual em contínuos)"
+        - "Art. 99 (até 30% em obras/engenharia de grande vulto)"
+        - "Art. 100, 101, 102 (liberação, depósito, cláusula de retomada)"
+      texto_chave: >
+        Art. 98: "Nas contratações de obras, serviços e fornecimentos, a garantia
+        poderá ser de até 5% (cinco por cento) do valor inicial do contrato,
+        autorizada a majoração desse percentual para até 10% (dez por cento),
+        desde que justificada mediante análise da complexidade técnica e dos
+        riscos envolvidos.
+        Parágrafo único: Nas contratações de serviços e fornecimentos contínuos
+        com vigência superior a 1 (um) ano, assim como nas subsequentes
+        prorrogações, será utilizado o valor anual do contrato para definição
+        e aplicação dos percentuais previstos no caput deste artigo."
+      modalidades:
+        - "Caução em dinheiro ou títulos da dívida pública"
+        - "Seguro-garantia"
+        - "Fiança bancária (instituição financeira autorizada pelo BACEN)"
+        - "Título de capitalização (Lei 14.770/2023)"
     implicacao_pratica: >
-      Se o edital exige garantia > 5% sem enquadramento como contrato de grande
-      vulto justificado, ou impõe modalidade específica de garantia → IRREGULAR,
-      impugnar. Verificar percentual na minuta do contrato e nos requisitos do edital.
-    aplicacao_ti: true
+      Se o edital exigir garantia acima de 5% sem justificativa, acima de 10%
+      fora de obras de engenharia de grande vulto, impuser modalidade única
+      em contrato de TI, ou calcular sobre valor global em contrato contínuo
+      plurianual, o licitante deve: (1) impugnar (art. 164); (2) representar
+      ao TCU com pedido de cautelar; (3) recorrer administrativamente se
+      prejudicado. Fiança fidejussória não-bancária é irregular (Acórdão 597/2023).
+    aplicabilidade_ti: >
+      Em contratos de cloud plurianuais, a base é o valor ANUAL (art. 98,
+      parágrafo único), não o total. Imposição de seguro-garantia como única
+      modalidade é ilegal em TI — a exceção do art. 102 limita-se a obras/serviços
+      de engenharia. Contratos de cloud com modelo pay-as-you-go podem justificar
+      majoração fundamentada até 10% (complexidade/imprevisibilidade), mas nunca
+      acima desse teto. Exigência de 30% em contrato de TI é flagrantemente
+      ilegal (o art. 99 não abrange TI).
     acordaos_referencia:
-      - "Acórdão 1.236/2020-TCU-Plenário"
-      - "Acórdão 857/2021-TCU-Plenário"
+      - numero: "597/2023-Plenário"
+        tese: "Irregular aceitação de fiança fidejussória não-bancária; só vale fiança emitida por instituição financeira autorizada pelo BACEN."
+      - numero: "2784/2019-Plenário"
+        tese: "Fiança bancária exige emissora autorizada a operar pelo Banco Central."
+      - numero: "1216/2019-Plenário"
+        tese: "Seguro-garantia: aceitar cláusula excluindo atos de corrupção do próprio segurado, mas recusar exclusão de atos praticados apenas pelo tomador."
+      - numero: "2599/2011-Plenário"
+        tese: "Valor da garantia deve ser atualizado a cada aditamento contratual."
+      - numero: "6119/2025-1ª Câmara"
+        relator: "Min. Walton Alencar Rodrigues"
+        tese: "Garantia de proposta por lote deve incidir sobre o lote específico, não sobre o total dos lotes; aplicável por analogia à garantia contratual."
+      - numero: "8258/2018-2ª Câmara"
+        tese: "Títulos da dívida pública como garantia devem atender requisitos legais (DL 263/1967, 396/1998, Lei 10.179/2001)."
+      - numero: "859/2006-Plenário"
+        tese: "Agente público que deixa de exigir garantia prevista no edital responde pelos prejuízos decorrentes."
 
-  - id: TCU-S-008
-    tema: Direcionamento a marca, produto ou fornecedor específico — vedação
+  # -------------------------------------------------------------------
+  - id: 8
+    tema: "Cláusulas direcionadoras de marca ou produto"
     enunciado: >
-      É vedado ao edital especificar marca, modelo, fabricante ou fornecedor específico
-      de forma a direcionar o certame. Quando a especificação técnica de produto for
-      necessária, deve conter "ou equivalente/similar". Cláusulas que exijam certificação
-      exclusiva de determinado fabricante (ex.: "Gold Partner Google", "Microsoft Gold
-      Certified") sem prever equivalência ou motivação técnica são consideradas
-      restritivas e ilegais, salvo justificativa de singularidade do objeto.
+      A indicação de marca ou modelo é medida excepcional que exige justificativa
+      técnica prévia, formal e documentada, enquadrada nas hipóteses legais
+      (padronização, compatibilidade, única marca capaz, ou marca apenas como
+      referência). Descrição por features exclusivos de fabricante (direcionamento
+      velado) é igualmente vedada. Quando indicada marca de referência, o edital
+      deve admitir expressamente similar ou equivalente com prova de qualidade
+      pelos meios do art. 42.
     base_legal:
-      - "Lei 14.133/2021, art. 40 I"
-      - "Lei 14.133/2021, art. 41 § 1º"
-      - "Lei 14.133/2021, art. 42"
+      lei: "Lei 14.133/2021"
+      artigos:
+        - "Art. 41, I (hipóteses excepcionais de indicação de marca: a-padronização; b-compatibilidade; c-única marca capaz; d-marca de referência)"
+        - "Art. 41, III (vedar marca/produto mediante processo administrativo)"
+        - "Art. 41, IV (carta de solidariedade)"
+        - "Art. 42 (prova de qualidade de similar: normas técnicas, declaração de órgão, certificação)"
+        - "Art. 9º, I (vedação de cláusulas restritivas da concorrência)"
+        - "Art. 43, 47, I (padronização formal prévia)"
+        - "Art. 74, §1º (veda preferência por marca específica em inexigibilidade)"
+      sumula_tcu: "Súmula TCU nº 270"
+      texto_chave: >
+        Art. 41, I: "indicar uma ou mais marcas ou modelos, desde que formalmente
+        justificado, nas seguintes hipóteses: a) em decorrência da necessidade de
+        padronização do objeto; b) em decorrência da necessidade de manter a
+        compatibilidade com plataformas e padrões já adotados pela Administração;
+        c) quando determinada marca ou modelo comercializados por mais de um
+        fornecedor forem os únicos capazes de atender às necessidades do contratante;
+        d) quando a descrição do objeto a ser licitado puder ser mais bem
+        compreendida pela identificação de determinada marca ou determinado modelo
+        aptos a servir apenas como referência."
+        Súmula TCU 270: "Em licitações referentes a compras, inclusive de softwares,
+        é possível a indicação de marca, desde que seja estritamente necessária
+        para atender exigências de padronização e que haja prévia justificação."
     implicacao_pratica: >
-      Detectar indicações de marca/produto/nível de parceria exclusivos sem previsão
-      de equivalência. Sinalizar IRREGULAR e gerar impugnação. Atenção especial para
-      editais que exigem nível de parceria Google Workspace/GCP específico sem
-      motivação técnica que justifique a exclusividade.
-    aplicacao_ti: true
+      Edital que indique marca sem justificativa no ETP, descreva features
+      exclusivos sem admitir equivalentes, exija certificação única de fabricante
+      ou omita os meios de prova do art. 42 é nulo. Remédios: impugnação
+      (art. 164), representação ao TCU com pedido de cautelar (arts. 235/237
+      RITCU), representação ao MP de Contas/CGU (possível enquadramento no
+      art. 337-F CP — frustração do caráter competitivo). Recurso administrativo
+      (art. 165) após eventual desclassificação.
+    aplicabilidade_ti: >
+      Direcionamento a hyperscaler específico (AWS/Azure/GCP com exclusão dos
+      demais) é irregular salvo justificativa técnica pormenorizada (features
+      exclusivos indispensáveis, soberania de dados, compatibilidade com
+      workloads legados). Pós-Acórdão 292/2025, o TCU reconhece o modelo
+      multi-nuvem/cloud broker como forma de mitigar direcionamento. Descrição
+      por features exclusivos (AWS Lambda, Azure Arc, BigQuery) é direcionamento
+      velado; o correto é especificar funcionalidades genéricas ("serviço
+      serverless de execução de funções"). "Compatibilidade com plataforma
+      existente" (art. 41, I, b) é justificativa legítima para extensões de
+      Microsoft/Oracle/SAP legados, mas exige análise do custo do aprisionamento
+      tecnológico (Acórdão 2569/2018).
+    roteiro_analise_tcu:
+      - "Existe justificativa formal no ETP/TR?"
+      - "A justificativa é técnica (laudos, pareceres, benchmarking) ou mera conveniência?"
+      - "Foi realizada pesquisa de mercado ampla identificando conjunto representativo?"
+      - "A hipótese se enquadra em uma das alíneas do art. 41, I?"
+      - "Em padronização: houve procedimento formal prévio (art. 43 e 47, I)?"
+      - "Há vantagem técnica E econômica demonstrada vs. alternativas?"
+      - "Existem outros fornecedores que comercializam a mesma marca?"
+      - "O edital admite similar com prova de qualidade do art. 42?"
     acordaos_referencia:
-      - "Acórdão 1.782/2019-TCU-Plenário"
-      - "Acórdão 1.205/2021-TCU-Plenário"
-      - "Acórdão 2.473/2022-TCU-Plenário"
+      - numero: "113/2016-Plenário"
+        relator: "Min. Bruno Dantas"
+        tese: "Indicação de marca deve ser amparada em razões técnicas, motivada e documentada, demonstrando ser a única capaz de satisfazer o interesse público."
+      - numero: "808/2019-Plenário"
+        relator: "Min. Walton Alencar Rodrigues"
+        tese: "Marca de referência exige expressões 'ou equivalente/similar/de melhor qualidade'; paradigma para art. 41, I, d e art. 42 da Lei 14.133/2021."
+      - numero: "2383/2014-Plenário"
+        relator: "Min. Valmir Campelo"
+        tese: "Órgão deve identificar conjunto representativo de modelos antes das especificações, para evitar direcionamento."
+      - numero: "1521/2003-Plenário"
+        tese: "Indicação de marca em TI aceita por padronização, desde que motivada e demonstre vantagem técnica e econômica."
+      - numero: "2569/2018-Plenário"
+        relator: "Min. Bruno Dantas"
+        tese: "Grandes fabricantes de software (Microsoft, Oracle, SAP): adquirir apenas licenças estritamente necessárias; vedadas cláusulas que imponham contratação conjunta de suporte/atualização."
+      - numero: "980/2023-Plenário"
+        tese: "Acordo Corporativo Microsoft 8/2020 — legalidade, eficácia, economicidade e transparência de aquisições centralizadas."
+      - numero: "157/2024-Plenário"
+        tese: "Contratação centralizada de cloud (SGD/MGI): riscos de indefinição de objeto, uso indevido de marketplace, fragilidade de controle de custos."
+      - numero: "292/2025-Plenário"
+        tese: "Aprova modelo de cloud broker multi-nuvem com três ou mais provedores como forma de evitar direcionamento; contratação para 79 órgãos (~R$ 530 mi)."
+      - numero: "1937/2024-Plenário"
+        tese: "Vedada obrigatoriedade de que a empresa seja o próprio fabricante, autorizada ou certificada unicamente por ele."
+      - numero: "1712/2025-Plenário"
+        relator: "Min. Jorge Oliveira"
+        tese: "Irregular exigir normas técnicas, certificados e laudos sem comprovar serem essenciais ao desempenho do objeto."
+      - numero: "728/2024-Plenário"
+        tese: "Especificação de marcas sem justificativa adequada afronta princípios da isonomia, competitividade e busca da proposta mais vantajosa (art. 5º)."
+      - numero: "1739/2015-Plenário"
+        relator: "Min. Benjamin Zymler"
+        tese: "Levantamento sobre computação em nuvem — matriz de riscos; diretriz inicial da jurisprudência de cloud."
+
+# =====================================================================
+# REMÉDIOS PROCESSUAIS APLICÁVEIS (VISÃO GERAL)
+# =====================================================================
+remedios_processuais:
+  impugnacao_edital:
+    base_legal: "Art. 164 da Lei 14.133/2021"
+    prazo: "Até 3 dias úteis antes da data de abertura"
+    legitimidade: "Qualquer pessoa"
+    protocolo: "PNCP ou plataforma do órgão"
+
+  pedido_esclarecimento:
+    base_legal: "Art. 164 da Lei 14.133/2021"
+    prazo: "Até 3 dias úteis antes da abertura"
+
+  recurso_administrativo:
+    base_legal: "Art. 165 da Lei 14.133/2021"
+    prazo: "3 dias úteis da intimação; contrarrazões em 3 dias úteis"
+
+  representacao_tcu:
+    base_legal: "Arts. 235 e 237 do RI/TCU; Resolução TCU 315/2020"
+    prazo: "Sem prazo formal — crucial antes da homologação para cautelar"
+    custas: "Isento"
+    medida_cautelar: "TCU pode suspender o certame"
+
+  mandado_seguranca:
+    base_legal: "Art. 5º, LXIX, CF/88 + Lei 12.016/2009"
+    prazo_decadencial: "120 dias da ciência do ato"
+    cabimento: "Direito líquido e certo; via residual"
+
+  representacao_mp:
+    orgaos: "MP de Contas, CGU, Ministério Público Federal/Estadual"
+    tipificacao_penal: "Art. 337-F do CP; art. 155 da Lei 14.133/2021 (frustração do caráter competitivo)"
