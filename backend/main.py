@@ -26,12 +26,24 @@ from backend.agents.orchestrator_adk import analisar_edital
 from backend.agents.persistor import DEST_DATASET, DEST_PROJECT, DEST_TABLE
 from backend.logging_config import configure_logging
 from backend.models.schemas import ParecerComercial
+from backend.tools.pg_tools import ensure_schema, invalidate_cache, invalidate_all_cache
 from google.cloud import bigquery
 
 configure_logging()
 log = logging.getLogger("lici_adk.api")
 
 app = FastAPI(title="lici-adk", version="0.1.0")
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    """Cria tabelas Postgres na inicialização (idempotente)."""
+    try:
+        await asyncio.to_thread(ensure_schema)
+        log.info("startup.pg_schema_ok")
+    except Exception as exc:
+        # Falha silenciosa: Cloud SQL pode não estar disponível em env dev
+        log.warning("startup.pg_schema_failed", extra={"error": str(exc)})
 
 MAX_PDF_BYTES = int(os.getenv("LICI_MAX_PDF_BYTES", str(30 * 1024 * 1024)))  # 30 MB
 
@@ -196,3 +208,27 @@ def historical_analysis(analysis_id: str) -> dict:
     if not rows:
         raise HTTPException(status_code=404, detail="análise não encontrada")
     return dict(rows[0])
+
+
+# ──────────────────────── Drive re-scan (Cloud Scheduler) ────────────────────
+
+class _RescanRequest(BaseModel):
+    edital_id: str | None = None  # None → invalida todo o cache
+
+
+@app.post("/internal/drive/rescan", status_code=200)
+async def drive_rescan(body: _RescanRequest | None = None) -> dict:
+    """Invalida cache de atestados Drive.
+
+    Chamado pelo Cloud Scheduler a cada 15 min.
+    - `edital_id` fornecido → invalida apenas aquele edital.
+    - Sem body ou `edital_id=null` → invalida TODOS (full rescan).
+    Exige que o caller seja a Cloud Run SA (OIDC) por convenção;
+    a proteção é garantida pelo IAM do Cloud Run (não pública).
+    """
+    if body and body.edital_id:
+        deleted = await asyncio.to_thread(invalidate_cache, body.edital_id)
+        return {"invalidated": 1 if deleted else 0, "edital_id": body.edital_id}
+    count = await asyncio.to_thread(invalidate_all_cache)
+    log.info("drive_rescan.full", extra={"rows_deleted": count})
+    return {"invalidated": count, "edital_id": None}
