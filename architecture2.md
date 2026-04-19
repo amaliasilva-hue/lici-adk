@@ -181,15 +181,16 @@ Dark mode como default, glassmorphism sutil em cards, glow de cor nos elementos-
 
 - `backend/agents/extrator.py` — Gemini 2.5 Flash, PDF multimodal
 - `backend/agents/qualificador.py` — queries BigQuery + 5 modos avançados
-- `backend/agents/analista.py` — Gemini 2.5 Pro + YAML + Chain-of-Thought + Camada 1/2
-- `backend/models/schemas.py` — `EditalEstruturado`, `QualificadorResult`, `ParecerFinal`, `Evidencia`
+- `backend/agents/analista_comercial.py` — Gemini 2.5 Pro + YAML + Chain-of-Thought + Camada 1/2
+- `backend/models/schemas.py` — `EditalEstruturado`, `QualificadorResult`, `ParecerComercial`, `Evidencia`
 - `backend/xertica_profile.yaml` — realidade contratual vs narrativa GTM
 - `backend/tools/bigquery_tools.py` — 6 query tools
 
-### Renomeado sem mudança interna
+### Renomeado (Fase 2 concluída)
 
-- `analista.py` → `analista_comercial.py`
-- `ParecerFinal` → `ParecerComercial` (em `schemas.py`)
+- `analista.py` → `analista_comercial.py` ✔
+- `ParecerFinal` → `ParecerComercial` (em `schemas.py`) ✔ (alias retrocompatível mantido)
+- `orchestrator.py` → `orchestrator_adk.py` via `SequentialAgent(google-adk)` ✔
 
 ### Endpoint legado
 
@@ -692,19 +693,21 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 
 ## 9. Roadmap
 
-### Fase 1 — lici-adk core *(EM ANDAMENTO)*
+### Fase 1 — lici-adk core *(✅ CONCLUÍDA)*
 
 - [x] Extrator, Qualificador, Analista Comercial, Persistor em Python puro
 - [x] E2E PRODESP validado (score 73, APTO COM RESSALVAS, 347s, 11 evidências)
-- [ ] E2E Celepar (strict_match, temporal 36m, glosa 50%)
-- [ ] Gate de qualidade: comparar PRODESP + Celepar → se bom, segue Fase 2
+- [x] E2E Celepar (strict_match, temporal 36m, glosa 50%) — APTO COM RESSALVAS, score 62, 130s, 8 evidências
+- [x] Bugs corrigidos: `payload_truncado` (smart trim 3 camadas) + `strict_match temporal → bloqueio_camada_1` (regra 7)
+- [x] Gate de qualidade: resultados coerentes, pipeline estável
 
-### Fase 2 — Refactor para ADK
+### Fase 2 — Refactor para ADK *(✅ CONCLUÍDA)*
 
-- [ ] `orchestrator.py` Python puro → `SequentialAgent(google-adk)`
-- [ ] Prompts inalterados, só estrutura muda
-- [ ] Rerodar PRODESP + Celepar e comparar
-- [ ] Renomear `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial`
+- [x] `orchestrator_adk.py` — `SequentialAgent(google-adk)` com 4 sub-agentes (`BaseAgent` subclasses)
+- [x] Estado compartilhado via `session.state` + `EventActions(state_delta=...)` — padrão ADK nativo
+- [x] Prompts inalterados, só estrutura mudou
+- [x] PRODESP + Celepar rodados: pipeline ADK produz `ParecerComercial` corretamente (~120s vs 347s v1)
+- [x] `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial` (alias retrocompatível)
 
 ### Fase 3 — Deploy limpo em operaciones-br
 
@@ -886,8 +889,8 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 | 2026-04-18 | Analista Licitatório expandido para 6 blocos: Bloco 4 renomeado para `DocumentosProtocolo` com distinção ESCLARECIMENTO/IMPUGNACAO e prazos calculados. Bloco 6 `KitHabilitacao` adicionado com referências nominais do Drive. Novo §6.7 Gerador de Declarações padrão (Grupo A + B). Somador expandido com `drive_file_name`, `drive_file_id` e `kit_minimo_recomendado`. |
 | 2026-04-18 | **v2.3 — Decisão: Cloud SQL Postgres 16 substitui BQ/Firestore para estado operacional.** Datastream CDC replica Cloud SQL → BQ automaticamente. Firestore eliminado. `tcu_sumulas` migra para tabela Postgres com trigger append-only `tcu_sumulas_historico`. BQ fica apenas para: `analises_editais`, `analises_juridicas`, `documentos_protocolo`, `eventos_pipeline`. |
 | 2026-04-18 | **v2.3 — Reframe: "Kanban" → "Sistema de Controle de Editais"** com 8 stages (`identificacao → analise → pre_disputa → proposta → disputa → habilitacao → recursos → homologado`) + 5 estados terminais (`ganho \| perdido \| inabilitado \| revogado \| nao_participamos`). Fronteira x-lici: termina em `homologado`. Pós-homologação vai para SaaS de contratos (Fase 10, integração a definir). Fase 6 renomeada. |
-| 2026-04-18 | **v2.4 — Correções:** `licitación` → `licitação`; `CardExecutivo` → `ResumoExecutivo`; `deleted_at TIMESTAMPTZ` adicionado à tabela `editais` + `DELETE` endpoint documentado; `X-User-Email` documentado como dual-token (SA ID token + JWT NextAuth — header sozinho é forjável); Cloud Scheduler job adicionado à Fase 4 com trigger de invalidação do `atestados_cache`; item fantasma "Remover tabelas cards..." removido da Fase 3 (nunca foram criadas); §11 numeração corrigida (Operacional: 7–8 → 9–10). |
-
+| 2026-04-18 | **v2.4 — Correções:** `licitación` → `licitação`; `CardExecutivo` → `ResumoExecutivo`; `deleted_at TIMESTAMPTZ` adicionado à tabela `editais` + `DELETE` endpoint documentado; `X-User-Email` documentado como dual-token (SA ID token + JWT NextAuth — header sozinho é forjável); Cloud Scheduler job adicionado à Fase 4 com trigger de invalidação do `atestados_cache`; item fantasma "Remover tabelas cards..." removido da Fase 3 (nunca foram criadas); §11 numeração corrigida (Operacional: 7–8 → 9–10). || 2026-04-18–19 | **Fase 1 concluída (commit `a73c7b8`):** E2E Celepar rodado — APTO COM RESSALVAS, score 62, 130s, 8 evidências. Bugs corrigidos: `payload_truncado` (smart trim 3 camadas em `analista_comercial.py`) + `strict_match temporal → bloqueio_camada_1` (Camada 1 regra 7). |
+| 2026-04-19 | **Fase 2 concluída — Refactor para ADK (v2.5):** `orchestrator_adk.py` criado com `SequentialAgent(google-adk 1.31)`. 4 sub-agentes `BaseAgent`: `_ExtratorAgent`, `_QualificadorAgent`, `_AnalistaComercialAgent`, `_PersistorAgent`. Estado via `session.state` + `EventActions(state_delta)`. `analista.py` → `analista_comercial.py`, `ParecerFinal` → `ParecerComercial` (alias retrocompatível). PRODESP + Celepar revalidados (~120s, funcionamento correto). |
 ---
 
 ## 15. Próximos passos concretos
@@ -895,13 +898,14 @@ Modo: CDC (Change Data Capture) — latencia ~1 min
 **Duas frentes paralelas que destravam a Fase 5:**
 
 **Frente A — Amália (1–2 dias):**
-1. E2E Celepar → fecha Fase 1
+1. ✅ E2E Celepar — APTO COM RESSALVAS, score 62 — Fase 1 concluída
 2. Curar 8 súmulas via prompt do §6.6 → `git commit backend/knowledge/tcu_sumulas.yaml`
 3. Padronizar pastas Drive em 2–3 processos recentes
 
 **Frente B — Dev (paralelo, não bloqueia Frente A):**
-4. Fase 2 — refactor para ADK
-5. Fase 4 — somador de atestados + Drive API read-only
+4. ✅ Fase 2 — ADK SequentialAgent concluído (`orchestrator_adk.py`)
+5. Fase 3 — deploy limpo em `operaciones-br` + Cloud SQL provisionado
+6. Fase 4 — somador de atestados + Drive API read-only
 
 A Fase 5 (Analista Licitatório) só começa quando `tcu_sumulas.yaml` estiver pronto. Frente A desbloqueia Frente B nesse ponto.
 
@@ -914,6 +918,6 @@ A Fase 5 (Analista Licitatório) só começa quando `tcu_sumulas.yaml` estiver p
 
 ---
 
-*Versão: v2.4 · 2026-04-18*
+*Versão: v2.5 · 2026-04-19*
 *Canônico a partir desta data — substitui x-biding v0.1 completamente.*
 *Conflita com `architecture.md` apenas no nome: lici-adk é o motor; x-lici é o produto.*
