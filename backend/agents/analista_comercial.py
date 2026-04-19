@@ -112,6 +112,57 @@ Se `drive_indisponivel=true` ou `somatorio_drive=null`, ignore-o completamente.
 Se o Qualificador devolveu ZERO resultados para um requisito, NUNCA invente capacidade.
 Declare GAP TOTAL, score máximo 40, recomende captação de atestado com cliente similar.
 
+=================== CASCATA DE COMPROVAÇÃO (Fase 6) — OBRIGATÓRIA p/ requisitos quantitativos ===================
+Para CADA requisito quantitativo do edital (volume mínimo em BRL, licenças, requisições, USTs, horas),
+preencha um item em `requisitos_cascata` seguindo a regra de 3 níveis. Pare no primeiro nível que ATENDE:
+
+  Nível 1 — NACIONAL: some apenas atestados com `origem == "nacional"` e contratos do BR.
+  Nível 2 — INTERNACIONAL: acumula NACIONAL + atestados `origem == "internacional"`. Use
+           `valor_brl_convertido` quando presente. Marque `observacao` lembrando que requer
+           tradução juramentada / consularização.
+  Nível 3 — CAPTAÇÃO: acumula níveis anteriores + estimativa dos `contratos_sem_atestado` que
+           têm objeto compatível. Liste-os em `contribuintes` com `fonte = "contrato"` e
+           orientação para SOLICITAR atestado ao cliente.
+
+Cada `NivelComprovacao` deve ter:
+  - `nivel`: "nacional" | "internacional" | "captacao"
+  - `status`: "atende" (acumulado >= mínimo) | "parcial" (>0 mas < mínimo) | "nao_atende"
+  - `valor_acumulado`: número total acumulado ATÉ ESSE NÍVEL (não apenas o delta)
+  - `delta`: valor_acumulado - minimo_exigido (positivo = sobra, negativo = falta)
+  - `contribuintes`: lista (max 8 mais relevantes) — cada um com fonte+rotulo+valor
+  - `observacao`: nullable; preencha apenas se houver ressalva (ex: tradução, captação pendente)
+
+`status_consolidado` reflete o melhor nível alcançado:
+  - "atende" se algum nível chegou a "atende"
+  - "parcial" se algum nível tem valor > 0 mas nenhum atende
+  - "nao_atende" caso contrário
+`nivel_que_satisfaz` aponta o primeiro nível que satisfaz (ou "nenhum").
+
+EQUIVALÊNCIA SEMÂNTICA & PE:
+Quando a comprovação só "fecha" se o pregoeiro aceitar uma equivalência discutível
+(ex: UST IA ≈ CP-PROF-SVC-CREDITS, créditos integrador ≈ PSO, "uso de Maps API" ≈ requisições),
+preencha `equivalencia_pe` com:
+  - `motivo`: descreva a divergência (categoria/SKU/unidade)
+  - `pergunta_sugerida`: texto formal pronto para protocolar como Pedido de Esclarecimento
+  - `pe_score` (0-100): probabilidade do pregoeiro aceitar.
+        - 80-100: equivalência clara, jurisprudência TCU favorável (ex: art. 67 §6º Lei 14.133)
+        - 50-79: equivalência razoável mas depende de interpretação (UST↔créditos PSO)
+        - 20-49: equivalência forçada, alto risco (valor R$ ↔ volume requisições API)
+        - 0-19: praticamente sem chance — não vale o risco
+  - `impacto_se_aceito`: descreva como muda o status do requisito
+
+=================== CENÁRIOS (obrigatório quando há requisitos_cascata) ===================
+Preencha `cenarios` com EXATAMENTE 2 entradas:
+  1. {"nome":"conservador", ...} — assume que TODOS os PEs são REJEITADOS e que
+     atestados internacionais NÃO foram aceitos pelo pregoeiro. Use Nível 1 apenas.
+  2. {"nome":"otimista", ...} — assume que PEs com `pe_score >= 50` foram ACEITOS
+     e que internacionais foram aceitos com tradução juramentada. Use até Nível 2.
+
+Em cada cenário calcule `score_aderencia` e `status` aplicando a Camada 2 acima,
+e preencha `requisitos_atendidos_count` / `requisitos_total` para a UI.
+O `score_aderencia` e `status` no nível raiz do JSON devem refletir o cenário CONSERVADOR
+(default), preservando o comportamento legado.
+
 =================== EVIDÊNCIAS AUDITÁVEIS ===================
 Para cada requisito do edital, preencha `evidencias_por_requisito` com:
   { "requisito": "texto do requisito",
@@ -147,6 +198,28 @@ Se o requisito tem múltiplas fontes, escolha A MAIS FORTE (atestado > contrato 
   "requisitos_atendidos": [{"requisito","comprovacao","fonte","link"}],
   "evidencias_por_requisito": [...],
   "gaps": [{"requisito","tipo","delta_numerico","recomendacao"}],
+  "requisitos_cascata": [
+    {
+      "requisito": "Tecnologia GCP — R$ 52.000.000,00",
+      "minimo_exigido": 52000000,
+      "unidade": "BRL",
+      "niveis": [
+        {"nivel":"nacional","status":"parcial","valor_acumulado":17730000,"delta":-34270000,
+         "contribuintes":[{"fonte":"atestado","fonte_id":"50","rotulo":"SEBRAE/RN — Atestado 50","valor":17730000,"unidade":"BRL"}],
+         "observacao":null},
+        {"nivel":"internacional","status":"atende","valor_acumulado":65898738,"delta":13898738,
+         "contribuintes":[{"fonte":"atestado","fonte_id":"95","rotulo":"Mutual Ser EPS","valor":12474000,"moeda_original":"USD","valor_original":2445000,"unidade":"BRL"}],
+         "observacao":"Requer tradução juramentada"}
+      ],
+      "status_consolidado":"atende",
+      "nivel_que_satisfaz":"internacional",
+      "equivalencia_pe": null
+    }
+  ],
+  "cenarios": [
+    {"nome":"conservador","score_aderencia":35,"status":"INAPTO","requisitos_atendidos_count":2,"requisitos_total":4,"descricao":"PEs rejeitados, internacionais não aceitos"},
+    {"nome":"otimista","score_aderencia":65,"status":"APTO COM RESSALVAS","requisitos_atendidos_count":3,"requisitos_total":4,"descricao":"PEs com pe_score>=50 aceitos, internacionais aceitos com tradução"}
+  ],
   "estrategia": "recomendação objetiva de participação (2-4 parágrafos)",
   "alertas": ["..."],
   "campos_trello": {"titulo_card": "...", "checklist": ["..."]},
