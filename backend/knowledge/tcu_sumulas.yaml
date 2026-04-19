@@ -1,0 +1,176 @@
+# Súmulas e posicionamentos TCU aplicáveis a licitações de TI
+#
+# ATENÇÃO: rascunho gerado por IA — revisar com jurídico antes de usar em produção.
+# Para substituir: editar este arquivo e fazer git commit.
+# knowledge_version = SHA-256 deste arquivo calculado em runtime.
+#
+# Formato de curadoria: architecture2.md §6.6 (Caminho B).
+# Prompt de curadoria disponível na seção §6.6 do architecture2.md.
+
+sumulas:
+
+  - id: TCU-S-001
+    tema: Somatório de atestados para comprovação de capacidade técnica
+    enunciado: >
+      O TCU admite o somatório de atestados de capacidade técnica para fins de
+      habilitação, desde que a exigência seja pertinente e compatível com o objeto
+      licitado. Cada atestado pode contribuir parcialmente para o volume total exigido,
+      sendo vedado exigir que um único documento comprove a totalidade do objeto.
+    base_legal:
+      - "Lei 14.133/2021, art. 67"
+      - "Lei 14.133/2021, art. 67 § 2º"
+    implicacao_pratica: >
+      Quando o edital proíbe ou não menciona o somatório, o licitante deve questionar
+      via pedido de esclarecimento e, se mantida a restrição, impugnar com base no
+      art. 67. Sinalizar IRREGULAR quando o edital vedar explicitamente o somatório.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 2.150/2015-TCU-Plenário"
+      - "Acórdão 1.214/2013-TCU-Plenário"
+      - "Acórdão 825/2019-TCU-Plenário"
+
+  - id: TCU-S-002
+    tema: Parcela de maior relevância — limite percentual e motivação
+    enunciado: >
+      A exigência de parcela de maior relevância (PMR) deve ser motivada e proporcional
+      ao objeto. Percentuais superiores a 50% do volume ou valor total tendem a ser
+      considerados restritivos salvo justificativa técnica robusta. Quando baseada em
+      valor, a PMR deve corresponder a pelo menos 4% do valor estimado do contrato
+      (art. 67 §1º), não podendo ser artificialmente elevada para restringir a competição.
+    base_legal:
+      - "Lei 14.133/2021, art. 67 § 1º"
+      - "Lei 14.133/2021, art. 67 § 2º"
+    implicacao_pratica: >
+      Se o edital exige PMR > 50% sem justificativa técnica ou PMR que impeça a
+      participação de qualificados, impugnar. Verificar se o percentual declarado
+      está dentro dos limites legais e se há motivação na nota de instrução.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 1.084/2020-TCU-Plenário"
+      - "Acórdão 2.079/2021-TCU-Plenário"
+      - "Acórdão 3.262/2019-TCU-Plenário"
+
+  - id: TCU-S-003
+    tema: Restrição temporal na comprovação de capacidade técnica — vedação
+    enunciado: >
+      É vedado exigir que atestados de capacidade técnica tenham sido emitidos dentro
+      de período determinado (ex.: "nos últimos 3 anos") quando tal restrição não for
+      justificada pela natureza tecnológica do objeto. A experiência técnica não se
+      torna irrelevante pelo simples decurso do tempo, especialmente em serviços de TI
+      com contratos de longa duração ou produtos com ciclo de vida estável.
+    base_legal:
+      - "Lei 14.133/2021, art. 67 § 2º"
+      - "Lei 14.133/2021, art. 5º (isonomia e competitividade)"
+    implicacao_pratica: >
+      Detectar qualquer cláusula do tipo "atestados emitidos nos últimos X anos".
+      Se sem justificativa técnica robusta → sinalizar IRREGULAR e gerar minuta de
+      impugnação com base no art. 67 §2º e TCU-S-003.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 2.150/2015-TCU-Plenário"
+      - "Acórdão 1.521/2016-TCU-Plenário"
+      - "Acórdão 1.633/2014-TCU-Plenário"
+
+  - id: TCU-S-004
+    tema: Restrição geográfica (local/regional) na habilitação — vedação
+    enunciado: >
+      É vedada a exigência de que o licitante comprove experiência em determinada
+      região geográfica, estado ou município. Tal restrição viola os princípios da
+      isonomia e da ampla concorrência (art. 5º) e a vedação constitucional de
+      distinguir bens e serviços por origem geográfica (CF, art. 19 III).
+    base_legal:
+      - "Lei 14.133/2021, art. 67 § 2º"
+      - "Lei 14.133/2021, art. 5º (isonomia)"
+      - "Constituição Federal, art. 19 III"
+    implicacao_pratica: >
+      Qualquer cláusula que exija atestado com escopo geográfico restrito (ex.:
+      "órgão público do mesmo estado", "clientela do Paraná") deve ser impugnada.
+      Sinalizar IRREGULAR e gerar impugnação citando TCU-S-004.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 2.150/2015-TCU-Plenário"
+      - "Acórdão 677/2018-TCU-Plenário"
+      - "Acórdão 1.406/2014-TCU-Plenário"
+
+  - id: TCU-S-005
+    tema: Capital mínimo / patrimônio líquido — limite de 10% do valor estimado
+    enunciado: >
+      A exigência de capital social mínimo ou patrimônio líquido mínimo para fins
+      de qualificação econômico-financeira não pode exceder 10% do valor estimado
+      da contratação, sob pena de restrição indevida à competição. O percentual deve
+      ser motivado e compatível com o risco efetivo da contratação.
+    base_legal:
+      - "Lei 14.133/2021, art. 69 § 4º"
+    implicacao_pratica: >
+      Verificar se capital mínimo / PL exigido ≤ 10% do valor estimado. Se
+      ultrapassar, sinalizar IRREGULAR e recomendar pedido de esclarecimento ou
+      impugnação. Calcular: valor_capital_exigido / valor_estimado_contrato × 100.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 1.193/2013-TCU-Plenário"
+      - "Acórdão 2.200/2019-TCU-Plenário"
+
+  - id: TCU-S-006
+    tema: Índices financeiros de rentabilidade e lucratividade — vedação
+    enunciado: >
+      São vedados como critérios de qualificação econômico-financeira os índices de
+      lucratividade, rentabilidade, EBITDA, margem líquida ou similares. A qualificação
+      econômico-financeira deve se restringir a índices contábeis de liquidez, solvência
+      e endividamento, além de capital mínimo ou patrimônio líquido quando cabível e
+      motivado (art. 69 §2º e §3º).
+    base_legal:
+      - "Lei 14.133/2021, art. 69 § 2º"
+      - "Lei 14.133/2021, art. 69 § 3º"
+    implicacao_pratica: >
+      Se o edital exige ROE, ROA, EBITDA, margem líquida ou qualquer índice de
+      rentabilidade → IRREGULAR, gerar impugnação. O Analista deve inspecionar
+      a seção de qualificação econômico-financeira do edital.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 1.570/2019-TCU-Plenário"
+      - "Acórdão 2.172/2016-TCU-Plenário"
+
+  - id: TCU-S-007
+    tema: Garantia contratual — limite de 5% do valor do contrato
+    enunciado: >
+      A garantia contratual não pode exceder 5% do valor do contrato como regra geral
+      (art. 96). Em contratos de grande vulto (acima de R$ 200 milhões) com alta
+      complexidade técnica e devidamente motivados, o limite pode ser elevado até 10%.
+      O contratado pode optar entre caução em dinheiro ou títulos, seguro-garantia ou
+      fiança bancária — vedada a imposição de modalidade específica pelo edital.
+    base_legal:
+      - "Lei 14.133/2021, art. 96"
+      - "Lei 14.133/2021, art. 96 § 3º"
+      - "Lei 14.133/2021, art. 96 § 5º"
+    implicacao_pratica: >
+      Se o edital exige garantia > 5% sem enquadramento como contrato de grande
+      vulto justificado, ou impõe modalidade específica de garantia → IRREGULAR,
+      impugnar. Verificar percentual na minuta do contrato e nos requisitos do edital.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 1.236/2020-TCU-Plenário"
+      - "Acórdão 857/2021-TCU-Plenário"
+
+  - id: TCU-S-008
+    tema: Direcionamento a marca, produto ou fornecedor específico — vedação
+    enunciado: >
+      É vedado ao edital especificar marca, modelo, fabricante ou fornecedor específico
+      de forma a direcionar o certame. Quando a especificação técnica de produto for
+      necessária, deve conter "ou equivalente/similar". Cláusulas que exijam certificação
+      exclusiva de determinado fabricante (ex.: "Gold Partner Google", "Microsoft Gold
+      Certified") sem prever equivalência ou motivação técnica são consideradas
+      restritivas e ilegais, salvo justificativa de singularidade do objeto.
+    base_legal:
+      - "Lei 14.133/2021, art. 40 I"
+      - "Lei 14.133/2021, art. 41 § 1º"
+      - "Lei 14.133/2021, art. 42"
+    implicacao_pratica: >
+      Detectar indicações de marca/produto/nível de parceria exclusivos sem previsão
+      de equivalência. Sinalizar IRREGULAR e gerar impugnação. Atenção especial para
+      editais que exigem nível de parceria Google Workspace/GCP específico sem
+      motivação técnica que justifique a exclusividade.
+    aplicacao_ti: true
+    acordaos_referencia:
+      - "Acórdão 1.782/2019-TCU-Plenário"
+      - "Acórdão 1.205/2021-TCU-Plenário"
+      - "Acórdão 2.473/2022-TCU-Plenário"
