@@ -342,6 +342,23 @@ async def trigger_analise_juridica(
             raise HTTPException(status_code=404, detail="analysis_id não encontrado")
         edital_json_stored = pg_row.get("edital_json_storage")
         result_json_stored = pg_row.get("result_json")
+        relatorio_stored = pg_row.get("relatorio_juridico_json")
+        # Se o relatório jurídico já está no Postgres (edital pré-v9), reconstrói como done
+        if relatorio_stored:
+            rel_data = json.loads(relatorio_stored) if isinstance(relatorio_stored, str) else relatorio_stored
+            res_data = json.loads(result_json_stored) if result_json_stored and isinstance(result_json_stored, str) else (result_json_stored or {})
+            edital_data = json.loads(edital_json_stored) if edital_json_stored and isinstance(edital_json_stored, str) else edital_json_stored
+            _JOBS[analysis_id] = JobState(
+                analysis_id=analysis_id,
+                status="done",
+                edital_json=edital_data,
+                result=ParecerComercial.model_validate(res_data) if res_data else None,
+                relatorio_juridico=RelatorioLicitatorio.model_validate(rel_data),
+                job_juridico_status="done",
+                pg_edital_id=str(pg_row["edital_id"]),
+                edital_filename=pg_row.get("edital_filename"),
+            )
+            return {"analysis_id": analysis_id, "status": "done"}
         if not edital_json_stored or not result_json_stored:
             raise HTTPException(
                 status_code=409,
@@ -362,6 +379,9 @@ async def trigger_analise_juridica(
         raise HTTPException(status_code=409, detail="análise comercial ainda não concluída — aguarde status=done")
     if not job.edital_json:
         raise HTTPException(status_code=409, detail="edital_json não disponível (pipeline mais antigo?)")
+    # Já concluída — não re-executa
+    if job.job_juridico_status == "done":
+        return {"analysis_id": analysis_id, "status": "done"}
     if job.job_juridico_status == "running":
         return {"analysis_id": analysis_id, "status": "running", "message": "análise jurídica já em andamento"}
 
@@ -371,11 +391,36 @@ async def trigger_analise_juridica(
 
 
 @app.get("/editais/{analysis_id}/analise_juridica")
-def get_analise_juridica(analysis_id: str) -> dict:
+async def get_analise_juridica(analysis_id: str) -> dict:
     """Polling da análise jurídica. Retorna RelatorioLicitatorio quando status=done."""
     job = _JOBS.get(analysis_id)
     if not job:
-        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+        # Tenta reconstruir de Postgres (container restart)
+        try:
+            from backend.tools.pg_tools import get_edital as _get_edital_pg
+            pg_row = await asyncio.to_thread(_get_edital_pg, analysis_id)
+        except Exception:
+            pg_row = None
+        if pg_row and pg_row.get("relatorio_juridico_json"):
+            rel_stored = pg_row["relatorio_juridico_json"]
+            rel_data = json.loads(rel_stored) if isinstance(rel_stored, str) else rel_stored
+            edital_stored = pg_row.get("edital_json_storage")
+            result_stored = pg_row.get("result_json")
+            edital_data = json.loads(edital_stored) if edital_stored and isinstance(edital_stored, str) else edital_stored
+            res_data = json.loads(result_stored) if result_stored and isinstance(result_stored, str) else (result_stored or {})
+            _JOBS[analysis_id] = JobState(
+                analysis_id=analysis_id,
+                status="done",
+                edital_json=edital_data,
+                result=ParecerComercial.model_validate(res_data) if res_data else None,
+                relatorio_juridico=RelatorioLicitatorio.model_validate(rel_data),
+                job_juridico_status="done",
+                pg_edital_id=str(pg_row["edital_id"]),
+                edital_filename=pg_row.get("edital_filename"),
+            )
+            job = _JOBS[analysis_id]
+        else:
+            raise HTTPException(status_code=404, detail="analysis_id não encontrado")
     if job.job_juridico_status == "not_started":
         return {"analysis_id": analysis_id, "status": "not_started"}
     if job.job_juridico_status == "running":
