@@ -474,6 +474,8 @@ export default function EditalPage() {
   const [patchTerminal, setPatchTerminal] = useState('');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [tab, setTab] = useState<'resumo' | 'comercial' | 'juridico' | 'habilitacao'>('resumo');
+  const [juridicError, setJuridicError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -684,8 +686,24 @@ export default function EditalPage() {
         )}
       </div>
 
+      {/* ── Tab navigation ──────────────────────────────── */}
+      <div className="tab-bar">
+        {(['resumo', 'comercial', 'juridico', 'habilitacao'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`tab-btn ${tab === t ? 'tab-btn-active' : ''}`}
+          >
+            {t === 'resumo'      ? 'Resumo'
+           : t === 'comercial'   ? `Comercial${parecer ? ` · ${score ?? '—'}` : ''}`
+           : t === 'juridico'    ? `Jurídico${juridico ? ' ✓' : ''}`
+           : 'Habilitação'}
+          </button>
+        ))}
+      </div>
+
       {/* ── Gestão: stage changer + gates ──────────────── */}
-      {edital.edital_id && (
+      {tab === 'resumo' && edital.edital_id && (
         <div className="card space-y-4">
           <h2 className="font-poppins font-bold text-base text-slate-900">Gestão do Processo</h2>
 
@@ -760,10 +778,10 @@ export default function EditalPage() {
       )}
 
       {/* ── Habilitação Técnica & Atestados ────────────── */}
-      <AtestadosSection parecer={parecer} juridico={juridico} />
+      {tab === 'habilitacao' && <AtestadosSection parecer={parecer} juridico={juridico} />}
 
       {/* ── Análise Comercial ───────────────────────────── */}
-      {parecer && (
+      {tab === 'comercial' && parecer && (
         <div className="space-y-4">
           <h2 className="font-poppins font-bold text-lg text-slate-900">Análise Comercial</h2>
 
@@ -813,7 +831,7 @@ export default function EditalPage() {
 
       {/* ── Análise Jurídica ─────────────────────────────── */}
       {/* Trigger button when not started yet */}
-      {!juridico && edital.status !== 'running' && edital.status !== 'queued' && (
+      {tab === 'juridico' && !juridico && edital.status !== 'running' && edital.status !== 'queued' && (
         <div className="card flex items-center justify-between gap-4">
           <div>
             <p className="font-medium text-slate-700 text-sm">Análise Jurídica</p>
@@ -836,7 +854,13 @@ export default function EditalPage() {
           ) : edital.job_juridico_status !== 'running' && (
             <button
               onClick={async () => {
-                await fetch(`/api/proxy/editais/${edital.edital_id ?? edital.analysis_id}/analise_juridica`, { method: 'POST' });
+                setJuridicError(null);
+                const r = await fetch(`/api/proxy/editais/${edital.edital_id ?? edital.analysis_id}/analise_juridica`, { method: 'POST' });
+                if (!r.ok) {
+                  const body = await r.json().catch(() => ({}));
+                  setJuridicError(body.detail ?? `Erro ${r.status}. Este edital pode ter sido processado com versão anterior — faça novo upload para habilitar a análise.`);
+                  return;
+                }
                 load();
               }}
               className="btn btn-primary shrink-0"
@@ -847,7 +871,7 @@ export default function EditalPage() {
         </div>
       )}
 
-      {juridico && (
+      {tab === 'juridico' && juridico && (
         <div className="space-y-4">
           <h2 className="font-poppins font-bold text-lg text-slate-900">
             Análise Jurídica
@@ -957,8 +981,13 @@ export default function EditalPage() {
         </div>
       )}
 
+      {/* ── Error banner for juridico 409 ──────────────── */}
+      {tab === 'juridico' && juridicError && (
+        <div className="alert-warning">{juridicError}</div>
+      )}
+
       {/* ── Comentários (seção fixa, sempre visível) ────── */}
-      {edital.edital_id && (
+      {tab === 'resumo' && edital.edital_id && (
         <div className="card space-y-4">
           <h2 className="font-poppins font-bold text-base text-slate-900 flex items-center gap-2">
             Comentários
@@ -1010,7 +1039,7 @@ export default function EditalPage() {
       )}
 
       {/* ── Movimentações ───────────────────────────────── */}
-      {(edital.movimentacoes?.length ?? 0) > 0 && (
+      {tab === 'resumo' && (edital.movimentacoes?.length ?? 0) > 0 && (
         <Accordion title="Histórico de movimentações" count={edital.movimentacoes!.length}>
           <div className="space-y-3 pt-2">
             {edital.movimentacoes!.map(m => (
