@@ -7,40 +7,51 @@
 :root {
   --font-poppins: 'Poppins', sans-serif;
   --font-roboto:  'Roboto',  sans-serif;
+  --navy:         #14263D;
+  --navy-dark:    #0E1928;
+  --surface:      rgba(255,255,255,0.03);
+  --surface-2:    rgba(255,255,255,0.06);
+  --border:       rgba(255,255,255,0.08);
+  --primary:      #047EA9;
+  --primary-light:#00BEFF;
+  --green-light:  #C0FF7D;
+  --pink-light:   #FF89FF;
+  --danger:       #E14849;
 }
 
 body {
-  background: #F8FAFC;
-  color: #0F172A;
+  background: var(--navy);
+  color: #CBD5E1;
   font-family: var(--font-roboto);
   min-height: 100vh;
 }
 
-/* ── Base card ───────────────────────────────────────────── */
+/* ── Base card (glassmorphism dark) ──────────────────────── */
 .card {
   @apply rounded-xl p-5;
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
 }
 .card-flat {
   @apply rounded-xl p-4;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
+  background: rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
 }
 
 /* ── Section card (with accent left border) ─────────────── */
 .section-card {
   @apply rounded-xl p-5;
-  background: #ffffff;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
 }
-.section-card-green  { border-left: 3px solid #16A34A; }
-.section-card-blue   { border-left: 3px solid #047EA9; }
-.section-card-orange { border-left: 3px solid #D97706; }
-.section-card-pink   { border-left: 3px solid #DB2777; }
-.section-card-red    { border-left: 3px solid #DC2626; }
+.section-card-green  { border-left: 3px solid #C0FF7D; }
+.section-card-blue   { border-left: 3px solid #00BEFF; }
+.section-card-orange { border-left: 3px solid #F59E0B; }
+.section-card-pink   { border-left: 3px solid #FF89FF; }
+.section-card-red    { border-left: 3px solid #E14849; }
 
 /* ── Section title ───────────────────────────────────────── */
 .section-title {
@@ -54,11 +65,11 @@ body {
 }
 .info-grid-item label {
   @apply block text-xs mb-0.5 uppercase tracking-wide;
-  color: #94A3B8;
+  color: #475569;
 }
 .info-grid-item span {
   @apply font-medium tabular-nums;
-  color: #334155;
+  color: #E2E8F0;
 }
 
 /* ── Score display ───────────────────────────────────────── */
@@ -70,7 +81,7 @@ body {
 /* ── Evidence rows ───────────────────────────────────────── */
 .evidence-row {
   @apply flex items-start gap-3 py-3 border-b last:border-0;
-  border-color: #F1F5F9;
+  border-color: rgba(255,255,255,0.06);
 }
 .evidence-icon {
   @apply flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm;
@@ -80,35 +91,35 @@ body {
 }
 .evidence-source {
   @apply text-sm font-semibold truncate;
-  color: #0F172A;
+  color: #E2E8F0;
 }
 .evidence-excerpt {
   @apply text-xs line-clamp-3 mt-0.5 leading-relaxed;
-  color: #475569;
+  color: #64748B;
 }
 
 /* ── Contract row (without attestation) ──────────────────── */
 .contract-row {
   @apply flex items-start gap-3 py-3 border-b last:border-0;
-  border-color: #F1F5F9;
+  border-color: rgba(255,255,255,0.06);
 }
 .contract-row-source {
   @apply text-sm font-semibold truncate;
-  color: #0F172A;
+  color: #E2E8F0;
 }
 .contract-row-excerpt {
   @apply text-xs line-clamp-2 mt-0.5;
-  color: #475569;
+  color: #64748B;
 }
 
 /* ── Gap item ───────────────────────────────────────────── */
 .gap-item {
   @apply border-l-2 pl-3 py-2;
-  border-color: #D97706;
+  border-color: #F59E0B;
 }
 .gap-item-title {
   @apply text-sm font-medium;
-  color: #0F172A;
+  color: #E2E8F0;
 }
 .gap-item-sub {
   @apply text-xs mt-1 leading-relaxed;
@@ -118,8 +129,8 @@ body {
 /* ── Requirement group (glass-box) ──────────────────────── */
 .req-group {
   @apply rounded-lg p-4 mb-3 last:mb-0;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
 }
 .req-group-title {
   @apply text-xs font-bold uppercase tracking-wide mb-2;
@@ -127,31 +138,37 @@ body {
 }
 .req-group-text {
   @apply text-sm font-medium mb-3 leading-relaxed;
-  color: #0F172A;
+  color: #CBD5E1;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium transition-colors text-sm;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium transition-all text-sm;
 }
-.btn-primary { background: #047EA9; color: white; }
-.btn-primary:hover { background: #035f7e; }
-.btn-ghost   { color: #047EA9; background: transparent; }
-.btn-ghost:hover { background: #EFF6FF; }
-.btn-danger  { background: #DC2626; color: white; }
-.btn-danger:hover { background: #B91C1C; }
+.btn-primary {
+  background: #047EA9; color: white;
+  box-shadow: 0 0 16px rgba(4,126,169,0.3);
+}
+.btn-primary:hover {
+  background: #00BEFF;
+  box-shadow: 0 0 24px rgba(0,190,255,0.4);
+}
+.btn-ghost   { color: #00BEFF; background: transparent; }
+.btn-ghost:hover { background: rgba(0,190,255,0.08); }
+.btn-danger  { background: #E14849; color: white; }
+.btn-danger:hover { background: #c73e3f; }
 .btn-sm      { @apply px-3 py-1 text-xs; }
 
 /* ── Badges ──────────────────────────────────────────────── */
 .badge {
   @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold;
 }
-.badge-green  { background: #DCFCE7; color: #166534; }
-.badge-pink   { background: #FCE7F3; color: #9D174D; }
-.badge-red    { background: #FEE2E2; color: #991B1B; }
-.badge-blue   { background: #DBEAFE; color: #1E40AF; }
-.badge-gray   { background: #F1F5F9; color: #475569; }
-.badge-orange { background: #FEF3C7; color: #92400E; }
+.badge-green  { background: rgba(192,255,125,0.15); color: #C0FF7D;  border: 1px solid rgba(192,255,125,0.25); }
+.badge-pink   { background: rgba(255,137,255,0.12); color: #FF89FF;  border: 1px solid rgba(255,137,255,0.25); }
+.badge-red    { background: rgba(225,72,73,0.15);   color: #F87171;  border: 1px solid rgba(225,72,73,0.3); }
+.badge-blue   { background: rgba(0,190,255,0.12);   color: #00BEFF;  border: 1px solid rgba(0,190,255,0.25); }
+.badge-gray   { background: rgba(255,255,255,0.05); color: #94A3B8;  border: 1px solid rgba(255,255,255,0.1); }
+.badge-orange { background: rgba(245,158,11,0.15);  color: #FCD34D;  border: 1px solid rgba(245,158,11,0.25); }
 
 /* ── Custom checkbox ─────────────────────────────────────── */
 .checkbox-custom {
@@ -160,43 +177,58 @@ body {
 .checkbox-box {
   @apply flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors;
 }
-.checkbox-box-off { border-color: #CBD5E1; background: white; }
+.checkbox-box-off { border-color: rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); }
 .checkbox-box-on  { border-color: #047EA9; background: #047EA9; }
 
 /* ── Form inputs ─────────────────────────────────────────── */
 .input {
   @apply w-full rounded-lg px-3 py-2 text-sm;
-  background: white;
-  border: 1px solid #CBD5E1;
-  color: #0F172A;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #E2E8F0;
   outline: none;
 }
-.input::placeholder { color: #94A3B8; }
+.input::placeholder { color: #475569; }
 .input:focus {
   border-color: #047EA9;
-  box-shadow: 0 0 0 3px rgba(4,126,169,0.1);
+  box-shadow: 0 0 0 3px rgba(4,126,169,0.15);
 }
-select.input option { background: white; color: #0F172A; }
+select.input option { background: #1B3351; color: #E2E8F0; }
 
 /* ── Stage column (kanban) ───────────────────────────────── */
 .stage-col {
-  @apply flex-shrink-0 w-52 rounded-xl p-3 flex flex-col gap-2;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
+  @apply flex-shrink-0 w-56 rounded-xl p-3 flex flex-col gap-2;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 .stage-col-title {
   @apply text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between;
-  color: #94A3B8;
+  color: #64748B;
 }
 .kanban-card {
   @apply rounded-xl p-3 cursor-pointer transition-all;
-  background: white;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 .kanban-card:hover {
-  border-color: #047EA9;
-  box-shadow: 0 0 0 2px rgba(4,126,169,0.12);
+  border-color: rgba(0,190,255,0.45);
+  box-shadow: 0 0 0 1px rgba(4,126,169,0.2), 0 4px 16px rgba(0,190,255,0.08);
+}
+
+/* ── Tab bar ─────────────────────────────────────────────── */
+.tab-bar {
+  @apply flex gap-1 border-b;
+  border-color: rgba(255,255,255,0.08);
+}
+.tab-btn {
+  @apply px-4 py-2.5 text-sm font-medium transition-all -mb-px;
+  color: #64748B;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn:hover { color: #94A3B8; }
+.tab-btn-active {
+  color: #00BEFF;
+  border-bottom-color: #00BEFF;
 }
 
 /* ── Timeline ────────────────────────────────────────────── */
@@ -211,50 +243,86 @@ select.input option { background: white; color: #0F172A; }
 /* ── Accordion ───────────────────────────────────────────── */
 .accordion {
   @apply rounded-xl overflow-hidden;
-  background: white;
-  border: 1px solid #E2E8F0;
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 .accordion > summary {
   @apply list-none cursor-pointer select-none flex items-center justify-between p-4
          font-poppins font-semibold text-sm transition-colors;
-  color: #334155;
+  color: #94A3B8;
 }
-.accordion > summary:hover { background: #F8FAFC; }
+.accordion > summary:hover { background: rgba(255,255,255,0.02); }
 .accordion > summary::-webkit-details-marker { display: none; }
 .accordion-body {
   @apply p-4 pt-3;
-  border-top: 1px solid #E2E8F0;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
 
 /* ── Alert boxes ─────────────────────────────────────────── */
 .alert-danger {
   @apply p-3 rounded-lg text-sm;
-  background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B;
+  background: rgba(225,72,73,0.1); border: 1px solid rgba(225,72,73,0.3); color: #FCA5A5;
 }
 .alert-warning {
   @apply p-3 rounded-lg text-sm;
-  background: #FFFBEB; border: 1px solid #FCD34D; color: #78350F;
+  background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #FCD34D;
 }
 .alert-success {
   @apply p-3 rounded-lg text-sm;
-  background: #F0FDF4; border: 1px solid #86EFAC; color: #166534;
+  background: rgba(192,255,125,0.08); border: 1px solid rgba(192,255,125,0.3); color: #C0FF7D;
 }
 .alert-info {
   @apply p-3 rounded-lg text-sm;
-  background: #EFF6FF; border: 1px solid #93C5FD; color: #1E40AF;
+  background: rgba(0,190,255,0.08); border: 1px solid rgba(0,190,255,0.25); color: #7DD3FC;
 }
 
 /* ── Copy box (legal documents) ──────────────────────────── */
 .copy-box {
   @apply rounded-lg p-4 text-xs font-mono whitespace-pre-wrap;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  color: #334155;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #94A3B8;
 }
 
 /* ── Divider ─────────────────────────────────────────────── */
 .divider {
   @apply my-4;
-  border-top: 1px solid #E2E8F0;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
+
+/* ── Progress bar track ──────────────────────────────────── */
+.h-1\.5.bg-slate-200 {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark-body overrides for Tailwind inline color classes
+   (body is dark, so dark slate = light text)
+   ───────────────────────────────────────────────────────── */
+.text-slate-900 { color: #F1F5F9 !important; }
+.text-slate-800 { color: #E2E8F0 !important; }
+.text-slate-700 { color: #CBD5E1 !important; }
+.text-slate-600 { color: #94A3B8 !important; }
+.hover\:text-slate-900:hover { color: #F1F5F9 !important; }
+
+/* Inline backgrounds → dark surfaces */
+.bg-slate-100 { background-color: rgba(255,255,255,0.06) !important; }
+.bg-slate-200 { background-color: rgba(255,255,255,0.10) !important; }
+
+/* Inline colored icon backgrounds */
+.bg-blue-100  { background-color: rgba(59,130,246,0.15)  !important; }
+.bg-green-100 { background-color: rgba(34,197,94,0.15)   !important; }
+.bg-orange-50 { background-color: rgba(249,115,22,0.10)  !important; }
+.bg-pink-100  { background-color: rgba(236,72,153,0.15)  !important; }
+
+/* Inline icon text colors → lighter on dark */
+.text-blue-700   { color: #93C5FD !important; }
+.text-green-700  { color: #86EFAC !important; }
+.text-orange-600 { color: #FED7AA !important; }
+.text-pink-700   { color: #FBCFE8 !important; }
+.text-cyan-700   { color: #67E8F9 !important; }
+
+/* Border colours */
+.border-slate-200 { border-color: rgba(255,255,255,0.08) !important; }
+.border-t.border-slate-200 { border-color: rgba(255,255,255,0.08) !important; }
 
