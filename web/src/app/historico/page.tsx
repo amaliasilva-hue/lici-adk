@@ -30,7 +30,7 @@ type Edital = {
 };
 
 function ScoreBadge({ score }: { score?: number }) {
-  if (score == null) return <span className="text-white/25">—</span>;
+  if (score == null) return <span className="text-slate-300">—</span>;
   const cls = score >= 70 ? 'badge-green' : score >= 45 ? 'badge-blue' : 'badge-red';
   return <span className={`badge ${cls}`}>{score}%</span>;
 }
@@ -85,8 +85,8 @@ export default function HistoricoPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-poppins font-bold text-2xl text-white">Histórico de Editais</h1>
-          <p className="text-sm text-white/40 mt-0.5">
+          <h1 className="font-poppins font-bold text-2xl text-slate-900">Histórico de Editais</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
             {loading ? 'Carregando…' : `${sorted.length} registros`}
           </p>
         </div>
@@ -95,10 +95,10 @@ export default function HistoricoPage() {
 
       {/* Filters */}
       <div className="card">
-        <p className="text-xs text-white/40 uppercase tracking-wider font-semibold mb-3">Filtros</p>
+        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-3">Filtros</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
-            <label className="text-xs text-white/35 mb-1 block">Órgão</label>
+            <label className="text-xs text-slate-400 mb-1 block">Órgão</label>
             <input
               type="text"
               value={orgaoFilter}
@@ -108,19 +108,19 @@ export default function HistoricoPage() {
             />
           </div>
           <div>
-            <label className="text-xs text-white/35 mb-1 block">UF</label>
+            <label className="text-xs text-slate-400 mb-1 block">UF</label>
             <select value={ufFilter} onChange={e => setUfFilter(e.target.value)} className="input w-full">
               {UF_LIST.map(u => <option key={u} value={u}>{u || '— todas —'}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/35 mb-1 block">Status</label>
+            <label className="text-xs text-slate-400 mb-1 block">Status</label>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input w-full">
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || '— todos —'}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/35 mb-1 block">Score mín.</label>
+            <label className="text-xs text-slate-400 mb-1 block">Score mín.</label>
             <input
               type="number"
               min={0} max={100}
@@ -131,7 +131,7 @@ export default function HistoricoPage() {
             />
           </div>
           <div>
-            <label className="text-xs text-white/35 mb-1 block">Vendedor</label>
+            <label className="text-xs text-slate-400 mb-1 block">Vendedor</label>
             <input
               type="text"
               value={vendedorFilter}
@@ -148,7 +148,7 @@ export default function HistoricoPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-white/35 border-b border-white/10">
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
                 <th className="py-3 px-4 font-normal">Órgão</th>
                 <th className="py-3 px-3 font-normal">UF</th>
                 <th className="py-3 px-3 font-normal hidden md:table-cell">Objeto</th>
@@ -162,26 +162,26 @@ export default function HistoricoPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-white/30 text-sm">Carregando…</td>
+                  <td colSpan={8} className="py-10 text-center text-slate-300 text-sm">Carregando…</td>
                 </tr>
               )}
               {!loading && sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-white/20 text-sm">Nenhum edital encontrado com esses filtros.</td>
+                  <td colSpan={8} className="py-10 text-center text-slate-200 text-sm">Nenhum edital encontrado com esses filtros.</td>
                 </tr>
               )}
               {sorted.map(e => (
-                <tr key={e.edital_id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <tr key={e.edital_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   <td className="py-3 px-4">
-                    <Link href={`/edital/${e.edital_id}`} className="text-white/80 hover:text-white transition-colors font-medium truncate block max-w-[160px]">
+                    <Link href={`/edital/${e.edital_id}`} className="text-slate-700 hover:text-slate-900 transition-colors font-medium truncate block max-w-[160px]">
                       {e.orgao || '—'}
                     </Link>
-                    {e.numero_pregao && <p className="text-[11px] text-white/30">{e.numero_pregao}</p>}
+                    {e.numero_pregao && <p className="text-[11px] text-slate-300">{e.numero_pregao}</p>}
                   </td>
-                  <td className="py-3 px-3 text-white/50">{e.uf}</td>
+                  <td className="py-3 px-3 text-slate-400">{e.uf}</td>
                   <td className="py-3 px-3 hidden md:table-cell">
-                    <p className="text-white/55 text-xs max-w-xs truncate">{e.objeto || '—'}</p>
-                    {e.portal && <p className="text-[11px] text-white/25">{e.portal}</p>}
+                    <p className="text-slate-500 text-xs max-w-xs truncate">{e.objeto || '—'}</p>
+                    {e.portal && <p className="text-[11px] text-slate-300">{e.portal}</p>}
                   </td>
                   <td className="py-3 px-3">
                     <span className="badge badge-gray text-[10px]">
@@ -194,13 +194,13 @@ export default function HistoricoPage() {
                         {e.estado_terminal}
                       </span>
                     ) : (
-                      <span className="text-white/20 text-xs">—</span>
+                      <span className="text-slate-200 text-xs">—</span>
                     )}
                   </td>
                   <td className="py-3 px-3">
                     <ScoreBadge score={e.score_comercial} />
                   </td>
-                  <td className="py-3 px-3 hidden lg:table-cell text-white/30 text-xs">
+                  <td className="py-3 px-3 hidden lg:table-cell text-slate-300 text-xs">
                     {e.criado_em ? new Date(e.criado_em).toLocaleDateString('pt-BR') : '—'}
                   </td>
                   <td className="py-3 px-4">

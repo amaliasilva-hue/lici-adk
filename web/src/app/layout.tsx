@@ -1,8 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import SessionProviderWrapper from './session-provider';
-import { AuthGate } from './auth-gate';
 
 export const metadata: Metadata = {
   title: 'x-lici · Xertica',
@@ -21,8 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body>
-        <SessionProviderWrapper>
-          <header className="border-b border-white/8 sticky top-0 z-50"
+        <header className="border-b border-white/10 sticky top-0 z-50"
             style={{ background: 'rgba(14,24,40,0.92)', backdropFilter: 'blur(18px)' }}>
             <div className="max-w-screen-xl mx-auto px-6 py-0 flex items-center justify-between h-14">
               <div className="flex items-center gap-8">
@@ -51,13 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   ))}
                 </nav>
               </div>
-              <AuthGate />
+              <span className="text-xs text-white/30">Xertica Internal</span>
             </div>
           </header>
           <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-8">
             {children}
           </main>
-        </SessionProviderWrapper>
       </body>
     </html>
   );

@@ -81,21 +81,21 @@ export default function UploadPage() {
   }
 
   function scoreColor(s: number | null) {
-    if (s == null) return 'text-white/40';
-    if (s >= 70) return 'text-green-accent';
-    if (s >= 45) return 'text-primary-light';
+    if (s == null) return 'text-slate-400';
+    if (s >= 70) return 'text-green-700';
+    if (s >= 45) return 'text-cyan-700';
     return 'text-danger';
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="text-sm text-white/40">
-        <Link href="/" className="hover:text-white">Pipeline</Link>
+      <div className="text-sm text-slate-400">
+        <Link href="/" className="hover:text-slate-900">Pipeline</Link>
         <span className="mx-2">/</span>
-        <span className="text-white/70">Novo edital</span>
+        <span className="text-slate-600">Novo edital</span>
       </div>
 
-      <h1 className="font-poppins font-bold text-2xl text-white">Upload de Edital</h1>
+      <h1 className="font-poppins font-bold text-2xl text-slate-900">Upload de Edital</h1>
 
       {/* Drop zone */}
       <div
@@ -103,29 +103,29 @@ export default function UploadPage() {
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
         className={[
           'rounded-2xl border-2 border-dashed p-10 text-center transition-all',
-          dragging ? 'border-primary-light bg-primary/10' : 'border-white/15 hover:border-white/30',
-          file ? 'border-green-accent/40 bg-green-accent/5' : '',
+          dragging ? 'border-primary bg-blue-50' : 'border-slate-300 hover:border-slate-400',
+          file ? 'border-green-accent/40 bg-green-500/5' : '',
           stage !== 'idle' ? 'pointer-events-none opacity-60' : 'cursor-pointer',
         ].join(' ')}
       >
         {file ? (
           <div className="space-y-1">
-            <p className="text-green-accent font-semibold text-lg">{file.name}</p>
-            <p className="text-white/40 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p className="text-green-700 font-semibold text-lg">{file.name}</p>
+            <p className="text-slate-400 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
             {stage === 'idle' && (
-              <button onClick={e => { e.stopPropagation(); setFile(null); }} className="text-xs text-white/30 hover:text-danger mt-2">
+              <button onClick={e => { e.stopPropagation(); setFile(null); }} className="text-xs text-slate-300 hover:text-danger mt-2">
                 remover
               </button>
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            <svg className="w-10 h-10 text-white/20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-10 h-10 text-slate-200 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-white/50">Arraste o PDF aqui ou <span className="text-primary-light">clique para selecionar</span></p>
-            <p className="text-white/25 text-xs">Apenas PDF · máx. 30 MB</p>
+            <p className="text-slate-400">Arraste o PDF aqui ou <span className="text-cyan-700">clique para selecionar</span></p>
+            <p className="text-slate-300 text-xs">Apenas PDF · máx. 30 MB</p>
           </div>
         )}
         <input ref={inputRef} type="file" accept=".pdf" className="hidden"
@@ -135,27 +135,27 @@ export default function UploadPage() {
       {/* Metadados opcionais */}
       {stage === 'idle' && (
         <div className="card space-y-4">
-          <p className="text-xs text-white/40 uppercase tracking-wider font-semibold">Metadados opcionais</p>
+          <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Metadados opcionais</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-white/40 mb-1 block">Órgão</label>
+              <label className="text-xs text-slate-400 mb-1 block">Órgão</label>
               <input type="text" value={orgao} onChange={e => setOrgao(e.target.value)}
                 placeholder="Ex: PRODESP" className="input w-full" />
             </div>
             <div>
-              <label className="text-xs text-white/40 mb-1 block">UF</label>
+              <label className="text-xs text-slate-400 mb-1 block">UF</label>
               <select value={uf} onChange={e => setUf(e.target.value)} className="input w-full">
                 <option value="">— selecione —</option>
                 {UF_LIST.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-white/40 mb-1 block">Vendedor (email)</label>
+              <label className="text-xs text-slate-400 mb-1 block">Vendedor (email)</label>
               <input type="email" value={vendedor} onChange={e => setVendedor(e.target.value)}
                 placeholder="vendedor@xertica.com" className="input w-full" />
             </div>
             <div>
-              <label className="text-xs text-white/40 mb-1 block">Drive Folder ID (opcional)</label>
+              <label className="text-xs text-slate-400 mb-1 block">Drive Folder ID (opcional)</label>
               <input type="text" value={driveFolder} onChange={e => setDriveFolder(e.target.value)}
                 placeholder="1BxiM..." className="input w-full" />
             </div>
@@ -167,17 +167,17 @@ export default function UploadPage() {
       {(stage === 'uploading' || stage === 'queued' || stage === 'running') && (
         <div className="card space-y-4">
           <div className="flex items-center gap-3">
-            <svg className="w-5 h-5 animate-spin text-primary-light shrink-0" fill="none" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 animate-spin text-cyan-700 shrink-0" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
             </svg>
             <div>
-              <p className="text-white font-medium text-sm">
+              <p className="text-slate-900 font-medium text-sm">
                 {stage === 'uploading' && 'Enviando PDF…'}
                 {stage === 'queued'    && 'Na fila — aguardando…'}
                 {stage === 'running'   && (AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…')}
               </p>
-              {analysisId && <p className="text-white/30 text-xs font-mono mt-0.5">{analysisId}</p>}
+              {analysisId && <p className="text-slate-300 text-xs font-mono mt-0.5">{analysisId}</p>}
             </div>
           </div>
           <div className="flex gap-1.5">
@@ -190,8 +190,8 @@ export default function UploadPage() {
                                (i === 2 && currentAgent === 'analista');
               return (
                 <div key={label} className="flex-1 space-y-1">
-                  <div className={`h-1.5 rounded-full transition-colors ${isDone ? 'bg-green-accent' : isActive ? 'bg-primary-light' : 'bg-white/10'}`} />
-                  <p className={`text-[10px] text-center ${isActive ? 'text-white/60' : 'text-white/25'}`}>{label}</p>
+                  <div className={`h-1.5 rounded-full transition-colors ${isDone ? 'bg-green-500' : isActive ? 'bg-cyan-600' : 'bg-slate-100'}`} />
+                  <p className={`text-[10px] text-center ${isActive ? 'text-slate-500' : 'text-slate-300'}`}>{label}</p>
                 </div>
               );
             })}
@@ -203,21 +203,21 @@ export default function UploadPage() {
       {stage === 'done' && (
         <div className="section-card section-card-green space-y-4">
           <div className="flex items-center gap-3">
-            <span className="text-green-accent text-2xl">✓</span>
-            <p className="text-white font-semibold">Análise concluída</p>
+            <span className="text-green-700 text-2xl">✓</span>
+            <p className="text-slate-900 font-semibold">Análise concluída</p>
           </div>
           {(score != null || resultStatus) && (
             <div className="flex gap-6 items-center">
               {score != null && (
                 <div>
-                  <p className="text-xs text-white/40 mb-0.5">Score</p>
+                  <p className="text-xs text-slate-400 mb-0.5">Score</p>
                   <p className={`text-4xl font-bold font-poppins score-number ${scoreColor(score)}`}>{score}%</p>
                 </div>
               )}
               {resultStatus && (
                 <div>
-                  <p className="text-xs text-white/40 mb-0.5">Status</p>
-                  <p className="text-white font-semibold">{resultStatus}</p>
+                  <p className="text-xs text-slate-400 mb-0.5">Status</p>
+                  <p className="text-slate-900 font-semibold">{resultStatus}</p>
                 </div>
               )}
             </div>
@@ -237,7 +237,7 @@ export default function UploadPage() {
       {stage === 'failed' && (
         <div className="alert-danger rounded-xl p-4 space-y-3">
           <p className="font-semibold text-danger">Falha na análise</p>
-          {errorMsg && <p className="text-sm opacity-80 text-white/70">{errorMsg}</p>}
+          {errorMsg && <p className="text-sm opacity-80 text-slate-600">{errorMsg}</p>}
           <button onClick={() => { setStage('idle'); setErrorMsg(null); }} className="btn btn-sm btn-ghost">
             Tentar novamente
           </button>

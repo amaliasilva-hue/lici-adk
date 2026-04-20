@@ -134,11 +134,30 @@ const TERMINAIS = ['ganho', 'perdido', 'inabilitado', 'revogado', 'nao_participa
 
 // ─── Helper: score color ──────────────────────────────────
 function scoreColor(s?: number) {
-  if (s == null) return 'text-white/40';
-  if (s >= 70) return 'text-green-accent';
-  if (s >= 45) return 'text-primary-light';
-  return 'text-danger';
+  if (s == null) return 'text-slate-300';
+  if (s >= 70) return 'text-green-700';
+  if (s >= 45) return 'text-blue-600';
+  return 'text-red-600';
 }
+
+const GATE_LABELS: Record<string, string> = {
+  edital_baixado: 'Edital baixado',
+  orgao_identificado: 'Órgão identificado',
+  vendedor_atribuido: 'Vendedor atribuído',
+  analise_comercial_concluida: 'Análise comercial concluída',
+  analise_juridica_concluida: 'Análise jurídica concluída',
+  prazo_verificado: 'Prazo verificado',
+  documentos_redigidos: 'Documentos redigidos',
+  proposta_tecnica_redigida: 'Proposta técnica redigida',
+  proposta_comercial_precificada: 'Proposta comercial precificada',
+  credenciamento_portal: 'Credenciamento no portal',
+  proposta_enviada: 'Proposta enviada',
+  kit_habilitacao_completo: 'Kit de habilitação completo',
+  certidoes_validas: 'Certidões válidas',
+  prazo_recurso_verificado: 'Prazo de recurso verificado',
+  contrarrazoes_redigidas: 'Contrarrazões redigidas',
+  ata_salva_drive: 'Ata salva no Drive',
+};
 
 function statusBadge(s?: string) {
   if (!s) return 'badge-gray';
@@ -169,8 +188,8 @@ function Accordion({ title, count, children }: { title: string; count?: number; 
   return (
     <details className="accordion">
       <summary>
-        <span>{title}{count != null ? <span className="ml-1.5 text-white/40 font-normal">({count})</span> : ''}</span>
-        <svg className="w-4 h-4 text-white/35 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <span>{title}{count != null ? <span className="ml-1.5 text-slate-400 font-normal">({count})</span> : ''}</span>
+        <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </summary>
@@ -210,9 +229,20 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
   const hasAny = atestados.length > 0 || contratos.length > 0 || ateRecomendados.length > 0 || gaps.length > 0 || certifics.length > 0;
   if (!hasAny && !gapHab && !atestadoAnalise) return null;
 
+  // Group by requisito for glass-box display
+  const byRequisito = (evs: Evidencia[]) => {
+    const m = new Map<string, Evidencia[]>();
+    for (const e of evs) {
+      const key = e.requisito ?? 'Requisito';
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(e);
+    }
+    return Array.from(m.entries());
+  };
+
   return (
     <div className="space-y-4">
-      <h2 className="font-poppins font-bold text-lg text-white">Habilitação Técnica</h2>
+      <h2 className="font-poppins font-bold text-lg text-slate-900">Habilitação Técnica</h2>
 
       {/* TCU: Somatório analysis */}
       {atestadoAnalise && (
@@ -238,12 +268,12 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
             )}
           </div>
           {atestadoAnalise.fundamentacao && (
-            <p className="text-sm text-white/65 leading-relaxed">{atestadoAnalise.fundamentacao}</p>
+            <p className="text-sm text-slate-600 leading-relaxed">{atestadoAnalise.fundamentacao}</p>
           )}
           {(atestadoAnalise.alertas?.length ?? 0) > 0 && (
             <ul className="mt-2 space-y-1">
               {atestadoAnalise.alertas!.map((a, i) => (
-                <li key={i} className="text-xs text-orange-300/80 flex gap-1.5">
+                <li key={i} className="text-xs text-orange-600 flex gap-1.5">
                   <span>⚠</span><span>{a}</span>
                 </li>
               ))}
@@ -257,16 +287,16 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         <div className="section-card section-card-green">
           <p className="section-title">
             Atestados formais disponíveis
-            <span className="ml-2 text-green-accent/70">({Math.max(atestados.length, ateRecomendados.length)})</span>
+            <span className="ml-2 text-green-700/70">({Math.max(atestados.length, ateRecomendados.length)})</span>
           </p>
-          <p className="text-xs text-white/40 mb-3">Documentos prontos para apresentar como comprovação de capacidade técnica</p>
+          <p className="text-xs text-slate-400 mb-3">Documentos prontos para apresentar como comprovação de capacidade técnica</p>
 
           {/* Drive files (from legal analysis) */}
           {ateRecomendados.length > 0 && (
             <div className="space-y-0 mb-4">
               {ateRecomendados.map((a, i) => (
                 <div key={i} className="evidence-row">
-                  <div className="evidence-icon bg-green-accent/15 text-green-accent">✓</div>
+                  <div className="evidence-icon bg-green-100 text-green-700">✓</div>
                   <div className="evidence-meta">
                     <div className="evidence-source">
                       {a.drive_file_name ?? a.contratante ?? `Atestado ${i+1}`}
@@ -297,20 +327,27 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
             </div>
           )}
 
-          {/* From commercial analysis evidencias */}
+          {/* Glass-box: group by requisito */}
           {atestados.length > 0 && (
-            <div className="space-y-0">
-              {ateRecomendados.length > 0 && <p className="text-xs text-white/30 mb-2 mt-2">Também encontrados na base de dados:</p>}
-              {atestados.map((e, i) => (
-                <div key={i} className="evidence-row">
-                  <div className="evidence-icon bg-green-accent/15 text-green-accent">✓</div>
-                  <div className="evidence-meta">
-                    <div className="evidence-source">{e.fonte_id ?? e.requisito}</div>
-                    <div className="evidence-excerpt">{e.trecho_literal}</div>
+            <div className="space-y-2">
+              {ateRecomendados.length > 0 && <p className="text-xs text-slate-400 mb-2 mt-2">Também encontrados na base de dados:</p>}
+              {byRequisito(atestados).map(([req, evs], gi) => (
+                <div key={gi} className="req-group">
+                  <div className="req-group-title">Requisito</div>
+                  <div className="req-group-text">{req}</div>
+                  <div className="space-y-0">
+                    {evs.map((e, i) => (
+                      <div key={i} className="evidence-row">
+                        <div className="evidence-icon bg-green-100 text-green-700 text-xs">✓</div>
+                        <div className="evidence-meta">
+                          <div className="evidence-excerpt">{e.trecho_literal}</div>
+                        </div>
+                        <span className="badge badge-green shrink-0">
+                          {Math.round(e.confianca * 100)}%
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="badge badge-green shrink-0">
-                    {Math.round(e.confianca * 100)}%
-                  </span>
                 </div>
               ))}
             </div>
@@ -323,26 +360,30 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         <div className="section-card section-card-orange">
           <p className="section-title">
             Contratos sem atestado formal
-            <span className="ml-2 text-orange-400/70">({contratos.length})</span>
+            <span className="ml-2 text-orange-600/70">({contratos.length})</span>
           </p>
           <div className="alert-warning mb-3">
             <strong>Ação necessária:</strong> Os contratos abaixo comprovam experiência técnica, mas não possuem atestado formal emitido. Solicite ao cliente a emissão do documento para compor o kit de habilitação.
           </div>
-          <div className="space-y-0">
-            {contratos.map((e, i) => (
-              <div key={i} className="contract-row">
-                <div className="evidence-icon bg-orange-400/12 text-orange-400 shrink-0">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div className="evidence-meta">
-                  <div className="contract-row-source">{e.fonte_id ?? `Contrato ${i+1}`}</div>
-                  <div className="contract-row-excerpt">{e.trecho_literal}</div>
-                  <div className="text-xs text-white/30 mt-0.5">Requisito: {e.requisito}</div>
-                </div>
-                <span className="badge badge-orange shrink-0">Solicitar</span>
+          <div className="space-y-2">
+            {byRequisito(contratos).map(([req, evs], gi) => (
+              <div key={gi} className="req-group">
+                <div className="req-group-title">Requisito</div>
+                <div className="req-group-text">{req}</div>
+                {evs.map((e, i) => (
+                  <div key={i} className="contract-row">
+                    <div className="evidence-icon bg-orange-50 text-orange-600 shrink-0">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="evidence-meta">
+                      <div className="contract-row-excerpt">{e.trecho_literal}</div>
+                    </div>
+                    <span className="badge badge-orange shrink-0">Solicitar</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -354,7 +395,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         <div className="section-card section-card-red">
           <p className="section-title">
             Gaps de Habilitação
-            <span className="ml-2 text-danger/70">({gaps.length})</span>
+            <span className="ml-2 text-red-600/70">({gaps.length})</span>
           </p>
           <div className="space-y-3">
             {gaps.map((g, i) => (
@@ -383,11 +424,11 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {certidoes.map((c, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${c.obrigatorio ? 'bg-primary/20 text-primary-light' : 'bg-white/10 text-white/40'}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${c.obrigatorio ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
                   {c.obrigatorio ? '!' : '○'}
                 </span>
-                <span className="text-white/80">{c.nome}</span>
-                {c.validade_dias && <span className="text-white/30 text-xs">{c.validade_dias}d</span>}
+                <span className="text-slate-700">{c.nome}</span>
+                {c.validade_dias && <span className="text-slate-400 text-xs">{c.validade_dias}d</span>}
               </div>
             ))}
           </div>
@@ -398,14 +439,19 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
       {certifics.length > 0 && (
         <div className="section-card section-card-pink">
           <p className="section-title">Certificações ({certifics.length})</p>
-          <div className="space-y-0">
-            {certifics.map((e, i) => (
-              <div key={i} className="evidence-row">
-                <div className="evidence-icon bg-pink-accent/15 text-pink-accent text-xs">🏅</div>
-                <div className="evidence-meta">
-                  <div className="evidence-source">{e.fonte_id ?? `Certificação ${i+1}`}</div>
-                  <div className="evidence-excerpt">{e.trecho_literal}</div>
-                </div>
+          <div className="space-y-2">
+            {byRequisito(certifics).map(([req, evs], gi) => (
+              <div key={gi} className="req-group">
+                <div className="req-group-title">Requisito</div>
+                <div className="req-group-text">{req}</div>
+                {evs.map((e, i) => (
+                  <div key={i} className="evidence-row">
+                    <div className="evidence-icon bg-pink-100 text-pink-700 text-xs">🏅</div>
+                    <div className="evidence-meta">
+                      <div className="evidence-excerpt">{e.trecho_literal}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -497,7 +543,7 @@ export default function EditalPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center py-24 text-white/40 text-sm gap-3">
+    <div className="flex items-center justify-center py-24 text-slate-400 text-sm gap-3">
       <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -520,10 +566,10 @@ export default function EditalPage() {
     <div className="space-y-6 max-w-5xl mx-auto">
 
       {/* ── Breadcrumb ─────────────────────────────────── */}
-      <div className="text-sm text-white/35 flex items-center gap-1.5">
-        <Link href="/" className="hover:text-white transition-colors">Pipeline</Link>
+      <div className="text-sm text-slate-400 flex items-center gap-1.5">
+        <Link href="/" className="hover:text-slate-900 transition-colors">Pipeline</Link>
         <span>/</span>
-        <span className="text-white/60">{edital.orgao || id}</span>
+        <span className="text-slate-600">{edital.orgao || id}</span>
       </div>
 
       {/* ── Header card ────────────────────────────────── */}
@@ -531,10 +577,10 @@ export default function EditalPage() {
         <div className="flex flex-col sm:flex-row sm:items-start gap-6">
           {/* Left: info */}
           <div className="flex-1 min-w-0">
-            <h1 className="font-poppins font-bold text-2xl text-white leading-tight mb-1">
+            <h1 className="font-poppins font-bold text-2xl text-slate-900 leading-tight mb-1">
               {edital.orgao || '—'}
             </h1>
-            <p className="text-white/55 text-sm mb-3 leading-relaxed">
+            <p className="text-slate-500 text-sm mb-3 leading-relaxed">
               {edital.objeto || edital.edital_filename || '—'}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -561,12 +607,12 @@ export default function EditalPage() {
             {score != null ? (
               <>
                 <div className={`score-number ${scoreColor(score)}`}>{score}</div>
-                <div className="text-xs text-white/30 mt-0.5">score comercial</div>
+                <div className="text-xs text-slate-400 mt-0.5">score comercial</div>
               </>
             ) : isRunning ? (
-              <div className="text-white/30 text-sm mt-2">Analisando…</div>
+              <div className="text-slate-400 text-sm mt-2">Analisando…</div>
             ) : (
-              <div className="score-number text-white/20">—</div>
+              <div className="score-number text-slate-200">—</div>
             )}
           </div>
         </div>
@@ -602,7 +648,7 @@ export default function EditalPage() {
         {juridico?.ficha_processo?.prazos_calculados && (
           <>
             <div className="divider" />
-            <div className="flex flex-wrap gap-4 text-xs text-white/50">
+            <div className="flex flex-wrap gap-4 text-xs text-slate-500">
               {juridico.ficha_processo.prazos_calculados.data_limite_impugnacao && (
                 <span>
                   <span className="text-danger font-medium">Impugnação até: </span>
@@ -611,7 +657,7 @@ export default function EditalPage() {
               )}
               {juridico.ficha_processo.prazos_calculados.data_limite_esclarecimento && (
                 <span>
-                  <span className="text-orange-300/80 font-medium">Esclarecimento até: </span>
+                  <span className="text-orange-600 font-medium">Esclarecimento até: </span>
                   {juridico.ficha_processo.prazos_calculados.data_limite_esclarecimento}
                 </span>
               )}
@@ -641,19 +687,19 @@ export default function EditalPage() {
       {/* ── Gestão: stage changer + gates ──────────────── */}
       {edital.edital_id && (
         <div className="card space-y-4">
-          <h2 className="font-poppins font-bold text-base text-white">Gestão do Processo</h2>
+          <h2 className="font-poppins font-bold text-base text-slate-900">Gestão do Processo</h2>
 
           {/* Stage changer */}
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="text-xs text-white/40 mb-1 block uppercase tracking-wide">Mover para fase</label>
+              <label className="text-xs text-slate-400 mb-1 block uppercase tracking-wide">Mover para fase</label>
               <select value={patchFase} onChange={e => setPatchFase(e.target.value)} className="input w-44">
                 <option value="">— selecione —</option>
                 {Object.entries(STAGES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs text-white/40 mb-1 block uppercase tracking-wide">Estado terminal</label>
+              <label className="text-xs text-slate-400 mb-1 block uppercase tracking-wide">Estado terminal</label>
               <select value={patchTerminal} onChange={e => setPatchTerminal(e.target.value)} className="input w-48">
                 <option value="">— nenhum —</option>
                 {TERMINAIS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -674,13 +720,13 @@ export default function EditalPage() {
               <div className="divider" />
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium text-white/70">
+                  <p className="text-sm font-medium text-slate-600">
                     Checklist — {STAGES[edital.fase_atual ?? ''] ?? edital.fase_atual}
                   </p>
-                  <span className="text-xs text-white/35">{gatesDone}/{gatesTotal}</span>
+                  <span className="text-xs text-slate-400">{gatesDone}/{gatesTotal}</span>
                 </div>
                 {/* Progress bar */}
-                <div className="h-1.5 bg-white/10 rounded-full mb-4 overflow-hidden">
+                <div className="h-1.5 bg-slate-200 rounded-full mb-4 overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all"
                     style={{ width: gatesTotal > 0 ? `${(gatesDone/gatesTotal)*100}%` : '0%' }}
@@ -688,22 +734,23 @@ export default function EditalPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {edital.gates!.map(gate => (
-                    <label key={gate.gate_id} className="flex items-center gap-2.5 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={gate.concluido}
-                        onChange={() => toggleGate(gate)}
-                        className="w-4 h-4 accent-primary rounded"
-                      />
-                      <span className={`text-sm ${gate.concluido ? 'line-through text-white/30' : 'text-white/70'} group-hover:text-white/90 transition-colors`}>
-                        {gate.label}
+                    <button key={gate.gate_id} onClick={() => toggleGate(gate)} className="checkbox-custom group text-left">
+                      <div className={`checkbox-box ${gate.concluido ? 'checkbox-box-on' : 'checkbox-box-off'}`}>
+                        {gate.concluido && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-sm ${gate.concluido ? 'line-through text-slate-400' : 'text-slate-700'} group-hover:text-slate-900 transition-colors`}>
+                        {GATE_LABELS[gate.gate_key] ?? gate.label ?? gate.gate_key}
                       </span>
                       {gate.concluido_em && (
-                        <span className="text-xs text-white/20 ml-auto">
+                        <span className="text-xs text-slate-300 ml-auto">
                           {new Date(gate.concluido_em).toLocaleDateString('pt-BR')}
                         </span>
                       )}
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -718,13 +765,13 @@ export default function EditalPage() {
       {/* ── Análise Comercial ───────────────────────────── */}
       {parecer && (
         <div className="space-y-4">
-          <h2 className="font-poppins font-bold text-lg text-white">Análise Comercial</h2>
+          <h2 className="font-poppins font-bold text-lg text-slate-900">Análise Comercial</h2>
 
           {/* Estratégia */}
           {parecer.estrategia && (
             <div className="card">
               <p className="section-title">Estratégia</p>
-              <p className="text-sm text-white/70 whitespace-pre-line leading-relaxed">{parecer.estrategia}</p>
+              <p className="text-sm text-slate-600 whitespace-pre-line leading-relaxed">{parecer.estrategia}</p>
             </div>
           )}
 
@@ -734,8 +781,8 @@ export default function EditalPage() {
               <p className="section-title">Alertas ({parecer.alertas!.length})</p>
               <ul className="space-y-2">
                 {parecer.alertas!.map((a, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-white/70">
-                    <span className="text-orange-300/80 shrink-0">⚠</span>
+                  <li key={i} className="flex gap-2 text-sm text-slate-600">
+                    <span className="text-orange-600 shrink-0">⚠</span>
                     <span>{a}</span>
                   </li>
                 ))}
@@ -750,7 +797,7 @@ export default function EditalPage() {
               <div className="space-y-0">
                 {parecer.requisitos_atendidos!.map((r, i) => (
                   <div key={i} className="evidence-row">
-                    <div className="evidence-icon bg-green-accent/15 text-green-accent text-sm">✓</div>
+                    <div className="evidence-icon bg-green-100 text-green-700 text-sm">✓</div>
                     <div className="evidence-meta">
                       <div className="evidence-source">{r.requisito}</div>
                       <div className="evidence-excerpt">{r.comprovacao}</div>
@@ -769,8 +816,8 @@ export default function EditalPage() {
       {!juridico && edital.status !== 'running' && edital.status !== 'queued' && (
         <div className="card flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium text-white/80 text-sm">Análise Jurídica</p>
-            <p className="text-xs text-white/40 mt-0.5">
+            <p className="font-medium text-slate-700 text-sm">Análise Jurídica</p>
+            <p className="text-xs text-slate-400 mt-0.5">
               {edital.job_juridico_status === 'running'
                 ? 'Analisando edital com base na Lei 14.133/2021 e súmulas TCU…'
                 : edital.job_juridico_status === 'failed'
@@ -779,7 +826,7 @@ export default function EditalPage() {
             </p>
           </div>
           {edital.job_juridico_status === 'running' ? (
-            <div className="flex items-center gap-2 text-primary-light text-sm shrink-0">
+            <div className="flex items-center gap-2 text-cyan-700 text-sm shrink-0">
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -802,12 +849,12 @@ export default function EditalPage() {
 
       {juridico && (
         <div className="space-y-4">
-          <h2 className="font-poppins font-bold text-lg text-white">
+          <h2 className="font-poppins font-bold text-lg text-slate-900">
             Análise Jurídica
             {juridico.resumo_executivo?.score_conformidade != null && (
               <span className={`ml-3 score-number text-2xl ${
-                (juridico.resumo_executivo.score_conformidade ?? 0) >= 70 ? 'text-green-accent' :
-                (juridico.resumo_executivo.score_conformidade ?? 0) >= 45 ? 'text-primary-light' : 'text-danger'
+                (juridico.resumo_executivo.score_conformidade ?? 0) >= 70 ? 'text-green-700' :
+                (juridico.resumo_executivo.score_conformidade ?? 0) >= 45 ? 'text-blue-600' : 'text-red-600'
               }`}>
                 {juridico.resumo_executivo.score_conformidade}
               </span>
@@ -830,14 +877,14 @@ export default function EditalPage() {
                 )}
               </div>
               {(juridico.resumo_executivo.recomendacao ?? juridico.resumo_executivo.recomendacao_go_nogo) && (
-                <p className="text-sm text-white/75 mb-3 leading-relaxed font-medium">
+                <p className="text-sm text-slate-600 mb-3 leading-relaxed font-medium">
                   {juridico.resumo_executivo.recomendacao ?? juridico.resumo_executivo.recomendacao_go_nogo}
                 </p>
               )}
               {(juridico.resumo_executivo.pontos_criticos?.length ?? 0) > 0 && (
                 <ul className="space-y-1.5">
                   {juridico.resumo_executivo.pontos_criticos!.map((p, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-white/65">
+                    <li key={i} className="flex gap-2 text-sm text-slate-500">
                       <span className="text-danger shrink-0">●</span><span>{p}</span>
                     </li>
                   ))}
@@ -857,7 +904,7 @@ export default function EditalPage() {
                 </div>
               ))}
               {(juridico.risco_juridico!.riscos ?? []).map((r, i) => (
-                <div key={i} className="flex gap-2 text-sm text-orange-300/75 mt-1">
+                <div key={i} className="flex gap-2 text-sm text-orange-600 mt-1">
                   <span className="shrink-0">⚠</span><span>{r}</span>
                 </div>
               ))}
@@ -867,7 +914,7 @@ export default function EditalPage() {
           {/* Documentos protocolo */}
           {(juridico.documentos_protocolo?.length ?? 0) > 0 && (
             <div>
-              <p className="section-title text-white/50 px-1 mb-2">Documentos para Protocolar</p>
+              <p className="section-title px-1 mb-2">Documentos para Protocolar</p>
               <div className="space-y-3">
                 {juridico.documentos_protocolo!.map((doc, i) => (
                   <div key={i} className={`section-card ${doc.tipo === 'IMPUGNACAO' ? 'section-card-red' : 'section-card-orange'}`}>
@@ -879,12 +926,12 @@ export default function EditalPage() {
                         <span className="badge badge-gray text-[11px]">Prazo: {doc.prazo_limite}</span>
                       )}
                     </div>
-                    <p className="font-medium text-white/90 text-sm mb-1">{doc.topico}</p>
+                    <p className="font-medium text-slate-900 text-sm mb-1">{doc.topico}</p>
                     {doc.numero_clausula && (
-                      <p className="text-xs text-white/40 mb-2">Cláusula {doc.numero_clausula}: {doc.clausula_questionada}</p>
+                      <p className="text-xs text-slate-400 mb-2">Cláusula {doc.numero_clausula}: {doc.clausula_questionada}</p>
                     )}
                     {doc.destinatario && (
-                      <p className="text-xs text-white/40 mb-3">Destinatário: {doc.destinatario}</p>
+                      <p className="text-xs text-slate-400 mb-3">Destinatário: {doc.destinatario}</p>
                     )}
                     {(doc.base_legal?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-3">
@@ -913,10 +960,10 @@ export default function EditalPage() {
       {/* ── Comentários (seção fixa, sempre visível) ────── */}
       {edital.edital_id && (
         <div className="card space-y-4">
-          <h2 className="font-poppins font-bold text-base text-white flex items-center gap-2">
+          <h2 className="font-poppins font-bold text-base text-slate-900 flex items-center gap-2">
             Comentários
             {(edital.comentarios?.length ?? 0) > 0 && (
-              <span className="text-xs font-normal text-white/35 bg-white/10 rounded-full px-2 py-0.5">
+              <span className="text-xs font-normal text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
                 {edital.comentarios!.length}
               </span>
             )}
@@ -924,25 +971,25 @@ export default function EditalPage() {
           <div className="space-y-4">
             {edital.comentarios?.map(c => (
               <div key={c.comentario_id} className="flex gap-3">
-                <div className="mt-1 w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <span className="text-primary-light text-xs font-bold">
+                <div className="mt-1 w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <span className="text-blue-700 text-xs font-bold">
                     {(c.autor_email?.split('@')[0]?.[0] ?? '?').toUpperCase()}
                   </span>
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 text-xs text-white/35 mb-1">
-                    <span className="text-white/60 font-medium">{c.autor_email}</span>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+                    <span className="text-slate-600 font-medium">{c.autor_email}</span>
                     <span>{new Date(c.criado_em).toLocaleString('pt-BR')}</span>
                   </div>
-                  <p className="text-sm text-white/80 whitespace-pre-wrap">{c.texto}</p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.texto}</p>
                 </div>
               </div>
             ))}
             {(edital.comentarios?.length ?? 0) === 0 && (
-              <p className="text-sm text-white/25 py-1">Nenhum comentário ainda.</p>
+              <p className="text-sm text-slate-300 py-1">Nenhum comentário ainda.</p>
             )}
           </div>
-          <div className="flex gap-3 pt-3 border-t border-white/10">
+          <div className="flex gap-3 pt-3 border-t border-slate-200">
             <textarea
               rows={2}
               className="input flex-1 resize-none"
@@ -967,14 +1014,14 @@ export default function EditalPage() {
         <Accordion title="Histórico de movimentações" count={edital.movimentacoes!.length}>
           <div className="space-y-3 pt-2">
             {edital.movimentacoes!.map(m => (
-              <div key={m.mov_id} className="timeline-line text-sm text-white/55">
+              <div key={m.mov_id} className="timeline-line text-sm text-slate-500">
                 <span className="timeline-dot" />
                 <div>
-                  <span className="text-white/75">{STAGES[m.fase_origem] ?? m.fase_origem}</span>
+                  <span className="text-slate-700">{STAGES[m.fase_origem] ?? m.fase_origem}</span>
                   {' → '}
-                  <span className="text-primary-light">{STAGES[m.fase_destino] ?? m.fase_destino}</span>
-                  {m.motivo && <span className="text-white/35"> · {m.motivo}</span>}
-                  <div className="text-xs text-white/25 mt-0.5">
+                  <span className="text-cyan-700">{STAGES[m.fase_destino] ?? m.fase_destino}</span>
+                  {m.motivo && <span className="text-slate-400"> · {m.motivo}</span>}
+                  <div className="text-xs text-slate-300 mt-0.5">
                     {m.autor_email} · {new Date(m.criado_em).toLocaleString('pt-BR')}
                   </div>
                 </div>

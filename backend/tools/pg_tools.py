@@ -210,6 +210,7 @@ _DDL_EDITAIS_MIGRATIONS = [
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_filename TEXT",
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS result_json JSONB",
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS relatorio_juridico_json JSONB",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_json_storage JSONB",
 ]
 
 
