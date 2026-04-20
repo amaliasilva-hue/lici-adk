@@ -163,14 +163,35 @@ e preencha `requisitos_atendidos_count` / `requisitos_total` para a UI.
 O `score_aderencia` e `status` no nível raiz do JSON devem refletir o cenário CONSERVADOR
 (default), preservando o comportamento legado.
 
-=================== EVIDÊNCIAS AUDITÁVEIS ===================
-Para cada requisito do edital, preencha `evidencias_por_requisito` com:
-  { "requisito": "texto do requisito",
+=================== EVIDÊNCIAS AUDITÁVEIS (OBRIGATÓRIO — PREENCHER TODOS OS CAMPOS) ===================
+Para CADA requisito do edital (de requisitos_tecnicos E requisitos_habilitacao),
+crie ao menos uma entrada em `evidencias_por_requisito`. OBRIGATÓRIOS:
+
+  { "requisito": "rótulo curto do requisito",
+    "texto_edital": "CÓPIA VERBATIM do texto do requisito como aparece em edital.requisitos_tecnicos ou edital.requisitos_habilitacao — NÃO resuma, copie na íntegra",
     "fonte_tabela": "atestados"|"contratos"|"closed_deals_won"|"certificados_xertica"|"xertica_profile.yaml",
-    "fonte_id": "id do registro ou chave YAML",
-    "trecho_literal": "trecho COPIADO do resumodoatestado/resumodocontrato que comprova",
+    "fonte_id": "id do registro (AtestadoMatch.id, ContratoMatch.numerodocontrato, etc.)",
+    "trecho_literal": "trecho COPIADO do resumodoatestado/resumodocontrato que comprova — copie o trecho exato, não parafraseie",
     "tipo_evidencia": "atestado"|"contrato"|"deal_won"|"certificado"|"yaml",
-    "confianca": 0.0-1.0 }
+    "confianca": 0.0-1.0,
+    "atestado_nome": "OBRIGATÓRIO p/ atestados/contratos — copie nomedaconta/nomedaconta do registro fonte",
+    "atestado_resumo": "OBRIGATÓRIO — resumo do documento fonte COM valores monetários/volumétricos incluídos. Ex: 'Implantação Google Workspace para 15.000 usuários — R$ 4.200.000,00 em 36 meses'",
+    "atestado_link": "linkdeacesso do AtestadoMatch ou atestado_linkdeacesso do ContratoMatch (se existir)",
+    "valor_comprovado": 17730000.0,
+    "unidade_valor": "BRL" }
+
+REGRAS CRÍTICAS para evidências:
+1. SEMPRE preencha `texto_edital` copiando na íntegra de edital.requisitos_tecnicos ou edital.requisitos_habilitacao
+2. SEMPRE preencha `atestado_nome` com o nome da conta/contratante do documento fonte
+3. SEMPRE preencha `atestado_resumo` incluindo valores monetários quando disponíveis (valordocontrato, gross, horas)
+4. SEMPRE preencha `valor_comprovado` com o valor numérico que a evidência comprova (em BRL quando possível):
+   - Para atestados: use valordocontrato vinculado, ou horas * taxa se disponível
+   - Para contratos: use valordocontrato
+   - Para deals: use gross
+   - Se não há valor numérico, use null
+5. `unidade_valor`: "BRL" para valores monetários, "horas" para horas técnicas, "licenças" para licenças, "UST" para USTs
+6. Crie UMA evidência POR DOCUMENTO fonte — se o mesmo requisito é coberto por 3 atestados, crie 3 entradas
+7. Se um requisito NÃO tem evidência alguma, crie uma entrada em `gaps` — não omita o requisito
 
 =================== ENUMS — VALORES EXATOS (case-sensitive) ===================
 NUNCA invente variações. Use APENAS estes valores literais:
@@ -191,12 +212,32 @@ NUNCA invente variações. Use APENAS estes valores literais:
 Se o requisito tem múltiplas fontes, escolha A MAIS FORTE (atestado > contrato > deal_won > certificado > yaml) e crie UMA entrada por evidência.
 
 =================== OUTPUT (APENAS JSON) ===================
+ATENÇÃO: o JSON deve conter TODOS os requisitos do edital — tanto os atendidos quanto os gaps.
+Liste em `evidencias_por_requisito` TODOS os documentos que comprovam cada requisito (1 entrada por documento).
+Liste em `requisitos_atendidos` uma síntese por requisito atendido.
+Liste em `gaps` cada requisito sem comprovação ou com comprovação insuficiente.
+
 {
   "score_aderencia": null | 0-100,
   "status": "APTO" | "APTO COM RESSALVAS" | "INAPTO" | "NO-GO",
   "bloqueio_camada_1": null | "texto da regra que disparou",
   "requisitos_atendidos": [{"requisito","comprovacao","fonte","link"}],
-  "evidencias_por_requisito": [...],
+  "evidencias_por_requisito": [
+    {
+      "requisito": "Computação na nuvem GCP",
+      "texto_edital": "Comprovação de capacidade técnica em computação na nuvem Google Cloud Platform, com volume mínimo de R$ 52.000.000,00 em contratos executados nos últimos 60 meses",
+      "fonte_tabela": "atestados",
+      "fonte_id": "50",
+      "trecho_literal": "Implantação e operação de ambiente integralmente em Google Cloud Platform para 15.000 colaboradores",
+      "tipo_evidencia": "atestado",
+      "confianca": 0.85,
+      "atestado_nome": "SEBRAE/RN",
+      "atestado_resumo": "Implantação GCP com 15.000 usuários, gestão de infra e segurança — R$ 17.730.000,00 em 36 meses",
+      "atestado_link": "https://drive.google.com/...",
+      "valor_comprovado": 17730000,
+      "unidade_valor": "BRL"
+    }
+  ],
   "gaps": [{"requisito","tipo","delta_numerico","recomendacao"}],
   "requisitos_cascata": [
     {

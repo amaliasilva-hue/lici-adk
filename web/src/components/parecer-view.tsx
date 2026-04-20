@@ -56,7 +56,20 @@ type Parecer = {
   estrategia: string;
   alertas: string[];
   requisitos_atendidos: { requisito: string; comprovacao: string; fonte: string; link?: string | null }[];
-  evidencias_por_requisito: { requisito: string; fonte_tabela: string; fonte_id?: string | null; trecho_literal: string; tipo_evidencia: string; confianca: number }[];
+  evidencias_por_requisito: {
+    requisito: string;
+    texto_edital?: string | null;
+    fonte_tabela: string;
+    fonte_id?: string | null;
+    trecho_literal: string;
+    tipo_evidencia: string;
+    confianca: number;
+    atestado_nome?: string | null;
+    atestado_resumo?: string | null;
+    atestado_link?: string | null;
+    valor_comprovado?: number | null;
+    unidade_valor?: string | null;
+  }[];
   gaps: { requisito: string; tipo: string; delta_numerico?: number | null; recomendacao: string }[];
   requisitos_cascata?: RequisitoCascata[];
   cenarios?: Cenario[];
@@ -397,17 +410,45 @@ export function ParecerView({ parecer }: { parecer: Parecer }) {
           <div className="space-y-3">
             {parecer.evidencias_por_requisito.map((e, i) => (
               <details key={i} className="border border-slate-200 rounded-lg p-3">
-                <summary className="cursor-pointer text-sm font-medium">
-                  {e.requisito}
-                  <span className="ml-2 text-xs text-slate-400">
-                    {e.tipo_evidencia} · confiança {Math.round(e.confianca * 100)}%
+                <summary className="cursor-pointer text-sm font-medium flex items-center justify-between gap-2">
+                  <span className="flex-1 min-w-0">
+                    {e.atestado_nome ? `${e.atestado_nome} — ` : ""}{e.requisito}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {e.valor_comprovado != null && (
+                      <span className="text-xs font-semibold text-green-700">
+                        {e.unidade_valor === "BRL"
+                          ? e.valor_comprovado.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
+                          : `${e.valor_comprovado.toLocaleString("pt-BR")} ${e.unidade_valor || ""}`}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400">
+                      {e.tipo_evidencia} · {Math.round(e.confianca * 100)}%
+                    </span>
+                    {e.atestado_link && (
+                      <a href={e.atestado_link} target="_blank" rel="noreferrer"
+                         className="text-xs text-blue-600 hover:underline"
+                         onClick={(ev) => ev.stopPropagation()}>
+                        Drive ↗
+                      </a>
+                    )}
                   </span>
                 </summary>
-                <div className="mt-2 text-xs text-slate-600">
-                  <div>
+                <div className="mt-2 text-xs text-slate-600 space-y-1.5">
+                  {e.texto_edital && (
+                    <blockquote className="border-l-2 border-blue-300 pl-2 italic text-slate-500">
+                      <strong>Requisito do edital:</strong> {e.texto_edital}
+                    </blockquote>
+                  )}
+                  {e.atestado_resumo && (
+                    <div>
+                      <strong>Resumo do documento:</strong> {e.atestado_resumo}
+                    </div>
+                  )}
+                  <div className="mt-1 italic text-slate-700">&ldquo;{e.trecho_literal}&rdquo;</div>
+                  <div className="text-slate-400">
                     <strong>Tabela:</strong> {e.fonte_tabela} · <strong>ID:</strong> {e.fonte_id || "—"}
                   </div>
-                  <div className="mt-1 italic">&ldquo;{e.trecho_literal}&rdquo;</div>
                 </div>
               </details>
             ))}
