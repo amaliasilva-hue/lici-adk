@@ -76,17 +76,17 @@ class EditalEstruturado(BaseModel):
     penalidades_glosa_max_pct: Optional[float] = None
 
     # --- Flags de Go/No-Go (ARCHITECTURE.md §Agente 1) ---
-    exclusividade_me_epp: bool = False
-    vedacao_consorcio: bool = False
+    exclusividade_me_epp: Optional[bool] = False
+    vedacao_consorcio: Optional[bool] = False
     subcontratacao_permitida: Optional[str] = None  # "livre" | "parcial" | "vedada"
-    exige_poc_mvp: bool = False
+    exige_poc_mvp: Optional[bool] = False
     prazo_poc: Optional[str] = None
-    modelo_inovacao_etec: bool = False
+    modelo_inovacao_etec: Optional[bool] = False
     restricao_temporal_experiencia_meses: Optional[int] = None
     localizacao_dados_exigida: Optional[str] = None
     dependencias_terceiros_identificadas: list[str] = Field(default_factory=list)
-    strict_match_atestados: bool = False
-    match_familia_permitido: bool = True  # default — edital genérico permite match por família
+    strict_match_atestados: Optional[bool] = False
+    match_familia_permitido: Optional[bool] = True  # default — edital genérico permite match por família
 
     # --- Keywords derivadas (o Qualificador usa como termos de busca) ---
     keywords_busca: list[str] = Field(default_factory=list)
