@@ -1,0 +1,2227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>x-lici · Enterprise · Xertica</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configuração do Tailwind para Dark Mode e Xertica Brand Kit -->
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              navy: {
+                900: '#0A1320',
+                800: '#14263D', // Dark Navy Brand
+                700: '#1C3555',
+                600: '#25446D'
+              },
+              brand: {
+                primary: '#047EA9',
+                primaryLight: '#00BEFF',
+                primaryPale: '#EBFAFF',
+                green: '#7FA856',
+                greenLight: '#C0FF7D',
+                greenPale: '#FAFFF5',
+                pink: '#A85CA9',
+                pinkLight: '#FF89FF',
+                red: '#E14849',
+                orange: '#F59E0B'
+              }
+            },
+            fontFamily: {
+              poppins: ['Poppins', 'sans-serif'],
+              roboto: ['Roboto', 'sans-serif'],
+              mono: ['Roboto Mono', 'monospace'],
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 3s linear infinite',
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- UMD Scripts: Garantem compatibilidade a 100% em visualizadores HTML sem CORS/Import Maps -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 dark:bg-navy-800 text-slate-800 dark:text-slate-300 transition-colors duration-300 antialiased overflow-x-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo, useCallback, createContext, useContext } = React;
+        
+        // Fábrica de ícones para funcionar com o Lucide Vanilla de forma nativa e fiável
+        const createLucideIcon = (pascalName) => {
+           const dashName = pascalName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+           return ({ size = 24, className = "", color, ...rest }) => {
+              const ref = useRef(null);
+              useEffect(() => {
+                 if (ref.current && window.lucide) {
+                    ref.current.innerHTML = '';
+                    const i = document.createElement('i');
+                    i.setAttribute('data-lucide', dashName);
+                    ref.current.appendChild(i);
+                    window.lucide.createIcons({ 
+                       attrs: { width: size, height: size, class: className, ...(color ? { color } : {}) }, 
+                       root: ref.current 
+                    });
+                 }
+              }, [size, className, color]);
+              return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} {...rest} />;
+           };
+        };
+
+        // Mapeamento dinâmico de todos os ícones utilizados no projeto
+        const ICONS = [
+          'Search', 'LayoutDashboard', 'FileText', 'Settings', 'ShieldAlert', 
+          'Scale', 'CheckCircle2', 'ChevronRight', 'Download', 'UploadCloud', 
+          'AlertTriangle', 'Clock', 'Activity', 'MessageSquare', 'ArrowLeft',
+          'ChevronLeft', 'FileBadge2', 'FolderKanban', 'TerminalSquare',
+          'Filter', 'MoreVertical', 'Plus', 'Trash2', 'Edit3', 'Eye', 'File', 
+          'Folder', 'FileDigit', 'BarChart3', 'Users', 'BookOpen', 'ExternalLink',
+          'Play', 'Check', 'X', 'FileCheck', 'Layers', 'Cpu', 'Database', 'PieChart',
+          'RefreshCw', 'Copy', 'Info', 'HelpCircle', 'ChevronDown', 'ChevronUp',
+          'Calendar', 'MapPin', 'Building2', 'Gavel', 'FileSignature', 'HardDrive',
+          'Network', 'Zap', 'CheckSquare', 'ListTodo', 'LogOut', 'ArrowRight',
+          'Sun', 'Moon', 'Bell', 'Menu', 'XCircle', 'Sliders', 'ToggleLeft', 'Shield'
+        ];
+
+        const { 
+          Search, LayoutDashboard, FileText, Settings, ShieldAlert, 
+          Scale, CheckCircle2, ChevronRight, Download, UploadCloud, 
+          AlertTriangle, Clock, Activity, MessageSquare, ArrowLeft,
+          ChevronLeft, FileBadge2, FolderKanban, TerminalSquare,
+          Filter, MoreVertical, Plus, Trash2, Edit3, Eye, File, 
+          Folder, FileDigit, BarChart3, Users, BookOpen, ExternalLink,
+          Play, Check, X, FileCheck, Layers, Cpu, Database, PieChart,
+          RefreshCw, Copy, Info, HelpCircle, ChevronDown, ChevronUp,
+          Calendar, MapPin, Building2, Gavel, FileSignature, HardDrive,
+          Network, Zap, CheckSquare, ListTodo, LogOut, ArrowRight,
+          Sun, Moon, Bell, Menu, XCircle, Sliders, ToggleLeft, Shield
+        } = Object.fromEntries(ICONS.map(name => [name, createLucideIcon(name)]));
+
+        // ============================================================================
+        // 1. CONTEXTOS GLOBAIS (Theme & Notifications)
+        // ============================================================================
+        const ThemeContext = createContext();
+        
+        const ThemeProvider = ({ children }) => {
+          const [isDark, setIsDark] = useState(true); // Default Xertica Brand Kit
+
+          useEffect(() => {
+            const root = window.document.documentElement;
+            if (isDark) {
+              root.classList.add('dark');
+              root.classList.remove('light');
+            } else {
+              root.classList.add('light');
+              root.classList.remove('dark');
+            }
+          }, [isDark]);
+
+          const toggleTheme = () => setIsDark(!isDark);
+
+          return (
+            <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+              {children}
+            </ThemeContext.Provider>
+          );
+        };
+
+        const useTheme = () => useContext(ThemeContext);
+
+        // ============================================================================
+        // 2. MOCK DATA EXPANDIDO (Data Layer)
+        // ============================================================================
+
+        const STAGES = [
+          { key: 'identificacao', label: 'Identificação', color: '#94A3B8' },
+          { key: 'analise', label: 'Análise', color: '#00BEFF' },
+          { key: 'pre_disputa', label: 'Pré-disputa', color: '#FF89FF' },
+          { key: 'proposta', label: 'Proposta', color: '#047EA9' },
+          { key: 'disputa', label: 'Disputa', color: '#F59E0B' },
+          { key: 'habilitacao', label: 'Habilitação', color: '#A85CA9' },
+          { key: 'recursos', label: 'Recursos', color: '#E14849' },
+          { key: 'homologado', label: 'Homologado', color: '#C0FF7D' }
+        ];
+
+        const USERS = [
+          { id: 'u1', name: 'Lorena Ortiz', email: 'lorena.ortiz@xertica.com', role: 'Vendedor', avatar: 'LO', color: 'from-brand-pink to-brand-primary' },
+          { id: 'u2', name: 'Mariella Sialer', email: 'mariella.sialer@xertica.com', role: 'Diretor', avatar: 'MS', color: 'from-brand-primary to-brand-primaryLight' },
+          { id: 'u3', name: 'Carlos Mendes', email: 'carlos.mendes@xertica.com', role: 'Jurídico', avatar: 'CM', color: 'from-brand-green to-brand-greenLight' },
+          { id: 'u4', name: 'Agent Juridico', email: 'ai.juridico@xertica.com', role: 'AI', avatar: 'AJ', isAi: true, color: 'from-brand-pinkLight to-brand-pink' },
+          { id: 'u5', name: 'Agent Comercial', email: 'ai.comercial@xertica.com', role: 'AI', avatar: 'AC', isAi: true, color: 'from-brand-primaryLight to-brand-primary' },
+          { id: 'u6', name: 'Ana Silva', email: 'ana.silva@xertica.com', role: 'Admin', avatar: 'AS', color: 'from-slate-400 to-slate-600' },
+          { id: 'u7', name: 'Roberto Carlos', email: 'roberto.carlos@xertica.com', role: 'Vendedor', avatar: 'RC', color: 'from-orange-400 to-red-500' },
+        ];
+
+        const SUMULAS_MOCK = [
+          { id: 'TCU-S-001', tema: 'Somatório de Atestados', enunciado: 'É permitida a soma de atestados para comprovação de capacidade técnica quando a aptidão técnica puder ser demonstrada pela soma de experiências parciais.', aplicacao_ti: true, ativo: true, base_legal: 'Art. 67, §1º da Lei 14.133/2021', criacao: '2025-01-10', revisao: '2026-01-15' },
+          { id: 'TCU-S-002', tema: 'Restrição Temporal', enunciado: 'Vedada exigência de comprovação de experiência em tempo mínimo ou máximo, bem como restrição de época.', aplicacao_ti: true, ativo: true, base_legal: 'Art. 67, §2º da Lei 14.133/2021', criacao: '2025-01-12', revisao: '2026-02-20' },
+          { id: 'TCU-S-003', tema: 'Restrição Geográfica', enunciado: 'Ilegal a exigência de atestado limitado a determinada região, estado ou município.', aplicacao_ti: true, ativo: true, base_legal: 'Art. 67, §2º da Lei 14.133/2021', criacao: '2025-01-15', revisao: '2025-12-05' },
+          { id: 'TCU-S-004', tema: 'Marcas Específicas', enunciado: 'A indicação de marca deve ser justificada tecnicamente, de forma robusta e não genérica.', aplicacao_ti: true, ativo: false, base_legal: 'Art. 41, I, da Lei 14.133/2021', criacao: '2025-02-20', revisao: '2025-06-10' },
+          { id: 'TCU-S-005', tema: 'Certificações Específicas', enunciado: 'A exigência de certificações ISO ou similares deve ser justificada e não pode restringir a competição de forma desarrazoada.', aplicacao_ti: true, ativo: true, base_legal: 'Súmula TCU 275', criacao: '2025-03-01', revisao: '2026-01-20' },
+          { id: 'TCU-S-006', tema: 'Visita Técnica', enunciado: 'A visita técnica somente pode ser exigida quando imprescindível e não pode ser condicionada a datas engessadas ou horários limitados.', aplicacao_ti: true, ativo: true, base_legal: 'Súmula TCU 272', criacao: '2025-03-10', revisao: '2026-03-01' },
+          { id: 'TCU-S-007', tema: 'Patrimônio Líquido', enunciado: 'A exigência de patrimônio líquido não pode exceder 10% do valor estimado da contratação.', aplicacao_ti: true, ativo: true, base_legal: 'Art. 69, §4º da Lei 14.133/2021', criacao: '2025-04-15', revisao: '2025-11-22' },
+          { id: 'TCU-S-008', tema: 'Garantia Contratual', enunciado: 'A garantia contratual não pode exceder 5% do valor do contrato, exceto em contratações de grande vulto ou alta complexidade técnica.', aplicacao_ti: true, ativo: true, base_legal: 'Art. 96 da Lei 14.133/2021', criacao: '2025-05-20', revisao: '2026-02-14' },
+        ];
+
+        const DRIVE_MOCK_TREE = [
+          {
+            id: 'd1', name: 'Xertica Licitações', type: 'folder', isOpen: true, children: [
+              {
+                id: 'd2', name: 'PR', type: 'folder', isOpen: true, children: [
+                  {
+                    id: 'd3', name: 'PE 142/2026 - Celepar', type: 'folder', isOpen: true, children: [
+                      { id: 'd4', name: '01_Edital', type: 'folder', isOpen: false, children: [{ id: 'f1', name: 'Edital_PE_142_2026_Celepar.pdf', type: 'file', size: '2.4 MB', date: '18/04/2026' }] },
+                      { id: 'd5', name: '02_Atestados', type: 'folder', isOpen: true, children: [
+                          { id: 'f2', name: 'Atestado_GCP_Varejo_SA.pdf', type: 'file', size: '1.1 MB', date: '15/03/2025' },
+                          { id: 'f3', name: 'Atestado_GWS_Gov_Estado.pdf', type: 'file', size: '840 KB', date: '22/08/2024' },
+                          { id: 'f4', name: 'Atestado_Migracao_Nuvem_TJ.pdf', type: 'file', size: '3.2 MB', date: '10/11/2025' },
+                          { id: 'f4b', name: 'Atestado_Treinamento_EAD.pdf', type: 'file', size: '500 KB', date: '05/01/2026' }
+                      ]},
+                      { id: 'd6', name: '03_Habilitação', type: 'folder', isOpen: false, children: [
+                        { id: 'f5', name: 'CND_Federal_Abril2026.pdf', type: 'file', size: '150 KB', date: '10/04/2026' },
+                        { id: 'f6', name: 'Certidao_FGTS.pdf', type: 'file', size: '120 KB', date: '05/04/2026' },
+                        { id: 'f7', name: 'Balanco_Patrimonial_2025.pdf', type: 'file', size: '4.5 MB', date: '15/03/2026' }
+                      ]},
+                      { id: 'd7', name: '04_Proposta', type: 'folder', isOpen: false, children: [
+                        { id: 'f8', name: 'Minuta_Proposta_Comercial_v1.docx', type: 'file', size: '25 KB', date: '19/04/2026' }
+                      ]},
+                      { id: 'd8', name: '05_Contrato', type: 'folder', isOpen: false, children: [] },
+                    ]
+                  },
+                  { id: 'd3b', name: 'PE 088/2026 - TJPR', type: 'folder', isOpen: false, children: [] }
+                ]
+              },
+              { id: 'd9', name: 'SP', type: 'folder', isOpen: false, children: [
+                  { id: 'd9a', name: 'PE 045/2026 - PRODESP', type: 'folder', isOpen: false, children: [] },
+                  { id: 'd9b', name: 'PE 012/2026 - SABESP', type: 'folder', isOpen: false, children: [] }
+              ]},
+              { id: 'd10', name: 'GO', type: 'folder', isOpen: false, children: [] },
+              { id: 'd11', name: 'DF', type: 'folder', isOpen: false, children: [] },
+            ]
+          }
+        ];
+
+        const NOTIFICATIONS_MOCK = [
+          { id: 'n1', title: 'Edital Celepar', desc: 'Análise Jurídica concluída com Alerta Crítico.', time: 'Há 10 min', type: 'alert', read: false },
+          { id: 'n2', title: 'Novo Processo', desc: 'Edital PRODESP inserido no pipeline (Fase: Proposta).', time: 'Há 2 horas', type: 'info', read: true },
+          { id: 'n3', title: 'Prazo Vencendo', desc: 'Impugnação TJGO vence amanhã às 23:59.', time: 'Há 5 horas', type: 'warning', read: false },
+          { id: 'n4', title: 'Drive Sincronizado', desc: '3 novos atestados encontrados na pasta PR.', time: 'Há 1 dia', type: 'success', read: true },
+          { id: 'n5', title: 'Homologação', desc: 'Processo PM-SC ganho e homologado!', time: 'Há 2 dias', type: 'success', read: true },
+        ];
+
+        // Generator for massive mock data
+        const generateHistorico = () => {
+          const data = [];
+          const orgaos = ['Tribunal de Justiça', 'Ministério Público', 'Prefeitura Municipal', 'Governo do Estado', 'Secretaria da Fazenda', 'Defensoria Pública', 'Assembleia Legislativa', 'Polícia Civil', 'Tribunal de Contas', 'Universidade Federal', 'Receita Federal', 'Câmara dos Deputados', 'Corpo de Bombeiros', 'Ministério da Saúde'];
+          const ufs = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE', 'GO', 'DF', 'AM', 'CE', 'MT', 'MS', 'ES'];
+          const objetos = ['Google Workspace Enterprise', 'Google Cloud Platform (IaaS/PaaS)', 'Serviços de Migração de Nuvem', 'Solução de Inteligência Artificial Generativa', 'Data Warehouse e Analytics', 'Sustentação IaaS e Suporte 24x7', 'Modernização de Aplicações Legadas', 'Consultoria Cloud Architect', 'Machine Learning para Análise de Dados', 'Armazenamento em Nuvem Híbrida'];
+          const statuses = ['GANHO', 'PERDIDO', 'NO-GO', 'INABILITADO', 'REVOGADO'];
+          
+          for (let i = 1; i <= 150; i++) {
+            const randomDate = new Date(Date.now() - Math.floor(Math.random() * 10000000000 * 3));
+            data.push({
+              id: `hist-${i}`,
+              orgao: `${orgaos[Math.floor(Math.random() * orgaos.length)]} - ${ufs[Math.floor(Math.random() * ufs.length)]}`,
+              objeto: `Contratação de serviços de tecnologia contemplando ${objetos[Math.floor(Math.random() * objetos.length)]} com suporte especializado...`,
+              data: randomDate.toISOString().split('T')[0],
+              status: statuses[Math.floor(Math.random() * statuses.length)],
+              score: Math.floor(Math.random() * 65) + 30, // 30 to 95
+              valor: Math.floor(Math.random() * 8000000) + 150000,
+              vendedor: USERS[Math.floor(Math.random() * 3)].name,
+              uasg: Math.floor(Math.random() * 900000) + 100000,
+              numero: `PE ${Math.floor(Math.random() * 200)}/202${Math.floor(Math.random() * 3) + 4}`
+            });
+          }
+          return data.sort((a, b) => new Date(b.data) - new Date(a.data));
+        };
+
+        const HISTORICO_DATA = generateHistorico();
+
+        // Pipeline active processes
+        const MOCK_EDITAIS = [
+          { id: '1', orgao: 'Celepar', uf: 'PR', objeto: 'Contratação de subscrição de licenças Google Workspace com suporte técnico 24x7 e serviços de migração de legado...', fase: 'pre_disputa', score: 62, status: 'APTO COM RESSALVAS', prioridade: 'P1', valor: 2450000, responsavel: 'u1', uasg: '926119', numero: 'PE 142/2026' },
+          { id: '2', orgao: 'PRODESP', uf: 'SP', objeto: 'Fornecimento de solução de inteligência artificial generativa em nuvem para automação de processos internos...', fase: 'proposta', score: 73, status: 'APTO', prioridade: 'P1', valor: 8500000, responsavel: 'u2', uasg: '389211', numero: 'PE 045/2026' },
+          { id: '3', orgao: 'Ministério Público', uf: 'RS', objeto: 'Renovação de licenciamento GCP para sustentação de sistemas core da instituição...', fase: 'analise', score: 85, status: 'APTO', prioridade: 'P2', valor: 1200000, responsavel: 'u1', uasg: '200192', numero: 'PE 012/2026' },
+          { id: '4', orgao: 'Prefeitura Municipal', uf: 'AM', objeto: 'Serviços de migração para nuvem e implantação de painéis BI para a Secretaria de Finanças...', fase: 'identificacao', score: null, status: 'ANALISANDO', prioridade: 'P3', valor: 890000, responsavel: 'u7', uasg: '988221', numero: 'PE 099/2026' },
+          { id: '5', orgao: 'Tribunal de Justiça', uf: 'GO', objeto: 'Aquisição de software de gestão documental e acervo digital corporativo...', fase: 'analise', score: 40, status: 'NO-GO', prioridade: 'P4', valor: 3400000, responsavel: 'u2', uasg: '112233', numero: 'PE 004/2026' },
+          { id: '6', orgao: 'Secretaria de Saúde', uf: 'MG', objeto: 'Nuvem híbrida para armazenamento de prontuários eletrônicos de pacientes com SLA 99.99%...', fase: 'disputa', score: 68, status: 'APTO COM RESSALVAS', prioridade: 'P2', valor: 5600000, responsavel: 'u1', uasg: '445566', numero: 'PE 110/2026' },
+          { id: '7', orgao: 'Defensoria Pública', uf: 'BA', objeto: 'Licenciamento Google Workspace Business Starter para defensores públicos do estado...', fase: 'habilitacao', score: 92, status: 'APTO', prioridade: 'P1', valor: 450000, responsavel: 'u7', uasg: '778899', numero: 'PE 022/2026' },
+          { id: '8', orgao: 'Polícia Militar', uf: 'SC', objeto: 'Infraestrutura IaaS para sustentação de sistemas de videomonitoramento de vias públicas...', fase: 'homologado', score: 88, status: 'GANHO', prioridade: 'P2', valor: 1800000, responsavel: 'u2', uasg: '102030', numero: 'PE 078/2026' },
+          { id: '9', orgao: 'Tribunal de Contas', uf: 'PE', objeto: 'Serviços especializados de Cloud Architect para modernização do datacenter institucional...', fase: 'pre_disputa', score: 55, status: 'APTO COM RESSALVAS', prioridade: 'P3', valor: 650000, responsavel: 'u1', uasg: '998877', numero: 'PE 033/2026' },
+          { id: '10', orgao: 'Universidade Federal', uf: 'RJ', objeto: 'Fornecimento de infraestrutura em nuvem para pesquisa acadêmica (HPC no GCP)...', fase: 'proposta', score: 79, status: 'APTO', prioridade: 'P2', valor: 2100000, responsavel: 'u7', uasg: '554433', numero: 'PE 055/2026' },
+          { id: '11', orgao: 'Câmara dos Deputados', uf: 'DF', objeto: 'Solução de Inteligência Artificial para transcrição e sumarização de áudio das sessões plenárias...', fase: 'analise', score: 95, status: 'APTO', prioridade: 'P1', valor: 11500000, responsavel: 'u2', uasg: '110001', numero: 'PE 001/2026' },
+          { id: '12', orgao: 'Receita Federal', uf: 'DF', objeto: 'Modernização do sistema de malha fina utilizando Machine Learning no Google Cloud Platform...', fase: 'recursos', score: 82, status: 'APTO', prioridade: 'P1', valor: 25000000, responsavel: 'u1', uasg: '110002', numero: 'PE 002/2026' },
+          { id: '13', orgao: 'SABESP', uf: 'SP', objeto: 'Migração de banco de dados on-premise para nuvem com serviços de refatoração...', fase: 'identificacao', score: null, status: 'ANALISANDO', prioridade: 'P2', valor: 4200000, responsavel: 'u7', uasg: '334455', numero: 'PE 088/2026' },
+          { id: '14', orgao: 'Corpo de Bombeiros', uf: 'MT', objeto: 'Sistema de despacho de viaturas baseado em geolocalização e cloud mapping...', fase: 'disputa', score: 60, status: 'APTO COM RESSALVAS', prioridade: 'P3', valor: 950000, responsavel: 'u1', uasg: '667788', numero: 'PE 105/2026' },
+        ];
+
+        // Deep detailed mock for the 360 view
+        const CELEPAR_DETAIL = {
+          id: '1',
+          orgao: 'Companhia de Tecnologia do Paraná (Celepar)',
+          uf: 'PR',
+          uasg: '926119',
+          numero_pregao: 'PE 142/2026',
+          valor_estimado: 2450000.00,
+          data_encerramento: '2026-05-10T10:00:00Z',
+          data_publicacao: '2026-04-18T08:00:00Z',
+          score: 62,
+          status: 'APTO COM RESSALVAS',
+          vendedor: 'u1',
+          fase_atual: 'pre_disputa',
+          gates: [
+            { id: 'g1', label: 'Edital baixado', concluido: true, date: '18/04/2026', user: 'u1' },
+            { id: 'g2', label: 'Órgão identificado', concluido: true, date: '18/04/2026', user: 'u1' },
+            { id: 'g3', label: 'Vendedor atribuído', concluido: true, date: '18/04/2026', user: 'u2' },
+            { id: 'g4', label: 'Análise comercial concluída', concluido: true, date: '19/04/2026', user: 'u5' },
+            { id: 'g5', label: 'Análise jurídica concluída', concluido: true, date: '19/04/2026', user: 'u4' },
+            { id: 'g6', label: 'Prazo de esclarecimento verificado', concluido: true, date: '19/04/2026', user: 'u3' },
+            { id: 'g7', label: 'Documentos redigidos', concluido: false, date: null, user: null },
+            { id: 'g8', label: 'Proposta técnica redigida', concluido: false, date: null, user: null },
+            { id: 'g9', label: 'Documentação de Habilitação reunida', concluido: false, date: null, user: null },
+          ],
+          juridico: {
+            conformidade_geral: 'RESTRITIVO',
+            score_conformidade: 58,
+            risco: 'ALTO',
+            prazos: {
+              esclarecimento: '03/05/2026',
+              impugnacao: '05/05/2026',
+              sessao: '10/05/2026'
+            },
+            alertas: [
+              { tipo: 'critico', texto: 'Art. 67 §2º da Lei 14.133: Vedada restrição temporal de atestados (exigência de 36 meses na cláusula 9.4.1).' },
+              { tipo: 'alto', texto: 'Cláusula 12.2: Glosa abusiva detectada (> 50% do faturamento mensal por SLA de Uptime).' },
+              { tipo: 'medio', texto: 'Exigência de atestado limitado à região Sul (Súmula TCU S-004 violada).' },
+              { tipo: 'medio', texto: 'Exigência de atestado com firma reconhecida em cartório (Excesso de formalismo).' }
+            ],
+            documentos: [
+              { 
+                id: 'doc-imp-1',
+                tipo: 'IMPUGNACAO', 
+                topico: 'Restrição temporal e geográfica de atestados', 
+                prazo: '05/05/2026', 
+                clausula: '9.4.1 e 9.4.2',
+                texto: `ILUSTRÍSSIMO SENHOR PREGOEIRO DA CELEPAR\n\nRef.: Pregão Eletrônico nº 142/2026\n\nXERTICA TECNOLOGIA LTDA, inscrita no CNPJ 26.230.134/0001-08, vem tempestivamente apresentar IMPUGNAÇÃO AO EDITAL pelas razões de direito a seguir aduzidas:\n\nI - DA RESTRIÇÃO TEMPORAL DE ATESTADOS\nA cláusula 9.4.1 exige atestados de serviços prestados nos últimos 36 meses. Tal exigência fere frontalmente o art. 67, §2º da Lei 14.133/2021, que veda expressamente restrições de tempo para comprovação de capacidade técnica. O Tribunal de Contas da União, em reiteradas decisões (Acórdão 2.150/2015-Plenário), já sedimentou o entendimento de que a capacidade técnica não se perde com o tempo.\n\nII - DA RESTRIÇÃO GEOGRÁFICA\nA cláusula 9.4.2 limita a aceitação de atestados emitidos na região Sul do Brasil. Trata-se de ofensa ao princípio da isonomia e à Súmula TCU S-003, caracterizando restrição frustrante ao caráter competitivo do certame.\n\nDOS PEDIDOS\nRequer-se a supressão das exigências temporais e geográficas dos itens 9.4.1 e 9.4.2, republicando-se o edital com reabertura de prazo.\n\nNestes termos,\nPede deferimento.\n\nCuritiba/PR, 19 de Abril de 2026.\nRepresentante Legal`
+              },
+              {
+                id: 'doc-esc-1',
+                tipo: 'ESCLARECIMENTO',
+                topico: 'Critério de Glosa e SLA de Uptime',
+                prazo: '03/05/2026',
+                clausula: '12.2',
+                texto: `ILUSTRÍSSIMO SENHOR PREGOEIRO DA CELEPAR\n\nRef.: Pregão Eletrônico nº 142/2026\n\nSolicitamos o seguinte esclarecimento técnico-comercial:\n\nA cláusula 12.2 do Termo de Referência estabelece que em caso de indisponibilidade sistêmica superior a 4 horas mensais, haverá glosa linear de 50% do valor total da fatura mensal. \n\nConsiderando o princípio da proporcionalidade e a vedação ao enriquecimento sem causa da Administração, questiona-se:\n\n1. Esta Administração confirma que a glosa de 50% se limitará exclusivamente à parcela do serviço efetivamente afetada pelo downtime (ex: faturamento pro-rata das licenças indisponíveis), e não à totalidade da fatura que inclui serviços e licenças que operaram normalmente?\n2. O SLA do fabricante (Google Cloud) garante 99.9% de uptime. O órgão aceitará o relatório nativo da ferramenta como comprovação de disponibilidade para fins de faturamento?`
+              }
+            ],
+            atestados_analise: {
+              permite_somatorio: true,
+              exige_pmr: true,
+              pmr_percentual: 4, 
+              msg_fundamentacao: 'O edital silencia sobre a vedação, logo aplica-se a regra geral do Art. 67 da Lei 14.133/2021 que permite o somatório. A Parcela de Maior Relevância (PMR) está fixada em 4% do valor estimado, ou seja, R$ 98.000,00 por atestado individual.'
+            },
+            kit_habilitacao: {
+              gap_habilitacao: 'Alerta de Habilitação: Para suprir a PMR individual de 4%, é necessário pelo menos 1 atestado com valor superior a R$ 98.000,00. Os atestados listados no somatório do Drive atendem a este critério, porém a CND Trabalhista encontra-se vencida.',
+              certidoes: [
+                { nome: 'Certidão Negativa Federal (RFB)', obrigatorio: true, status: 'valida', validade_dias: 45, arquivo: 'CND_Federal_Abril2026.pdf' },
+                { nome: 'Certidão de Regularidade do FGTS', obrigatorio: true, status: 'valida', validade_dias: 12, arquivo: 'Certidao_FGTS.pdf' },
+                { nome: 'Certidão Negativa Trabalhista (CNDT)', obrigatorio: true, status: 'vencida', validade_dias: 0, arquivo: null },
+                { nome: 'Balanço Patrimonial Registrado', obrigatorio: true, status: 'valida', validade_dias: 300, arquivo: 'Balanco_Patrimonial_2025.pdf' },
+                { nome: 'Declaração art 68 da Lei 14.133', obrigatorio: true, status: 'pendente_geracao', validade_dias: null, arquivo: null },
+                { nome: 'Declaração de Menor', obrigatorio: true, status: 'pendente_geracao', validade_dias: null, arquivo: null },
+              ]
+            }
+          },
+          comercial: {
+            estrategia: 'O edital possui forte aderência técnica (exigência de licenças Google Workspace com suporte unificado), o que favorece nossa proposta de valor Tier 1. \n\nEntretanto, a glosa de 50% (cláusula 12.2) e a restrição temporal nos atestados (cláusula 9.4.1) requerem impugnação imediata para reduzir o risco operacional.\n\nO somatório de atestados extraído automaticamente do Drive nos dá margem técnica confortável (temos R$ 1.85M vs R$ 2.45M exigido global). Recomenda-se focar a proposta técnica na defesa do modelo de licenciamento Enterprise vs. Standard exigido de forma difusa no TR.',
+            bloqueio_camada_1: null,
+            requisitos: [
+              { req: 'Fornecimento de subscrição de licenças GWS Enterprise Plus', fonte: 'Edital pág 12, item 4.1.1', status: 'Atendido' },
+              { req: 'Suporte técnico 24x7 em português (Nível 1, 2 e 3)', fonte: 'TR, item 4.1', status: 'Atendido' },
+              { req: 'Certificação Google Cloud Security Engineer ativa', fonte: 'TR, item 5.5', status: 'Atendido' },
+              { req: 'Faturamento consolidado em moeda local (BRL)', fonte: 'Edital pág 18, item 10', status: 'Atendido' },
+              { req: 'Garantia de Uptime de 99.9%', fonte: 'TR, item 8.2', status: 'Atendido' }
+            ],
+            gaps: [
+              { req: 'Treinamento presencial de 40h para 200 administradores', tipo: 'Serviço Profissional', recomendacao: 'A Xertica atua majoritariamente remoto. Incluir parceiro local de treinamento no pricing ou enviar pedido de esclarecimento propondo adoção de modalidade EAD síncrona.', impacto: 'R$ 45.000 (Custo de parceria)' },
+              { req: 'Fornecimento de 5 endpoints físicos de videoconferência', tipo: 'Hardware', recomendacao: 'Avaliamos buscar parceiro OEM (Logitech/Asus) ou declarar Não Atendimento parcial se o lote for divisível.', impacto: 'R$ 85.000 (CAPEX)' }
+            ],
+            somatorio_drive: {
+              total_volume_encontrado: 1850000,
+              total_volume_exigido: 2450000,
+              gap_financeiro: -600000,
+              msg_somatorio: 'O somatório dos atestados na pasta do processo no Drive totaliza R$ 1.850.000. O edital exige capacidade compatível com o vulto estimado. Sugere-se anexar atestado complementar.',
+              atestados_usados: [
+                { id: 'f2', nome: 'Atestado_GCP_Varejo_SA.pdf', valor: 1100000, atende_pmr: true, validado: true },
+                { id: 'f3', nome: 'Atestado_GWS_Gov_Estado.pdf', valor: 750000, atende_pmr: true, validado: true }
+              ]
+            }
+          },
+          movimentacoes: [
+            { id: 'm1', data: '2026-04-18T14:00:00Z', de: 'Upload', para: 'identificacao', autor: 'u1', motivo: 'Criação do processo no pipeline' },
+            { id: 'm2', data: '2026-04-19T09:15:00Z', de: 'identificacao', para: 'analise', autor: 'u5', motivo: 'Auto-avanço após extração comercial (Gemini 2.5 Pro)' },
+            { id: 'm3', data: '2026-04-19T14:30:00Z', de: 'analise', para: 'pre_disputa', autor: 'u1', motivo: 'Revisão jurídica OK, partindo para protocolo de impugnação' }
+          ],
+          comentarios: [
+            { id: 'c1', autor: 'u4', texto: 'Análise jurídica concluída. Sugestão de impugnação gerada para a cláusula 9.4.1 (Restrição temporal) e 9.4.2 (Geográfica). Alertas críticos adicionados ao painel.', data: '2026-04-19T10:05:00Z', isSystem: false },
+            { id: 'c2', autor: 'u5', texto: 'Análise comercial executada. Score: 62. Gaps de hardware e treinamento presencial identificados. Somatório de atestados extraído do Drive.', data: '2026-04-19T10:06:00Z', isSystem: false },
+            { id: 'c3', autor: 'u3', texto: 'Concordo com a IA Jurídica. Lorena, já revisei a minuta de impugnação na aba "Jurídico". Pode copiar e colar no Comprasnet. Atenção ao prazo: encerra dia 05/05.', data: '2026-04-19T14:28:00Z', isSystem: false },
+            { id: 'c4', autor: 'u1', texto: 'Perfeito, Carlos. Farei o protocolo amanhã pela manhã. Já pedi para o time técnico olhar a questão do Treinamento Presencial e orçar o parceiro OEM para o hardware.', data: '2026-04-19T15:10:00Z', isSystem: false }
+          ]
+        };
+
+        // ============================================================================
+        // 3. UTILITY FUNCTIONS
+        // ============================================================================
+
+        const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+        
+        const formatDate = (isoString) => {
+          if (!isoString) return '';
+          const d = new Date(isoString);
+          return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' });
+        };
+        
+        const getUser = (id) => USERS.find(u => u.id === id) || USERS[0];
+
+        // Class utility for merging tailwind classes conditionally
+        const cx = (...classes) => classes.filter(Boolean).join(' ');
+
+        // ============================================================================
+        // 4. DESIGN SYSTEM (Re-usable UI Components adapted for Light/Dark Mode)
+        // ============================================================================
+
+        const Card = ({ children, className = "", hover = false, onClick }) => {
+          const { isDark } = useTheme();
+          const baseClasses = "rounded-xl transition-all duration-300 border overflow-hidden";
+          
+          const themeClasses = isDark 
+            ? `bg-white/[0.02] border-white/5 backdrop-blur-md ${hover ? 'hover:bg-white/[0.04] hover:border-brand-primaryLight/40 hover:shadow-[0_4px_20px_rgba(0,190,255,0.1)] cursor-pointer' : ''}` 
+            : `bg-white border-slate-200 shadow-sm ${hover ? 'hover:border-brand-primary hover:shadow-md cursor-pointer' : ''}`;
+            
+          return (
+            <div onClick={onClick} className={cx(baseClasses, themeClasses, className)}>
+              {children}
+            </div>
+          );
+        };
+
+        const Badge = ({ children, colorTheme = "primary", icon: Icon, className = "" }) => {
+          const { isDark } = useTheme();
+          
+          // Theme maps
+          const themes = {
+            primary: isDark ? 'bg-brand-primary/20 text-brand-primaryLight border-brand-primary/30' : 'bg-blue-50 text-blue-700 border-blue-200',
+            success: isDark ? 'bg-brand-green/20 text-brand-greenLight border-brand-greenLight/30' : 'bg-green-50 text-green-700 border-green-200',
+            danger: isDark ? 'bg-brand-red/20 text-brand-red border-brand-red/30' : 'bg-red-50 text-red-700 border-red-200',
+            warning: isDark ? 'bg-brand-orange/20 text-brand-orange border-brand-orange/30' : 'bg-orange-50 text-orange-700 border-orange-200',
+            pink: isDark ? 'bg-brand-pink/20 text-brand-pinkLight border-brand-pink/30' : 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+            slate: isDark ? 'bg-slate-500/20 text-slate-300 border-slate-500/30' : 'bg-slate-100 text-slate-600 border-slate-200'
+          };
+
+          return (
+            <span className={cx(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-poppins font-semibold uppercase tracking-wider border backdrop-blur-sm",
+              themes[colorTheme] || themes.slate,
+              className
+            )}>
+              {Icon && <Icon size={12} />}
+              {children}
+            </span>
+          );
+        };
+
+        const Button = ({ children, variant = 'primary', size='md', icon: Icon, onClick, className = "", disabled = false, fullWidth = false }) => {
+          const { isDark } = useTheme();
+          
+          const sizes = {
+            sm: 'px-3 py-1.5 text-xs',
+            md: 'px-4 py-2 text-sm',
+            lg: 'px-6 py-3 text-base'
+          };
+
+          const variants = {
+            primary: isDark 
+              ? "bg-brand-primary hover:bg-brand-primaryLight text-white shadow-[0_0_15px_rgba(4,126,169,0.3)] hover:shadow-[0_0_20px_rgba(0,190,255,0.5)] border border-transparent"
+              : "bg-brand-primary hover:bg-brand-primaryDark text-white shadow-sm border border-transparent",
+            secondary: isDark
+              ? "bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/10"
+              : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-sm",
+            danger: isDark
+              ? "bg-brand-red hover:bg-[#ff5a5b] text-white shadow-[0_0_15px_rgba(225,72,73,0.3)] border border-transparent"
+              : "bg-red-600 hover:bg-red-700 text-white shadow-sm border border-transparent",
+            ghost: isDark
+              ? "bg-transparent hover:bg-white/[0.08] text-slate-300 hover:text-white border border-transparent"
+              : "bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-transparent",
+            ai: isDark
+              ? "bg-gradient-to-r from-brand-pink to-brand-primary hover:from-brand-pinkLight hover:to-brand-primaryLight text-white shadow-[0_0_15px_rgba(255,137,255,0.3)] border border-transparent"
+              : "bg-gradient-to-r from-fuchsia-600 to-blue-600 hover:from-fuchsia-700 hover:to-blue-700 text-white shadow-sm border border-transparent"
+          };
+
+          return (
+            <button onClick={onClick} disabled={disabled} className={cx(
+              "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+              sizes[size],
+              variants[variant],
+              fullWidth ? 'w-full' : '',
+              className
+            )}>
+              {Icon && <Icon size={size === 'sm' ? 14 : 16} />}
+              {children}
+            </button>
+          );
+        };
+
+        const IconButton = ({ icon: Icon, onClick, className="", variant="ghost", title }) => {
+          const { isDark } = useTheme();
+          const variants = {
+            ghost: isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100",
+            primary: isDark ? "bg-brand-primary text-white hover:bg-brand-primaryLight" : "bg-brand-primary text-white hover:bg-brand-primaryDark",
+            danger: isDark ? "text-brand-red hover:bg-brand-red/20" : "text-red-600 hover:bg-red-50"
+          };
+          return (
+            <button onClick={onClick} title={title} className={cx("p-2 rounded-lg transition-colors", variants[variant], className)}>
+              <Icon size={18} />
+            </button>
+          );
+        };
+
+        const TextInput = ({ icon: Icon, placeholder, value, onChange, className = "", type = "text", label }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className={cx("relative", className)}>
+              {label && <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>}
+              <div className="relative">
+                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />}
+                <input 
+                  type={type}
+                  value={value}
+                  onChange={onChange}
+                  placeholder={placeholder} 
+                  className={cx(
+                    "w-full rounded-lg pr-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2",
+                    Icon ? 'pl-9' : 'pl-4',
+                    isDark 
+                      ? "bg-black/20 border border-white/10 text-white placeholder-slate-500 focus:border-brand-primaryLight focus:ring-brand-primaryLight/30" 
+                      : "bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:border-brand-primary focus:ring-brand-primary/20"
+                  )}
+                />
+              </div>
+            </div>
+          );
+        };
+
+        const SelectInput = ({ icon: Icon, value, onChange, options = [], className = "", label }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className={cx("relative", className)}>
+              {label && <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>}
+              <div className="relative">
+                {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />}
+                <select 
+                  value={value}
+                  onChange={onChange}
+                  className={cx(
+                    "w-full rounded-lg pr-10 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer",
+                    Icon ? 'pl-9' : 'pl-4',
+                    isDark 
+                      ? "bg-black/20 border border-white/10 text-white focus:border-brand-primaryLight focus:ring-brand-primaryLight/30" 
+                      : "bg-white border border-slate-300 text-slate-900 focus:border-brand-primary focus:ring-brand-primary/20"
+                  )}
+                >
+                  {options.map((opt, i) => (
+                    <option key={i} value={opt.value} className={isDark ? "bg-navy-800" : ""}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+              </div>
+            </div>
+          );
+        };
+
+        const ProgressBar = ({ progress, colorTheme = 'primary', height = 'h-1.5', className="" }) => {
+          const { isDark } = useTheme();
+          const colors = {
+            primary: isDark ? '#00BEFF' : '#047EA9',
+            success: isDark ? '#C0FF7D' : '#7FA856',
+            warning: '#F59E0B',
+            danger: isDark ? '#E14849' : '#DC2626',
+            pink: isDark ? '#FF89FF' : '#A85CA9'
+          };
+          const bg = colors[colorTheme] || colors.primary;
+
+          return (
+            <div className={cx("w-full rounded-full overflow-hidden border", isDark ? "bg-black/40 border-white/5" : "bg-slate-100 border-slate-200", height, className)}>
+              <div 
+                className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                style={{ 
+                  width: `${progress}%`, 
+                  backgroundColor: bg, 
+                  boxShadow: isDark ? `0 0 10px ${bg}80` : 'none' 
+                }}
+              >
+                {isDark && <div className="absolute top-0 left-0 right-0 bottom-0 bg-white/20 animate-pulse"></div>}
+              </div>
+            </div>
+          );
+        };
+
+        const Avatar = ({ user, size = 'md' }) => {
+          const sizes = { sm: 'w-6 h-6 text-[9px]', md: 'w-8 h-8 text-xs', lg: 'w-10 h-10 text-sm', xl: 'w-16 h-16 text-lg' };
+          return (
+            <div title={user.name} className={cx(`rounded-full bg-gradient-to-br flex items-center justify-center shrink-0 shadow-sm border-2 border-transparent dark:border-navy-800`, sizes[size], user.color)}>
+              <span className="font-bold text-white font-poppins">{user.avatar}</span>
+            </div>
+          );
+        };
+
+        const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl', footer }) => {
+          const { isDark } = useTheme();
+          if (!isOpen) return null;
+
+          return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
+              <div className={cx("absolute inset-0 backdrop-blur-sm transition-opacity", isDark ? "bg-navy-900/80" : "bg-slate-900/40")} onClick={onClose}></div>
+              
+              <div className={cx(
+                "relative w-full flex flex-col max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden transition-all transform animate-slide-in",
+                maxWidth,
+                isDark ? "bg-navy-800 border border-white/10" : "bg-white border border-slate-200"
+              )}>
+                {/* Header */}
+                <div className={cx("flex items-center justify-between p-5 border-b", isDark ? "bg-black/20 border-white/10" : "bg-slate-50 border-slate-200")}>
+                  <h2 className={cx("font-poppins font-bold text-lg", isDark ? "text-white" : "text-slate-800")}>{title}</h2>
+                  <IconButton icon={X} onClick={onClose} />
+                </div>
+                
+                {/* Body */}
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                  {children}
+                </div>
+
+                {/* Footer */}
+                {footer && (
+                  <div className={cx("p-5 border-t flex justify-end gap-3", isDark ? "bg-black/20 border-white/10" : "bg-slate-50 border-slate-200")}>
+                    {footer}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const Drawer = ({ isOpen, onClose, title, children }) => {
+          const { isDark } = useTheme();
+          if (!isOpen) return null;
+
+          return (
+            <div className="fixed inset-0 z-[100] flex justify-end animate-fade-in">
+              <div className={cx("absolute inset-0 backdrop-blur-sm transition-opacity", isDark ? "bg-navy-900/60" : "bg-slate-900/30")} onClick={onClose}></div>
+              
+              <div className={cx(
+                "relative w-full max-w-md h-full flex flex-col shadow-2xl transition-transform duration-300 transform translate-x-0 animate-[slideInRight_0.3s_ease-out]",
+                isDark ? "bg-navy-800 border-l border-white/10" : "bg-white border-l border-slate-200"
+              )}>
+                <div className={cx("flex items-center justify-between p-5 border-b", isDark ? "bg-black/20 border-white/10" : "bg-slate-50 border-slate-200")}>
+                  <h2 className={cx("font-poppins font-bold text-lg", isDark ? "text-white" : "text-slate-800")}>{title}</h2>
+                  <IconButton icon={X} onClick={onClose} />
+                </div>
+                <div className="p-0 overflow-y-auto custom-scrollbar flex-1">
+                  {children}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const Toggle = ({ enabled, onChange, label }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => onChange(!enabled)}>
+              <div className={cx(
+                "w-10 h-5 rounded-full relative transition-colors duration-300",
+                enabled ? "bg-brand-primary" : (isDark ? "bg-slate-600" : "bg-slate-300")
+              )}>
+                <div className={cx(
+                  "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300",
+                  enabled ? "translate-x-5" : "translate-x-0.5"
+                )}></div>
+              </div>
+              {label && <span className={cx("text-sm font-medium", isDark ? "text-slate-300" : "text-slate-600")}>{label}</span>}
+            </div>
+          );
+        };
+
+        // ============================================================================
+        // 5. SVG CHARTS COMPONENTS (Built from scratch, no libraries)
+        // ============================================================================
+        
+        const DonutChart = ({ percentage, color = '#00BEFF', label = '', size = 120, strokeWidth = 8 }) => {
+          const { isDark } = useTheme();
+          const radius = (size - strokeWidth) / 2;
+          const circumference = radius * 2 * Math.PI;
+          const offset = circumference - (percentage / 100) * circumference;
+          const trackColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+          return (
+            <div className="flex flex-col items-center justify-center relative" style={{ width: size, height: size }}>
+              <svg width={size} height={size} className="transform -rotate-90 drop-shadow-md">
+                {/* Track */}
+                <circle cx={size/2} cy={size/2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
+                {/* Progress */}
+                <circle 
+                  cx={size/2} cy={size/2} r={radius} 
+                  stroke={color} strokeWidth={strokeWidth} fill="none" 
+                  strokeDasharray={circumference} strokeDashoffset={offset} 
+                  strokeLinecap="round" 
+                  style={{ transition: 'stroke-dashoffset 1s ease-out', filter: isDark ? `drop-shadow(0 0 6px ${color}80)` : 'none' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={cx("font-poppins font-bold leading-none", isDark ? "text-white" : "text-slate-800")} style={{ fontSize: size * 0.25 }}>{percentage}</span>
+                {label && <span className={cx("text-[10px] uppercase tracking-widest font-semibold mt-1", isDark ? "text-slate-400" : "text-slate-500")}>{label}</span>}
+              </div>
+            </div>
+          );
+        };
+
+        const MiniBarChart = ({ data = [], height = 100, color = '#047EA9' }) => {
+          const { isDark } = useTheme();
+          const max = Math.max(...data.map(d => d.val), 1);
+          return (
+            <div className="flex items-end gap-1.5 w-full" style={{ height }}>
+              {data.map((item, i) => {
+                const hPct = (item.val / max) * 100;
+                return (
+                  <div key={i} className="flex-1 flex flex-col justify-end group relative h-full">
+                    {/* Tooltip */}
+                    <div className={cx(
+                      "absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none",
+                      isDark ? "bg-navy-900 text-white" : "bg-slate-800 text-white"
+                    )}>
+                      {item.val} ({item.label})
+                    </div>
+                    {/* Bar */}
+                    <div 
+                      className="w-full rounded-t-sm transition-all duration-500 ease-out" 
+                      style={{ height: `${hPct}%`, backgroundColor: color, opacity: 0.8 }}
+                    ></div>
+                    <div className="absolute bottom-0 w-full h-full hover:bg-white/10 transition-colors cursor-pointer"></div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        };
+
+        // ============================================================================
+        // 6. SPECIFIC APP COMPONENTS
+        // ============================================================================
+
+        const KanbanCard = ({ edital, onClick }) => {
+          const { isDark } = useTheme();
+          
+          const getStatusTheme = (status) => {
+            switch (status) {
+              case 'APTO': return 'success';
+              case 'APTO COM RESSALVAS': return 'warning';
+              case 'NO-GO': return 'danger';
+              case 'GANHO': return 'success';
+              case 'PERDIDO': return 'danger';
+              default: return 'slate';
+            }
+          };
+          const bTheme = getStatusTheme(edital.status);
+          const resp = getUser(edital.responsavel);
+
+          return (
+            <Card onClick={onClick} hover className="p-4 group">
+              <div className="flex justify-between items-start mb-3">
+                <span className={cx(
+                  "text-[10px] font-mono px-2 py-1 rounded border",
+                  isDark ? "bg-black/40 text-slate-400 border-white/5" : "bg-slate-100 text-slate-500 border-slate-200"
+                )}>
+                  {edital.uf} • {edital.numero || 'S/N'}
+                </span>
+                {edital.score ? (
+                    <span className={cx(
+                      "font-poppins font-bold text-lg leading-none",
+                      edital.score >= 70 ? (isDark ? 'text-brand-greenLight' : 'text-green-600') : 
+                      edital.score >= 50 ? (isDark ? 'text-brand-primaryLight' : 'text-blue-600') : 
+                      (isDark ? 'text-brand-red' : 'text-red-600')
+                    )}>
+                      {edital.score}
+                    </span>
+                ) : (
+                    <Activity size={16} className={isDark ? "text-brand-pinkLight animate-pulse" : "text-fuchsia-500 animate-pulse"} />
+                )}
+              </div>
+              
+              <h4 className={cx("font-poppins font-semibold text-sm leading-tight mb-2 transition-colors", isDark ? "text-white group-hover:text-brand-primaryLight" : "text-slate-800 group-hover:text-brand-primary")}>
+                {edital.orgao}
+              </h4>
+              
+              <p className={cx("text-xs line-clamp-2 mb-4 leading-relaxed font-normal", isDark ? "text-slate-400" : "text-slate-500")}>
+                {edital.objeto}
+              </p>
+              
+              <div className={cx("flex items-center justify-between pt-3 border-t", isDark ? "border-white/10" : "border-slate-100")}>
+                <Badge colorTheme={bTheme}>{edital.status}</Badge>
+                <div className="flex items-center gap-1.5">
+                  {edital.prioridade === 'P1' && <AlertTriangle size={14} className={isDark ? "text-orange-400" : "text-orange-500"} title="Prioridade Máxima" />}
+                  <div className="flex items-center -space-x-2">
+                    <Avatar user={resp} size="sm" />
+                    {(edital.fase === 'analise' || edital.fase === 'pre_disputa') && <Avatar user={USERS[3]} size="sm" />}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        };
+
+        // ============================================================================
+        // 7. VIEWS
+        // ============================================================================
+
+        // --- VIEW: PIPELINE ---
+        const PipelineView = ({ onOpenEdital, onNewEdital }) => {
+          const { isDark } = useTheme();
+          const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'list'
+
+          return (
+            <div className="space-y-6 animate-fade-in h-full flex flex-col">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 shrink-0">
+                <div>
+                  <h1 className={cx("font-poppins font-bold text-2xl md:text-3xl", isDark ? "text-white" : "text-slate-800")}>Pipeline de Editais</h1>
+                  <p className={cx("text-sm mt-1", isDark ? "text-slate-400" : "text-slate-500")}>Visão operacional e status jurídico de licitações</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className={cx("hidden md:flex items-center rounded-lg p-1 border", isDark ? "bg-black/20 border-white/10" : "bg-slate-100 border-slate-200")}>
+                    <button onClick={()=>setViewMode('kanban')} className={cx("p-1.5 rounded", viewMode === 'kanban' ? (isDark ? "bg-white/10 text-white" : "bg-white text-slate-800 shadow-sm") : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")} title="Kanban"><LayoutDashboard size={16}/></button>
+                    <button onClick={()=>setViewMode('list')} className={cx("p-1.5 rounded", viewMode === 'list' ? (isDark ? "bg-white/10 text-white" : "bg-white text-slate-800 shadow-sm") : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")} title="Lista"><ListTodo size={16}/></button>
+                  </div>
+                  <TextInput icon={Search} placeholder="Buscar processo..." className="w-full sm:w-64" />
+                  <Button icon={UploadCloud} onClick={onNewEdital}>Novo Edital</Button>
+                </div>
+              </div>
+
+              {viewMode === 'kanban' ? (
+                <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 pt-2 custom-scrollbar">
+                  <div className="flex gap-4 h-full min-w-max">
+                    {STAGES.map(stage => {
+                      const editais = MOCK_EDITAIS.filter(e => e.fase === stage.key);
+                      return (
+                        <div key={stage.key} className="w-[320px] flex flex-col gap-3 h-full max-h-full">
+                          <div className={cx("flex items-center justify-between px-1 shrink-0 border-b pb-2", isDark ? "border-white/10" : "border-slate-200")}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color }}></div>
+                              <h3 className={cx("font-poppins font-semibold text-sm uppercase tracking-wider", isDark ? "text-slate-300" : "text-slate-700")}>
+                                {stage.label}
+                              </h3>
+                            </div>
+                            <span className={cx("text-xs px-2 py-0.5 rounded-full font-mono", isDark ? "bg-white/10 text-slate-300" : "bg-slate-200 text-slate-700")}>
+                              {editais.length}
+                            </span>
+                          </div>
+
+                          <div className={cx("flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 rounded-xl p-2 h-full border", isDark ? "bg-black/10 border-white/5" : "bg-slate-100 border-slate-200")}>
+                            {editais.length > 0 ? (
+                              editais.map(edital => (
+                                <KanbanCard key={edital.id} edital={edital} onClick={() => onOpenEdital(edital.id)} />
+                              ))
+                            ) : (
+                              <div className={cx("flex flex-col items-center justify-center h-24 border border-dashed rounded-xl", isDark ? "text-slate-600 border-white/10 bg-white/[0.01]" : "text-slate-400 border-slate-300 bg-white/50")}>
+                                <span className="text-xs">Nenhum processo</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <Card className="flex-1 flex flex-col overflow-hidden">
+                  <div className="overflow-x-auto flex-1 custom-scrollbar">
+                    <table className="w-full text-left border-collapse">
+                      <thead className={cx("sticky top-0 z-10 backdrop-blur-md border-b", isDark ? "bg-white/[0.02] border-white/10" : "bg-slate-50 border-slate-200")}>
+                        <tr>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Órgão / UF</th>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Fase Atual</th>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Valor Estimado</th>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Score</th>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+                          <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className={cx("divide-y", isDark ? "divide-white/5" : "divide-slate-100")}>
+                        {MOCK_EDITAIS.map(item => (
+                          <tr key={item.id} className={cx("transition-colors group cursor-pointer", isDark ? "hover:bg-white/[0.02]" : "hover:bg-slate-50")} onClick={() => onOpenEdital(item.id)}>
+                            <td className="p-4">
+                              <p className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{item.orgao}</p>
+                              <p className="text-xs text-slate-500">{item.numero} • {item.uf}</p>
+                            </td>
+                            <td className="p-4">
+                              <span className="flex items-center gap-2 text-sm text-slate-500">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STAGES.find(s=>s.key === item.fase)?.color }}></div>
+                                {STAGES.find(s=>s.key === item.fase)?.label}
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm font-mono text-slate-500">{formatCurrency(item.valor)}</td>
+                            <td className="p-4 text-sm">
+                              <span className={cx("font-poppins font-bold", item.score >= 70 ? (isDark ? 'text-brand-greenLight' : 'text-green-600') : item.score >= 50 ? (isDark ? 'text-brand-primaryLight' : 'text-blue-600') : (isDark ? 'text-brand-red' : 'text-red-600'))}>{item.score || '-'}</span>
+                            </td>
+                            <td className="p-4">
+                              <Badge colorTheme={item.status.includes('RESSALVAS') ? 'warning' : item.status === 'APTO' ? 'success' : item.status === 'NO-GO' ? 'danger' : 'slate'}>
+                                {item.status}
+                              </Badge>
+                            </td>
+                            <td className="p-4 text-right">
+                              <IconButton icon={ArrowRight} variant="ghost" title="Abrir Processo" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </div>
+          );
+        };
+
+        // --- VIEW: EDITAL DETAIL ---
+        const EditalDetailView = ({ editalId, onBack }) => {
+          const { isDark } = useTheme();
+          const [activeTab, setActiveTab] = useState('resumo');
+          const edital = CELEPAR_DETAIL; 
+          
+          const TABS = [
+            { id: 'resumo', label: 'Resumo Executivo', icon: LayoutDashboard },
+            { id: 'juridico', label: 'Análise Jurídica', icon: ShieldAlert },
+            { id: 'comercial', label: 'Análise Comercial', icon: PieChart },
+            { id: 'habilitacao', label: 'Habilitação & Docs', icon: FileCheck },
+            { id: 'drive', label: 'Drive Explorer', icon: HardDrive },
+          ];
+
+          return (
+            <div className="animate-slide-in pb-20 space-y-6">
+              {/* Header Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <button onClick={onBack} className={cx("flex items-center gap-2 transition-colors text-sm font-medium", isDark ? "text-slate-400 hover:text-brand-primaryLight" : "text-slate-500 hover:text-brand-primary")}>
+                  <ArrowLeft size={16} /> Voltar ao Pipeline
+                </button>
+                <div className="flex flex-wrap gap-2 sm:gap-3">
+                  <Button variant="ghost" icon={ExternalLink} className="hidden sm:flex">Comprasnet</Button>
+                  <Button variant="secondary" icon={Download}>Edital Original</Button>
+                  <Button variant="primary">Avançar: {STAGES[STAGES.findIndex(s => s.key === edital.fase_atual)+1]?.label || 'Próximo'}</Button>
+                </div>
+              </div>
+
+              {/* Hero Card */}
+              <Card className="p-6 md:p-8 relative overflow-hidden">
+                {isDark && <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primaryLight opacity-5 blur-[100px] rounded-full pointer-events-none"></div>}
+                
+                <div className="flex flex-col lg:flex-row gap-8 justify-between relative z-10">
+                  <div className="max-w-4xl">
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <Badge colorTheme="slate" icon={Building2}>{edital.uf}</Badge>
+                      <Badge colorTheme="slate" icon={FileDigit}>UASG {edital.uasg}</Badge>
+                      <Badge colorTheme="slate">{edital.numero_pregao}</Badge>
+                      <Badge colorTheme={edital.status.includes('RESSALVA') ? 'warning' : 'success'} icon={Activity}>{edital.status}</Badge>
+                      <Badge colorTheme="primary" icon={MapPin}>Fase: {STAGES.find(s=>s.key === edital.fase_atual)?.label}</Badge>
+                    </div>
+                    
+                    <h1 className={cx("font-poppins font-bold text-2xl md:text-3xl mb-3 leading-tight", isDark ? "text-white" : "text-slate-900")}>
+                      {edital.orgao}
+                    </h1>
+                    <p className={cx("text-sm leading-relaxed mb-6 max-w-3xl", isDark ? "text-slate-400" : "text-slate-600")}>
+                      {edital.objeto}
+                    </p>
+
+                    <div className={cx("grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 p-4 rounded-xl border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                       <div>
+                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Valor Estimado</p>
+                         <p className={cx("text-lg font-poppins", isDark ? "text-white" : "text-slate-800")}>{formatCurrency(edital.valor_estimado)}</p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Encerramento</p>
+                         <p className={cx("text-sm font-poppins flex items-center gap-2 mt-1", isDark ? "text-white" : "text-slate-800")}>
+                           <Clock size={14} className={isDark ? "text-brand-pinkLight" : "text-fuchsia-600"} />
+                           {formatDate(edital.data_encerramento).split(' ')[0]}
+                         </p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Responsável</p>
+                         <div className={cx("text-sm font-medium mt-1.5 flex items-center gap-2", isDark ? "text-slate-300" : "text-slate-700")}>
+                           <Avatar user={getUser(edital.vendedor)} size="sm" />
+                           {getUser(edital.vendedor).name}
+                         </div>
+                       </div>
+                       <div>
+                         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Última Att.</p>
+                         <p className={cx("text-sm font-poppins mt-1", isDark ? "text-slate-300" : "text-slate-700")}>Há 2 horas</p>
+                       </div>
+                    </div>
+                  </div>
+
+                  {/* Score Circular */}
+                  <div className={cx("flex flex-col items-center justify-center shrink-0 pr-0 lg:pr-8 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l lg:pl-8", isDark ? "border-white/10" : "border-slate-200")}>
+                     <DonutChart percentage={edital.score} color={isDark ? THEME.primaryLight : THEME.primary} size={140} strokeWidth={10} />
+                     <span className={cx("text-[10px] font-semibold tracking-widest uppercase px-3 py-1 rounded-full border mt-3", isDark ? "text-brand-primaryLight bg-brand-primaryLight/10 border-brand-primaryLight/20" : "text-brand-primary bg-blue-50 border-blue-200")}>
+                       Score Comercial
+                     </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Tabs Navigation */}
+              <div className={cx("flex overflow-x-auto custom-scrollbar border-b rounded-t-xl px-2 pt-2", isDark ? "border-white/10 bg-black/10" : "border-slate-200 bg-slate-50")}>
+                {TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cx(
+                      "flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap",
+                      activeTab === tab.id 
+                        ? (isDark ? "border-brand-primaryLight text-brand-primaryLight bg-white/[0.03]" : "border-brand-primary text-brand-primary bg-white")
+                        : (isDark ? "border-transparent text-slate-400 hover:text-white hover:bg-white/[0.02]" : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-white")
+                    )}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content Area */}
+              <div className="min-h-[500px]">
+                {activeTab === 'resumo' && <TabResumo edital={edital} />}
+                {activeTab === 'juridico' && <TabJuridico edital={edital} />}
+                {activeTab === 'comercial' && <TabComercial edital={edital} />}
+                {activeTab === 'habilitacao' && <TabHabilitacao edital={edital} />}
+                {activeTab === 'drive' && <TabDrive edital={edital} />}
+              </div>
+            </div>
+          );
+        };
+
+        // --- SUB-VIEWS FOR TABS ---
+
+        const TabResumo = ({ edital }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="p-6">
+                  <h3 className={cx("font-poppins font-bold text-lg mb-4", isDark ? "text-white" : "text-slate-800")}>Resumo da Estratégia</h3>
+                  <p className={cx("text-sm leading-relaxed whitespace-pre-line p-4 rounded-lg border", isDark ? "bg-black/20 border-white/5 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600")}>
+                    {edital.comercial.estrategia}
+                  </p>
+                </Card>
+
+                <Card className="p-6 relative overflow-hidden">
+                  <div className={cx("absolute left-0 top-0 bottom-0 w-1", isDark ? "bg-brand-pinkLight" : "bg-fuchsia-500")}></div>
+                  <h3 className={cx("font-poppins font-bold text-lg mb-4 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                    <ShieldAlert className={isDark ? "text-brand-pinkLight" : "text-fuchsia-500"} size={20} />
+                    Alertas Jurídicos Críticos
+                  </h3>
+                  <div className="space-y-3">
+                    {edital.juridico.alertas.map((a, i) => (
+                      <div key={i} className={cx("flex gap-3 p-3 rounded-lg border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <AlertTriangle className={a.tipo === 'critico' || a.tipo === 'alto' ? (isDark ? 'text-brand-red' : 'text-red-600') : (isDark ? 'text-brand-orange' : 'text-orange-500')} size={18} />
+                        <p className={cx("text-sm", isDark ? "text-slate-300" : "text-slate-600")}>{a.texto}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={cx("mt-4 pt-4 border-t flex justify-end", isDark ? "border-white/10" : "border-slate-200")}>
+                    <Button variant="ai" size="sm" icon={ExternalLink}>Ver Análise Completa</Button>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                {/* Gates */}
+                <Card className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className={cx("font-poppins font-bold text-lg", isDark ? "text-white" : "text-slate-800")}>Gates da Fase</h3>
+                    <Badge colorTheme="slate">
+                      {edital.gates.filter(g=>g.concluido).length} / {edital.gates.length}
+                    </Badge>
+                  </div>
+                  <ProgressBar progress={(edital.gates.filter(g=>g.concluido).length / edital.gates.length) * 100} colorTheme="success" className="mb-4" />
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                    {edital.gates.map((g, i) => (
+                      <label key={i} className="flex items-start gap-3 cursor-pointer group">
+                        <div className={cx("mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border", 
+                          g.concluido 
+                            ? (isDark ? 'bg-brand-greenLight border-brand-greenLight' : 'bg-green-500 border-green-500') 
+                            : (isDark ? 'bg-black/30 border-white/20 group-hover:border-brand-primaryLight' : 'bg-white border-slate-300 group-hover:border-brand-primary')
+                        )}>
+                          {g.concluido && <Check size={12} className={isDark ? "text-navy-800" : "text-white"} />}
+                        </div>
+                        <div>
+                          <span className={cx("text-sm block", g.concluido ? "text-slate-400 line-through" : (isDark ? "text-slate-200" : "text-slate-700"))}>{g.label}</span>
+                          {g.concluido && g.date && <span className="text-[10px] text-slate-500">{g.date} • {getUser(g.user).name}</span>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Comentarios */}
+                <Card className="flex flex-col h-[400px]">
+                  <div className={cx("p-4 border-b flex items-center gap-2", isDark ? "border-white/5" : "border-slate-200 bg-slate-50")}>
+                    <MessageSquare size={16} className={isDark ? "text-brand-primaryLight" : "text-brand-primary"} />
+                    <h3 className={cx("font-poppins font-bold", isDark ? "text-white" : "text-slate-800")}>Comentários</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                    {edital.comentarios.map(c => (
+                      <div key={c.id} className="flex gap-3 animate-slide-in">
+                        <Avatar user={getUser(c.autor)} size="sm" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={cx("text-xs font-semibold", isDark ? "text-slate-300" : "text-slate-700")}>{getUser(c.autor).name}</span>
+                            <span className="text-[9px] text-slate-500">{formatDate(c.data).split(' ')[1]}</span>
+                          </div>
+                          <div className={cx(
+                            "text-sm p-3 rounded-xl border",
+                            getUser(c.autor).isAi 
+                              ? (isDark ? "bg-gradient-to-r from-[#FF89FF]/10 to-[#047EA9]/10 text-white border-[#FF89FF]/30" : "bg-fuchsia-50 text-fuchsia-900 border-fuchsia-200") 
+                              : (isDark ? "bg-black/20 text-slate-300 border-white/5" : "bg-slate-50 text-slate-700 border-slate-200")
+                          )}>
+                            {c.texto}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={cx("p-3 border-t flex gap-2", isDark ? "border-white/5 bg-black/20" : "border-slate-200 bg-slate-50")}>
+                    <input type="text" placeholder="Escreva..." className={cx("flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all", isDark ? "bg-white/5 border-white/10 text-white focus:border-brand-primaryLight focus:ring-brand-primaryLight" : "bg-white border-slate-300 text-slate-900 focus:border-brand-primary focus:ring-brand-primary")} />
+                    <IconButton icon={ChevronRight} variant="primary" />
+                  </div>
+                </Card>
+              </div>
+            </div>
+          );
+        };
+
+        const TabJuridico = ({ edital }) => {
+          const { isDark } = useTheme();
+          const [docModal, setDocModal] = useState(null);
+
+          return (
+            <div className="space-y-6 animate-fade-in">
+              {/* Top KPIs */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="p-4 flex items-center gap-4">
+                  <div className={cx("w-12 h-12 rounded-full flex items-center justify-center border", isDark ? "bg-brand-red/20 border-brand-red/30" : "bg-red-50 border-red-200")}>
+                    <ShieldAlert className={isDark ? "text-brand-red" : "text-red-600"} size={24} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Conformidade</p>
+                    <p className={cx("font-poppins font-bold text-xl", isDark ? "text-brand-orange" : "text-orange-600")}>{edital.juridico.conformidade_geral}</p>
+                  </div>
+                </Card>
+                
+                <Card className="p-4 flex items-center gap-4">
+                  <div className={cx("w-12 h-12 rounded-full flex items-center justify-center border", isDark ? "bg-white/5 border-white/10" : "bg-slate-100 border-slate-200")}>
+                    <Scale className="text-slate-400" size={24} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Score Jurídico</p>
+                    <p className={cx("font-poppins font-bold text-xl", isDark ? "text-white" : "text-slate-800")}>{edital.juridico.score_conformidade}/100</p>
+                  </div>
+                </Card>
+
+                <Card className="p-4 md:col-span-2 flex flex-col justify-center">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Prazos Calculados (Lei 14.133)</p>
+                  <div className="flex gap-4">
+                    <div className={cx("px-3 py-1.5 rounded border flex-1", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                      <span className="text-[10px] text-slate-500 block">Esclarecimento</span>
+                      <span className={cx("text-sm font-semibold", isDark ? "text-white" : "text-slate-800")}>{edital.juridico.prazos.esclarecimento}</span>
+                    </div>
+                    <div className={cx("px-3 py-1.5 rounded border flex-1", isDark ? "bg-brand-red/10 border-brand-red/30" : "bg-red-50 border-red-200")}>
+                      <span className={cx("text-[10px] block", isDark ? "text-brand-red" : "text-red-600")}>Impugnação</span>
+                      <span className={cx("text-sm font-semibold", isDark ? "text-brand-red" : "text-red-700")}>{edital.juridico.prazos.impugnacao}</span>
+                    </div>
+                    <div className={cx("px-3 py-1.5 rounded border flex-1", isDark ? "bg-brand-primaryLight/10 border-brand-primaryLight/30" : "bg-blue-50 border-blue-200")}>
+                      <span className={cx("text-[10px] block", isDark ? "text-brand-primaryLight" : "text-blue-600")}>Sessão Pública</span>
+                      <span className={cx("text-sm font-semibold", isDark ? "text-brand-primaryLight" : "text-blue-700")}>{edital.juridico.prazos.sessao}</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Documentos Prontos */}
+                <Card className="p-6 relative overflow-hidden">
+                  <div className={cx("absolute left-0 top-0 bottom-0 w-1", isDark ? "bg-brand-pinkLight" : "bg-fuchsia-500")}></div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className={cx("font-poppins font-bold text-lg flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <FileSignature className={isDark ? "text-brand-pinkLight" : "text-fuchsia-500"} size={20} />
+                      Documentos de Protocolo (IA)
+                    </h3>
+                    <Badge colorTheme="pink">{edital.juridico.documentos.length} Prontos</Badge>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {edital.juridico.documentos.map(doc => (
+                      <div key={doc.id} className={cx("border rounded-xl p-4 transition-all", isDark ? "bg-black/20 border-white/10 hover:border-brand-pinkLight/50" : "bg-white border-slate-200 hover:border-fuchsia-400 shadow-sm")}>
+                        <div className="flex justify-between items-start mb-2">
+                          <Badge colorTheme={doc.tipo === 'IMPUGNACAO' ? 'danger' : 'warning'}>{doc.tipo}</Badge>
+                          <span className={cx("text-xs px-2 py-1 rounded", isDark ? "text-slate-400 bg-white/5" : "text-slate-500 bg-slate-100")}>Prazo: {doc.prazo}</span>
+                        </div>
+                        <h4 className={cx("font-semibold mb-1", isDark ? "text-white" : "text-slate-800")}>{doc.topico}</h4>
+                        <p className="text-xs text-slate-500 mb-4">Ref: Cláusula {doc.clausula}</p>
+                        <div className="flex gap-2">
+                          <Button variant="secondary" size="sm" icon={Eye} fullWidth onClick={() => setDocModal(doc)}>Revisar Minuta</Button>
+                          <IconButton variant="ghost" icon={Copy} title="Copiar texto" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Análise TCU */}
+                <div className="space-y-6">
+                  <Card className="p-6">
+                    <h3 className={cx("font-poppins font-bold text-lg mb-4 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <Gavel className={isDark ? "text-brand-primaryLight" : "text-brand-primary"} size={20} />
+                      Análise TCU & Atestados
+                    </h3>
+                    <div className={cx("border rounded-xl p-4 mb-4", isDark ? "bg-brand-primaryLight/10 border-brand-primaryLight/30" : "bg-blue-50 border-blue-200")}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 size={16} className={isDark ? "text-brand-primaryLight" : "text-blue-600"} />
+                        <span className={cx("font-semibold", isDark ? "text-brand-primaryLight" : "text-blue-700")}>Somatório Permitido</span>
+                      </div>
+                      <p className={cx("text-sm leading-relaxed", isDark ? "text-slate-300" : "text-slate-700")}>
+                        {edital.juridico.atestados_analise.msg_fundamentacao}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className={cx("p-3 rounded-lg border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <span className="text-xs text-slate-500 block mb-1">Exige PMR?</span>
+                        <span className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{edital.juridico.atestados_analise.exige_pmr ? 'Sim' : 'Não'}</span>
+                      </div>
+                      <div className={cx("p-3 rounded-lg border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <span className="text-xs text-slate-500 block mb-1">Percentual PMR</span>
+                        <span className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{edital.juridico.atestados_analise.pmr_percentual}%</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="p-6">
+                     <h3 className={cx("font-poppins font-bold text-lg mb-4", isDark ? "text-white" : "text-slate-800")}>Súmulas Aplicadas</h3>
+                     <div className="space-y-3">
+                        <div className={cx("p-3 rounded-lg border border-l-2", isDark ? "bg-black/20 border-white/5 border-l-brand-red" : "bg-slate-50 border-slate-200 border-l-red-500")}>
+                           <p className={cx("text-xs font-mono mb-1", isDark ? "text-brand-red" : "text-red-600")}>Art. 67 §2º / Lei 14.133</p>
+                           <p className={cx("text-sm", isDark ? "text-slate-300" : "text-slate-600")}>Vedada restrição temporal de atestados. Detectado na cláusula 9.4.1.</p>
+                        </div>
+                        <div className={cx("p-3 rounded-lg border border-l-2", isDark ? "bg-black/20 border-white/5 border-l-brand-red" : "bg-slate-50 border-slate-200 border-l-red-500")}>
+                           <p className={cx("text-xs font-mono mb-1", isDark ? "text-brand-red" : "text-red-600")}>TCU S-004</p>
+                           <p className={cx("text-sm", isDark ? "text-slate-300" : "text-slate-600")}>Restrição geográfica detectada para aceitação de atestados.</p>
+                        </div>
+                     </div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Modal Revisor Minuta - Detailed Fake Editor */}
+              <Modal 
+                isOpen={!!docModal} 
+                onClose={() => setDocModal(null)} 
+                title={`Revisão de Minuta: ${docModal?.tipo}`}
+                maxWidth="max-w-4xl"
+                footer={
+                  <>
+                    <Button variant="ghost" onClick={() => setDocModal(null)}>Cancelar</Button>
+                    <Button variant="secondary" icon={Download}>Baixar Word</Button>
+                    <Button variant="primary" icon={Copy}>Copiar para Protocolo</Button>
+                  </>
+                }
+              >
+                {docModal && (
+                  <div className="space-y-4">
+                    <div className="flex gap-4 mb-4">
+                      <div className={cx("flex-1 p-3 rounded border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <span className="text-xs text-slate-500 block">Tópico</span>
+                        <span className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{docModal.topico}</span>
+                      </div>
+                      <div className={cx("p-3 rounded border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <span className="text-xs text-slate-500 block">Cláusula Questionada</span>
+                        <span className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{docModal.clausula}</span>
+                      </div>
+                    </div>
+                    
+                    <div className={cx("border rounded-lg overflow-hidden flex flex-col h-[400px]", isDark ? "border-white/10" : "border-slate-300")}>
+                      {/* Fake Toolbar */}
+                      <div className={cx("p-2 border-b flex gap-2 items-center", isDark ? "bg-black/40 border-white/10" : "bg-slate-100 border-slate-200")}>
+                        <select className={cx("text-xs rounded px-2 py-1", isDark ? "bg-navy-800 text-white border-white/20" : "bg-white text-slate-800 border-slate-300")}><option>Normal</option><option>Título</option></select>
+                        <div className={cx("w-px h-4", isDark ? "bg-white/20" : "bg-slate-300")}></div>
+                        <button className={cx("px-2 py-1 rounded text-xs font-bold", isDark ? "hover:bg-white/10 text-white" : "hover:bg-slate-200 text-slate-800")}>B</button>
+                        <button className={cx("px-2 py-1 rounded text-xs italic", isDark ? "hover:bg-white/10 text-white" : "hover:bg-slate-200 text-slate-800")}>I</button>
+                        <button className={cx("px-2 py-1 rounded text-xs underline", isDark ? "hover:bg-white/10 text-white" : "hover:bg-slate-200 text-slate-800")}>U</button>
+                      </div>
+                      {/* Fake Editor Area */}
+                      <div 
+                        contentEditable 
+                        className={cx("flex-1 p-6 font-mono text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto focus:outline-none", isDark ? "bg-[#0A1320] text-slate-300" : "bg-white text-slate-700")}
+                        dangerouslySetInnerHTML={{ __html: docModal.texto }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </Modal>
+            </div>
+          );
+        };
+
+        const TabComercial = ({ edital }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className="space-y-6 animate-fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Left Col: Requisitos & Gaps */}
+                <div className="lg:col-span-2 space-y-6">
+                  <Card className="p-6 relative overflow-hidden">
+                    <div className={cx("absolute left-0 top-0 bottom-0 w-1", isDark ? "bg-brand-primaryLight" : "bg-brand-primary")}></div>
+                    <h3 className={cx("font-poppins font-bold text-lg mb-6 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <CheckSquare className={isDark ? "text-brand-primaryLight" : "text-brand-primary"} size={20} />
+                      Requisitos Mapeados (Camada 1)
+                    </h3>
+                    <div className="space-y-3">
+                      {edital.comercial.requisitos.map((req, i) => (
+                        <div key={i} className={cx("flex items-start gap-4 p-4 rounded-xl border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                          <div className={cx("mt-0.5 p-1 rounded", isDark ? "bg-brand-greenLight/20" : "bg-green-100")}>
+                            <Check size={16} className={isDark ? "text-brand-greenLight" : "text-green-600"} />
+                          </div>
+                          <div>
+                            <p className={cx("text-sm font-medium mb-1", isDark ? "text-white" : "text-slate-800")}>{req.req}</p>
+                            <p className="text-xs text-slate-500 font-mono">Fonte: {req.fonte}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card className="p-6 relative overflow-hidden">
+                    <div className={cx("absolute left-0 top-0 bottom-0 w-1", isDark ? "bg-brand-orange" : "bg-orange-500")}></div>
+                    <h3 className={cx("font-poppins font-bold text-lg mb-6 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <AlertTriangle className={isDark ? "text-brand-orange" : "text-orange-500"} size={20} />
+                      Gaps Identificados
+                    </h3>
+                    <div className="space-y-4">
+                      {edital.comercial.gaps.map((gap, i) => (
+                        <div key={i} className={cx("border rounded-xl p-4", isDark ? "bg-brand-orange/10 border-brand-orange/20" : "bg-orange-50 border-orange-200")}>
+                          <div className="flex justify-between items-start mb-2">
+                            <Badge colorTheme="warning">{gap.tipo}</Badge>
+                            <span className={cx("text-xs font-semibold px-2 py-1 rounded", isDark ? "text-brand-orange bg-brand-orange/10" : "text-orange-700 bg-orange-100")}>Impacto: {gap.impacto}</span>
+                          </div>
+                          <h4 className={cx("font-medium mb-2", isDark ? "text-white" : "text-slate-800")}>{gap.req}</h4>
+                          <div className={cx("p-3 rounded border", isDark ? "bg-black/30 border-white/5" : "bg-white border-orange-100")}>
+                            <span className={cx("text-[10px] uppercase tracking-widest block mb-1 font-semibold", isDark ? "text-slate-500" : "text-orange-500")}>Recomendação IA</span>
+                            <p className={cx("text-sm", isDark ? "text-slate-300" : "text-slate-700")}>{gap.recomendacao}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Right Col: Somatório Drive */}
+                <div className="space-y-6">
+                  <Card className="p-6">
+                    <h3 className={cx("font-poppins font-bold text-lg mb-6 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <Database className={isDark ? "text-brand-pink" : "text-fuchsia-600"} size={20} />
+                      Somatório de Atestados (Drive)
+                    </h3>
+                    
+                    <div className="mb-6 relative">
+                      <div className="flex justify-between text-xs text-slate-500 mb-2">
+                        <span>Volume Identificado</span>
+                        <span className={cx("font-semibold", isDark ? "text-white" : "text-slate-800")}>{formatCurrency(edital.comercial.somatorio_drive.total_volume_encontrado)}</span>
+                      </div>
+                      <ProgressBar 
+                        progress={(edital.comercial.somatorio_drive.total_volume_encontrado / edital.comercial.somatorio_drive.total_volume_exigido) * 100} 
+                        colorTheme={edital.comercial.somatorio_drive.gap_financeiro < 0 ? 'warning' : 'success'} 
+                        height="h-2" 
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500 mt-2">
+                        <span>0</span>
+                        <span>Exigido: {formatCurrency(edital.comercial.somatorio_drive.total_volume_exigido)}</span>
+                      </div>
+                    </div>
+
+                    <div className={cx("p-3 rounded-lg border mb-6 text-sm", isDark ? "bg-black/20 border-white/5 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600")}>
+                      {edital.comercial.somatorio_drive.msg_somatorio}
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-3">Atestados Utilizados da Pasta</span>
+                      <div className="space-y-2">
+                        {edital.comercial.somatorio_drive.atestados_usados.map((at, i) => (
+                          <div key={i} className={cx("flex items-center justify-between p-3 rounded-lg border", isDark ? "bg-white/5 border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <FileText size={16} className={isDark ? "text-brand-primaryLight shrink-0" : "text-brand-primary shrink-0"} />
+                              <div className="truncate">
+                                <p className={cx("text-xs truncate", isDark ? "text-white" : "text-slate-800")} title={at.nome}>{at.nome}</p>
+                                {at.atende_pmr && <span className={cx("text-[9px] px-1 rounded mt-0.5 inline-block", isDark ? "text-brand-greenLight bg-brand-greenLight/10" : "text-green-700 bg-green-100")}>Atende PMR Individual</span>}
+                              </div>
+                            </div>
+                            <span className={cx("text-xs font-mono shrink-0", isDark ? "text-slate-300" : "text-slate-600")}>{formatCurrency(at.valor)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Button variant="secondary" size="sm" icon={RefreshCw} className="w-full mt-4 text-xs">Forçar Re-scan do Drive</Button>
+                    </div>
+                  </Card>
+                </div>
+
+              </div>
+            </div>
+          );
+        };
+
+        const TabHabilitacao = ({ edital }) => {
+          const { isDark } = useTheme();
+          return (
+            <div className="space-y-6 animate-fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <Card className="p-6">
+                  <h3 className={cx("font-poppins font-bold text-lg mb-2 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                    <FileCheck className={isDark ? "text-brand-greenLight" : "text-green-500"} size={20} />
+                    Checklist de Certidões
+                  </h3>
+                  <p className={cx("text-sm mb-6", isDark ? "text-slate-400" : "text-slate-600")}>Documentos de habilitação requeridos pelo edital vs base Xertica no Drive.</p>
+                  
+                  <div className="space-y-3">
+                    {edital.juridico.kit_habilitacao.certidoes.map((cert, i) => (
+                      <div key={i} className={cx("flex items-center justify-between p-3 rounded-xl border", isDark ? "bg-black/20 border-white/5" : "bg-white border-slate-200 shadow-sm")}>
+                        <div className="flex items-center gap-3">
+                          {cert.status === 'valida' ? (
+                            <div className={cx("w-8 h-8 rounded-full flex items-center justify-center border", isDark ? "bg-brand-greenLight/20 border-brand-greenLight/30" : "bg-green-100 border-green-200")}><Check size={14} className={isDark ? "text-brand-greenLight" : "text-green-600"} /></div>
+                          ) : cert.status === 'vencida' ? (
+                            <div className={cx("w-8 h-8 rounded-full flex items-center justify-center border", isDark ? "bg-brand-red/20 border-brand-red/30" : "bg-red-100 border-red-200")}><X size={14} className={isDark ? "text-brand-red" : "text-red-600"} /></div>
+                          ) : (
+                            <div className={cx("w-8 h-8 rounded-full flex items-center justify-center border", isDark ? "bg-brand-primaryLight/20 border-brand-primaryLight/30" : "bg-blue-100 border-blue-200")}><RefreshCw size={14} className={isDark ? "text-brand-primaryLight" : "text-blue-600"} /></div>
+                          )}
+                          <div>
+                            <p className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{cert.nome}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {cert.obrigatorio ? 'Obrigatório' : 'Opcional'} 
+                              {cert.validade_dias !== null && ` • Expira em ${cert.validade_dias} dias`}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="sm" icon={cert.arquivo ? Download : Cpu} disabled={!cert.arquivo && cert.status !== 'pendente_geracao'}>
+                          {cert.arquivo ? 'Baixar' : (cert.status === 'pendente_geracao' ? 'Gerar' : 'Upload')}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                <div className="space-y-6">
+                  <Card className={cx("p-6 bg-gradient-to-br", isDark ? "from-navy-800 to-brand-primary/20" : "from-white to-blue-50")}>
+                    <h3 className={cx("font-poppins font-bold text-lg mb-2", isDark ? "text-white" : "text-slate-800")}>Geração de Declarações</h3>
+                    <p className={cx("text-sm mb-6", isDark ? "text-slate-300" : "text-slate-600")}>O Analista Jurídico identificou declarações padrão exigidas. O sistema pode gerá-las preenchidas com os dados da Xertica, prontas para assinatura.</p>
+                    <Button variant="primary" icon={Cpu} fullWidth>Gerar Pacote de Declarações (PDF)</Button>
+                  </Card>
+
+                  <Card className={cx("p-6 border-l-4", isDark ? "border-l-brand-orange" : "border-l-orange-500")}>
+                    <h3 className={cx("font-poppins font-bold text-lg mb-2 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <AlertTriangle className={isDark ? "text-brand-orange" : "text-orange-500"} size={20} />
+                      Gap de Habilitação
+                    </h3>
+                    <p className={cx("text-sm leading-relaxed", isDark ? "text-slate-300" : "text-slate-600")}>
+                      {edital.juridico.kit_habilitacao.gap_habilitacao}
+                    </p>
+                  </Card>
+                </div>
+
+              </div>
+            </div>
+          );
+        };
+
+        const TabDrive = ({ edital }) => {
+          const { isDark } = useTheme();
+          
+          // Simple recursive tree mock
+          const renderTree = (nodes, padding = 0) => {
+            return nodes.map(node => (
+              <div key={node.id}>
+                <div className={cx(
+                  "flex items-center justify-between py-2 px-3 rounded-lg cursor-pointer transition-colors",
+                  isDark ? "hover:bg-white/5" : "hover:bg-slate-100",
+                  node.type === 'folder' ? (isDark ? "text-slate-200" : "text-slate-800") : (isDark ? "text-slate-400" : "text-slate-600")
+                )} style={{ paddingLeft: `${padding + 12}px` }}>
+                  <div className="flex items-center gap-2">
+                    {node.type === 'folder' ? (
+                      node.isOpen ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />
+                    ) : <span className="w-3"></span>}
+                    
+                    {node.type === 'folder' 
+                      ? <Folder size={16} className={isDark ? "text-brand-primaryLight" : "text-brand-primary"} /> 
+                      : <File size={16} className="text-slate-500" />
+                    }
+                    <span className="text-sm font-medium">{node.name}</span>
+                  </div>
+                  {node.type === 'file' && (
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="text-slate-500 hidden sm:inline">{node.date}</span>
+                      <span className="font-mono text-slate-400 w-16 text-right">{node.size}</span>
+                    </div>
+                  )}
+                </div>
+                {node.children && node.isOpen && (
+                  <div className={cx("border-l ml-5 mt-1 mb-1", isDark ? "border-white/10" : "border-slate-200")}>
+                    {renderTree(node.children, padding + 16)}
+                  </div>
+                )}
+              </div>
+            ));
+          };
+
+          return (
+            <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <Card className="p-6 h-[600px] flex flex-col">
+                  <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+                    <h3 className={cx("font-poppins font-bold text-lg flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <HardDrive className={isDark ? "text-slate-300" : "text-slate-600"} size={20} />
+                      Google Drive Explorer
+                    </h3>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" icon={UploadCloud}>Fazer Upload</Button>
+                      <Button variant="secondary" size="sm" icon={ExternalLink}>Abrir no Drive</Button>
+                    </div>
+                  </div>
+                  <div className={cx("flex-1 overflow-y-auto custom-scrollbar border rounded-xl p-2", isDark ? "bg-black/20 border-white/5" : "bg-white border-slate-200 shadow-inner")}>
+                    {renderTree(DRIVE_MOCK_TREE)}
+                  </div>
+                </Card>
+              </div>
+              <div>
+                <Card className="p-6">
+                  <h3 className={cx("font-poppins font-bold text-lg mb-4", isDark ? "text-white" : "text-slate-800")}>Sincronização</h3>
+                  <p className={cx("text-sm mb-6", isDark ? "text-slate-400" : "text-slate-600")}>O sistema faz scan automático das subpastas do processo no Google Drive a cada 15 minutos para atualizar somatório comercial e evidências documentais.</p>
+                  <div className={cx("border rounded-lg p-4 flex items-center justify-between mb-4", isDark ? "bg-brand-primary/10 border-brand-primary/30" : "bg-blue-50 border-blue-200")}>
+                    <div>
+                      <p className={cx("text-xs font-semibold uppercase tracking-wider mb-1", isDark ? "text-brand-primaryLight" : "text-blue-600")}>Status</p>
+                      <p className={cx("text-sm flex items-center gap-2 font-medium", isDark ? "text-white" : "text-slate-800")}><CheckCircle2 size={14} className={isDark ? "text-brand-greenLight" : "text-green-600"} /> Sincronizado</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Último Sync</p>
+                      <p className={cx("text-sm font-mono", isDark ? "text-slate-300" : "text-slate-700")}>10:42 AM</p>
+                    </div>
+                  </div>
+                  <Button variant="secondary" fullWidth icon={RefreshCw}>Forçar Sincronização Agora</Button>
+                </Card>
+              </div>
+            </div>
+          );
+        };
+
+        // --- VIEW: UPLOAD WIZARD ---
+        const UploadView = ({ onComplete, onCancel }) => {
+          const { isDark } = useTheme();
+          const [step, setStep] = useState(1);
+          const [progress, setProgress] = useState(0);
+          const [logs, setLogs] = useState([]);
+          const [config, setConfig] = useState({ forceJuridico: true, forceComercial: true });
+
+          useEffect(() => {
+            if (step === 2) {
+              const events = [
+                { time: 500, prog: 10, msg: 'Iniciando upload e estruturação de pastas no Google Drive...' },
+                { time: 1500, prog: 25, msg: 'Upload concluído. Disparando Agente Extrator (Gemini 2.5 Flash)...' },
+                { time: 3000, prog: 45, msg: 'Extrator: Objeto, UASG, Valores e Prazos extraídos.' },
+                { time: 4500, prog: 60, msg: 'Disparando Agentes em paralelo (Comercial e Jurídico)...' },
+                { time: 6500, prog: 75, msg: 'Jurídico: Analisando cláusulas vs Lei 14.133 e Súmulas TCU...' },
+                { time: 8000, prog: 90, msg: 'Comercial: Avaliando requisitos, lendo Drive e calculando Score...' },
+                { time: 9500, prog: 100, msg: 'Processamento concluído. Salvando no banco de dados (Cloud SQL)...' },
+              ];
+              
+              let timers = [];
+              events.forEach(ev => {
+                timers.push(setTimeout(() => {
+                  setProgress(ev.prog);
+                  setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: ev.msg }]);
+                  if (ev.prog === 100) setTimeout(() => setStep(3), 1000);
+                }, ev.time));
+              });
+              return () => timers.forEach(clearTimeout);
+            }
+          }, [step]);
+
+          return (
+            <div className="max-w-4xl mx-auto mt-6 sm:mt-10 animate-fade-in w-full">
+              <div className="mb-8">
+                <button onClick={onCancel} className={cx("flex items-center gap-2 hover:underline mb-4 transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-800")}>
+                  <ArrowLeft size={16} /> Voltar ao Pipeline
+                </button>
+                <h1 className={cx("font-poppins font-bold text-3xl", isDark ? "text-white" : "text-slate-800")}>Novo Processo Licitatório</h1>
+                <p className={cx("mt-1", isDark ? "text-slate-400" : "text-slate-600")}>Faça o upload do edital para iniciar o pipeline de inteligência da Xertica.</p>
+              </div>
+
+              <Card className="p-6 sm:p-10 shadow-xl">
+                {step === 1 && (
+                  <div className="space-y-8 animate-fade-in">
+                    <div 
+                      className={cx("border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-all cursor-pointer", 
+                        isDark ? "border-brand-primaryLight/30 bg-black/10 hover:bg-brand-primaryLight/5" : "border-brand-primary/30 bg-blue-50/50 hover:bg-blue-50"
+                      )} 
+                      onClick={() => setStep(2)}
+                    >
+                      <div className={cx("w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm", isDark ? "bg-brand-primary/20 text-brand-primaryLight" : "bg-white text-brand-primary border border-blue-100")}>
+                        <UploadCloud size={40} />
+                      </div>
+                      <h3 className={cx("font-poppins font-bold text-xl mb-2", isDark ? "text-white" : "text-slate-800")}>Clique ou arraste o Edital (PDF)</h3>
+                      <p className={cx("text-sm max-w-md", isDark ? "text-slate-400" : "text-slate-500")}>O sistema criará automaticamente as pastas no Drive, extrairá os dados principais e acionará os analistas de IA.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h4 className={cx("font-poppins font-semibold text-sm", isDark ? "text-white" : "text-slate-800")}>Dados Iniciais (Opcional)</h4>
+                        <SelectInput 
+                          icon={Users} 
+                          label="Vendedor Responsável" 
+                          options={USERS.filter(u=>!u.isAi).map(u => ({label: u.name, value: u.id}))} 
+                        />
+                        <TextInput placeholder="https://drive.google.com/..." icon={Folder} label="URL da Pasta Existente no Drive" />
+                      </div>
+                      <div className="space-y-4">
+                        <h4 className={cx("font-poppins font-semibold text-sm", isDark ? "text-white" : "text-slate-800")}>Configurações de IA</h4>
+                        <div className={cx("p-4 rounded-xl border space-y-4", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                          <Toggle enabled={config.forceJuridico} onChange={(v)=>setConfig({...config, forceJuridico: v})} label="Executar Analista Licitatório (Lei 14.133)" />
+                          <Toggle enabled={config.forceComercial} onChange={(v)=>setConfig({...config, forceComercial: v})} label="Executar Analista Comercial (Score)" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                       <Button onClick={() => setStep(2)} size="lg" icon={Play}>Iniciar Processamento</Button>
+                    </div>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="space-y-10 animate-fade-in py-10">
+                    <div className="text-center">
+                      <div className="relative w-32 h-32 mx-auto mb-8">
+                        <div className={cx("absolute inset-0 border-4 rounded-full", isDark ? "border-white/10" : "border-slate-200")}></div>
+                        <div className={cx("absolute inset-0 border-4 rounded-full border-t-transparent animate-spin", isDark ? "border-brand-pinkLight" : "border-fuchsia-500")}></div>
+                        <Cpu className={cx("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2", isDark ? "text-brand-primaryLight" : "text-brand-primary")} size={40} />
+                      </div>
+                      <h3 className={cx("font-poppins font-bold text-2xl mb-2", isDark ? "text-white" : "text-slate-800")}>Análise Agêntica em Andamento</h3>
+                      <p className={cx("text-sm", isDark ? "text-slate-400" : "text-slate-600")}>Modelos Gemini 2.5 Flash e Pro processando o documento...</p>
+                    </div>
+
+                    <div className="max-w-2xl mx-auto">
+                      <div className={cx("flex justify-between text-xs font-semibold mb-2 font-mono", isDark ? "text-brand-primaryLight" : "text-brand-primary")}>
+                        <span>PROGRESSO GERAL</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <ProgressBar progress={progress} colorTheme="primary" height="h-3" />
+                    </div>
+
+                    <div className="max-w-2xl mx-auto">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Logs do Sistema</p>
+                      <div className={cx("rounded-xl p-5 font-mono text-xs h-48 overflow-y-auto border shadow-inner", isDark ? "bg-navy-900 border-white/5 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600")}>
+                        {logs.map((log, i) => (
+                          <div key={i} className="mb-2 flex gap-3 animate-slide-in">
+                            <span className={isDark ? "text-brand-primary" : "text-blue-600"}>[{log.time}]</span>
+                            <span className={isDark ? "text-slate-300" : "text-slate-700"}>{log.msg}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="text-center py-16 animate-fade-in">
+                    <div className={cx("w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-8", isDark ? "bg-brand-greenLight/20 shadow-[0_0_30px_rgba(192,255,125,0.3)]" : "bg-green-100 shadow-lg border border-green-200")}>
+                      <CheckCircle2 size={48} className={isDark ? "text-brand-greenLight" : "text-green-600"} />
+                    </div>
+                    <h3 className={cx("font-poppins font-bold text-3xl mb-4", isDark ? "text-white" : "text-slate-800")}>Edital Processado com Sucesso!</h3>
+                    <p className={cx("mb-10 max-w-lg mx-auto text-lg", isDark ? "text-slate-400" : "text-slate-600")}>O processo foi inserido no pipeline na fase "Análise". Você já pode revisar as minutas jurídicas e o score comercial.</p>
+                    <div className="flex justify-center gap-4">
+                      <Button variant="secondary" size="lg" onClick={() => {setStep(1); setProgress(0); setLogs([]);}}>Fazer outro upload</Button>
+                      <Button variant="primary" size="lg" icon={ArrowRight} onClick={onComplete}>Visualizar Processo 360º</Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+          );
+        };
+
+        // --- VIEW: HISTORICO ---
+        const HistoricoView = () => {
+          const { isDark } = useTheme();
+          const [currentPage, setCurrentPage] = useState(1);
+          const itemsPerPage = 15;
+          const totalPages = Math.ceil(HISTORICO_DATA.length / itemsPerPage);
+          
+          return (
+            <div className="space-y-6 animate-fade-in h-full flex flex-col">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 shrink-0">
+                <div>
+                  <h1 className={cx("font-poppins font-bold text-3xl", isDark ? "text-white" : "text-slate-800")}>Histórico de Processos</h1>
+                  <p className={cx("text-sm mt-1", isDark ? "text-slate-400" : "text-slate-500")}>Base de dados completa (operaciones-br.lici_adk)</p>
+                </div>
+                <Button variant="secondary" icon={Download}>Exportar CSV</Button>
+              </div>
+
+              <Card className="p-4 shrink-0 flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[200px]">
+                  <TextInput icon={Search} label="Busca Geral" placeholder="Órgão, Objeto ou ID UASG..." />
+                </div>
+                <div className="w-full sm:w-48">
+                  <SelectInput label="Status Final" options={[
+                    {value: '', label: 'Todos'},
+                    {value: 'GANHO', label: 'Ganho'},
+                    {value: 'PERDIDO', label: 'Perdido'},
+                    {value: 'NO-GO', label: 'No-Go'},
+                  ]} />
+                </div>
+                <div className="w-full sm:w-48">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Data Início</label>
+                  <input type="date" className={cx(
+                    "w-full rounded-lg px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2",
+                    isDark ? "bg-black/20 border border-white/10 text-slate-300 focus:border-brand-primaryLight focus:ring-brand-primaryLight/30" : "bg-white border border-slate-300 text-slate-700 focus:border-brand-primary focus:ring-brand-primary/20"
+                  )} />
+                </div>
+                <Button variant="primary" icon={Filter} className="w-full sm:w-auto h-[42px]">Filtrar</Button>
+              </Card>
+
+              <Card className="flex-1 flex flex-col overflow-hidden">
+                <div className="overflow-x-auto flex-1 custom-scrollbar">
+                  <table className="w-full text-left border-collapse min-w-[900px]">
+                    <thead className={cx("sticky top-0 z-10 backdrop-blur-md border-b", isDark ? "bg-white/[0.02] border-white/10" : "bg-slate-50 border-slate-200")}>
+                      <tr>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Órgão / UF / UASG</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Objeto Resumido</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Data Analise</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Valor Estimado</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Score Comercial</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Status Final</th>
+                        <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className={cx("divide-y", isDark ? "divide-white/5" : "divide-slate-100")}>
+                      {HISTORICO_DATA.slice((currentPage-1)*itemsPerPage, currentPage*itemsPerPage).map(item => (
+                        <tr key={item.id} className={cx("transition-colors group cursor-pointer", isDark ? "hover:bg-white/[0.02]" : "hover:bg-slate-50")}>
+                          <td className="p-4">
+                            <p className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{item.orgao}</p>
+                            <p className="text-xs text-slate-500">{item.numero} • UASG {item.uasg}</p>
+                          </td>
+                          <td className="p-4 text-sm max-w-xs truncate" title={item.objeto}>
+                            <span className={isDark ? "text-slate-400" : "text-slate-600"}>{item.objeto}</span>
+                          </td>
+                          <td className="p-4 text-sm font-mono text-slate-500">{formatDate(item.data).split(' ')[0]}</td>
+                          <td className="p-4 text-sm font-mono text-slate-500">{formatCurrency(item.valor)}</td>
+                          <td className="p-4 text-sm">
+                            <span className={cx("font-poppins font-bold", item.score >= 70 ? (isDark ? 'text-brand-greenLight' : 'text-green-600') : item.score >= 50 ? (isDark ? 'text-brand-primaryLight' : 'text-blue-600') : (isDark ? 'text-brand-red' : 'text-red-600'))}>{item.score}</span>
+                          </td>
+                          <td className="p-4">
+                            <Badge colorTheme={item.status === 'GANHO' ? 'success' : item.status === 'PERDIDO' || item.status === 'NO-GO' || item.status === 'INABILITADO' ? 'danger' : 'slate'}>
+                              {item.status}
+                            </Badge>
+                          </td>
+                          <td className="p-4 text-right">
+                            <IconButton icon={ExternalLink} variant="ghost" title="Abrir Detalhes" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={cx("p-4 border-t flex items-center justify-between text-sm", isDark ? "border-white/10 bg-black/20 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-600")}>
+                  <span>Mostrando {(currentPage-1)*itemsPerPage + 1}-{Math.min(currentPage*itemsPerPage, HISTORICO_DATA.length)} de {HISTORICO_DATA.length} resultados</span>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p=>p-1)}>Anterior</Button>
+                    <Button variant="secondary" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p=>p+1)}>Próxima</Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          );
+        };
+
+        // --- VIEW: CONFIG ---
+        const ConfigView = () => {
+          const { isDark } = useTheme();
+          return (
+            <div className="space-y-6 animate-fade-in max-w-5xl mx-auto w-full">
+               <div className="mb-8">
+                  <h1 className={cx("font-poppins font-bold text-3xl", isDark ? "text-white" : "text-slate-800")}>Configurações de IA</h1>
+                  <p className={cx("text-sm mt-1", isDark ? "text-slate-400" : "text-slate-500")}>Ajustes de modelos e parâmetros do pipeline agêntico.</p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="p-6">
+                    <h3 className={cx("font-poppins font-bold text-lg mb-6 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <Cpu size={20} className={isDark ? "text-brand-primaryLight" : "text-brand-primary"}/>
+                      Agente Extrator
+                    </h3>
+                    <div className="space-y-5">
+                      <SelectInput label="Modelo Base" options={[{label: 'gemini-2.5-flash', value:'flash'}, {label: 'gemini-1.5-pro', value:'pro'}]} />
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Temperature (0.1)</label>
+                        <input type="range" min="0" max="10" defaultValue="1" className="w-full accent-brand-primary" />
+                      </div>
+                      <div className={cx("p-4 rounded-lg border", isDark ? "bg-black/20 border-white/5" : "bg-slate-50 border-slate-200")}>
+                        <Toggle enabled={true} label="Extrair Itens de Hardware" />
+                        <div className="mt-3"><Toggle enabled={true} label="OCR em Anexos Escaneados" /></div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="p-6">
+                    <h3 className={cx("font-poppins font-bold text-lg mb-6 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                      <Shield size={20} className={isDark ? "text-brand-pinkLight" : "text-fuchsia-600"}/>
+                      Analista Licitatório
+                    </h3>
+                    <div className="space-y-5">
+                      <SelectInput label="Modelo Base" options={[{label: 'gemini-2.5-pro', value:'pro'}, {label: 'gemini-1.5-pro', value:'pro15'}]} />
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Temperature (0.0 - Strict)</label>
+                        <input type="range" min="0" max="10" defaultValue="0" className="w-full accent-brand-pinkLight" />
+                      </div>
+                      <TextInput label="Contexto Adicional (System Prompt)" placeholder="Você é um especialista em Lei 14.133..." type="text" />
+                    </div>
+                  </Card>
+               </div>
+
+               <Card className="p-6">
+                  <h3 className={cx("font-poppins font-bold text-lg mb-6", isDark ? "text-white" : "text-slate-800")}>Perfil Contratual da Empresa (xertica_profile.yaml)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <TextInput label="Razão Social" value="XERTICA TECNOLOGIA LTDA" />
+                    <TextInput label="CNPJ" value="26.230.134/0001-08" />
+                    <TextInput label="Representante Legal" value="Mariella Sialer" />
+                    <TextInput label="Cargo Representante" value="Diretora" />
+                  </div>
+                  <div className="flex justify-end mt-6">
+                    <Button variant="primary">Salvar Configurações</Button>
+                  </div>
+               </Card>
+            </div>
+          );
+        };
+
+        // --- VIEW: ADMIN ---
+        const AdminView = () => {
+          const { isDark } = useTheme();
+          const [activeTab, setActiveTab] = useState('dashboard');
+          const [sumulaModal, setSumulaModal] = useState(false);
+
+          return (
+            <div className="space-y-6 animate-fade-in h-full flex flex-col">
+              <div className="flex items-end justify-between shrink-0">
+                <div>
+                  <h1 className={cx("font-poppins font-bold text-3xl", isDark ? "text-white" : "text-slate-800")}>Painel Administrativo</h1>
+                  <p className={cx("text-sm mt-1", isDark ? "text-slate-400" : "text-slate-500")}>Gestão de Inteligência, Usuários e Observabilidade</p>
+                </div>
+              </div>
+
+              <div className={cx("flex overflow-x-auto custom-scrollbar border-b rounded-t-xl px-2 pt-2 shrink-0", isDark ? "bg-black/10 border-white/10" : "bg-slate-50 border-slate-200")}>
+                {[
+                  { id: 'dashboard', label: 'Métricas e Analytics', icon: BarChart3 },
+                  { id: 'sumulas', label: 'Base de Conhecimento (Súmulas)', icon: BookOpen },
+                  { id: 'users', label: 'Gestão de Usuários', icon: Users },
+                  { id: 'system', label: 'System Health', icon: Activity },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cx(
+                      "flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap",
+                      activeTab === tab.id 
+                        ? (isDark ? "border-brand-pinkLight text-brand-pinkLight bg-white/[0.03]" : "border-fuchsia-500 text-fuchsia-600 bg-white")
+                        : (isDark ? "border-transparent text-slate-400 hover:text-white hover:bg-white/[0.02]" : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-white")
+                    )}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
+                
+                {/* TAB: DASHBOARD */}
+                {activeTab === 'dashboard' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                      {[
+                        { label: 'Editais Ativos', val: '14', color: isDark ? 'text-brand-primaryLight' : 'text-brand-primary' },
+                        { label: 'Score Médio', val: '74', color: isDark ? 'text-brand-greenLight' : 'text-green-600' },
+                        { label: 'Taxa de APTO (%)', val: '68%', color: isDark ? 'text-brand-greenLight' : 'text-green-600' },
+                        { label: 'Tempo Médio Pipeline', val: '142s', color: isDark ? 'text-brand-pinkLight' : 'text-fuchsia-600' },
+                      ].map((kpi, i) => (
+                        <Card key={i} className="p-6 flex flex-col justify-center text-center">
+                          <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-2">{kpi.label}</p>
+                          <p className={`font-poppins font-bold text-4xl lg:text-5xl ${kpi.color}`}>{kpi.val}</p>
+                        </Card>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <Card className="p-6">
+                        <h3 className={cx("font-poppins font-bold text-lg mb-6", isDark ? "text-white" : "text-slate-800")}>Funil de Fases (Ativos)</h3>
+                        <div className="space-y-4">
+                          {STAGES.map((s, i) => {
+                            const count = MOCK_EDITAIS.filter(e => e.fase === s.key).length;
+                            const max = 5;
+                            return (
+                              <div key={i} className="flex items-center gap-4">
+                                <span className="w-28 text-xs text-slate-500 font-semibold uppercase text-right truncate">{s.label}</span>
+                                <div className={cx("flex-1 h-3 rounded-full overflow-hidden", isDark ? "bg-black/40" : "bg-slate-100")}>
+                                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${(count/max)*100}%`, backgroundColor: s.color }}></div>
+                                </div>
+                                <span className={cx("w-8 text-sm font-bold text-right", isDark ? "text-white" : "text-slate-800")}>{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </Card>
+
+                      <Card className="p-6 flex flex-col">
+                        <h3 className={cx("font-poppins font-bold text-lg mb-6", isDark ? "text-white" : "text-slate-800")}>Custos LLM Estimados (USD) - 7 Dias</h3>
+                        <div className="flex-1 flex flex-col justify-end">
+                           <MiniBarChart data={[
+                             {label: 'Seg', val: 12}, {label: 'Ter', val: 18}, {label: 'Qua', val: 15},
+                             {label: 'Qui', val: 32}, {label: 'Sex', val: 45}, {label: 'Sab', val: 10}, {label: 'Dom', val: 5}
+                           ]} height={150} color={isDark ? THEME.primaryLight : THEME.primary} />
+                           <div className="flex justify-between text-xs text-slate-500 mt-2 px-2">
+                            <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span><span>Dom</span>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB: SÚMULAS */}
+                {activeTab === 'sumulas' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <p className={cx("text-sm max-w-2xl", isDark ? "text-slate-400" : "text-slate-600")}>
+                        Gerencie o conhecimento base que o Analista Jurídico utiliza para embasar impugnações.
+                      </p>
+                      <Button icon={Plus} variant="ai" onClick={() => setSumulaModal(true)}>Adicionar Súmula (IA)</Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {SUMULAS_MOCK.map(sumula => (
+                        <Card key={sumula.id} className="p-5 flex flex-col">
+                          <div className="flex justify-between items-start mb-3">
+                            <Badge colorTheme={sumula.ativo ? 'success' : 'slate'}>
+                              {sumula.ativo ? 'Ativo' : 'Inativo'}
+                            </Badge>
+                            <div className="flex gap-1">
+                              <IconButton icon={Edit3} size="sm" onClick={() => setSumulaModal(true)} />
+                            </div>
+                          </div>
+                          <h4 className={cx("font-poppins font-bold text-lg leading-tight mb-2", isDark ? "text-white" : "text-slate-800")}>{sumula.tema}</h4>
+                          <p className={cx("text-xs font-mono mb-3", isDark ? "text-brand-pinkLight" : "text-fuchsia-600")}>{sumula.id} • {sumula.base_legal}</p>
+                          <p className={cx("text-sm leading-relaxed flex-1 p-3 rounded-lg border", isDark ? "bg-black/20 border-white/5 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700")}>
+                            "{sumula.enunciado}"
+                          </p>
+                          <div className="flex justify-between text-[10px] text-slate-500 mt-4">
+                            <span>Criado: {sumula.criacao}</span>
+                            <span>Rev: {sumula.revisao}</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+
+                    <Modal isOpen={sumulaModal} onClose={() => setSumulaModal(false)} title="Editor de Súmula / Jurisprudência">
+                      <div className="space-y-4">
+                        <div className={cx("p-4 rounded-xl border flex items-start gap-3", isDark ? "bg-brand-pinkLight/10 border-brand-pinkLight/30" : "bg-fuchsia-50 border-fuchsia-200")}>
+                           <Cpu size={24} className={isDark ? "text-brand-pinkLight" : "text-fuchsia-600"} />
+                           <div>
+                             <p className={cx("text-sm font-semibold mb-1", isDark ? "text-brand-pinkLight" : "text-fuchsia-800")}>Extração Assistida por IA</p>
+                             <p className={cx("text-xs", isDark ? "text-slate-300" : "text-slate-600")}>Cole o texto bruto de um acórdão do TCU e a IA extrairá o tema, enunciado e base legal automaticamente para você revisar.</p>
+                             <textarea rows={3} className={cx("w-full mt-3 rounded-lg p-2 text-sm border focus:outline-none focus:ring-1", isDark ? "bg-black/40 border-white/10 text-white focus:border-brand-pinkLight" : "bg-white border-slate-300 focus:border-fuchsia-500")} placeholder="Cole o acórdão bruto aqui..."></textarea>
+                             <Button variant="ai" size="sm" className="mt-2" icon={Play}>Extrair Formato Estruturado</Button>
+                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                          <TextInput label="ID (Ex: TCU-S-009)" />
+                          <TextInput label="Tema" />
+                          <TextInput label="Base Legal" className="col-span-2" />
+                          <div className="col-span-2">
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Enunciado</label>
+                            <textarea rows={4} className={cx("w-full rounded-lg p-3 text-sm border focus:outline-none focus:ring-2", isDark ? "bg-black/20 border-white/10 text-white focus:border-brand-primaryLight focus:ring-brand-primaryLight/30" : "bg-white border-slate-300 focus:border-brand-primary focus:ring-brand-primary/20")}></textarea>
+                          </div>
+                          <div className="col-span-2 flex items-center justify-between">
+                            <Toggle enabled={true} label="Súmula Ativa no Pipeline" />
+                            <div className="flex gap-2">
+                              <Button variant="ghost" onClick={() => setSumulaModal(false)}>Cancelar</Button>
+                              <Button variant="primary">Salvar Súmula</Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Modal>
+                  </div>
+                )}
+
+                {/* TAB: USERS */}
+                {activeTab === 'users' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="flex justify-end mb-4">
+                      <Button icon={Plus}>Convidar Usuário</Button>
+                    </div>
+                    <Card className="overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                        <thead className={cx("border-b", isDark ? "bg-white/[0.02] border-white/10" : "bg-slate-50 border-slate-200")}>
+                          <tr>
+                            <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Usuário</th>
+                            <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Email</th>
+                            <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Papel (Role)</th>
+                            <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+                            <th className="p-4 text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className={cx("divide-y", isDark ? "divide-white/5" : "divide-slate-100")}>
+                          {USERS.map(u => (
+                            <tr key={u.id} className={cx("transition-colors", isDark ? "hover:bg-white/[0.02]" : "hover:bg-slate-50")}>
+                              <td className="p-4 flex items-center gap-3">
+                                <Avatar user={u} size="md" />
+                                <span className={cx("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{u.name} {u.isAi && <Badge colorTheme="pink" className="ml-2 px-1.5">IA</Badge>}</span>
+                              </td>
+                              <td className="p-4 text-sm text-slate-500">{u.email}</td>
+                              <td className="p-4 text-sm text-slate-500">{u.role}</td>
+                              <td className="p-4"><Badge colorTheme="success">Ativo</Badge></td>
+                              <td className="p-4 text-right">
+                                <IconButton icon={Edit3} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </Card>
+                  </div>
+                )}
+
+                {/* TAB: SYSTEM HEALTH */}
+                {activeTab === 'system' && (
+                  <div className="animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className={cx("p-6 border-l-4", isDark ? "border-l-brand-greenLight" : "border-l-green-500")}>
+                      <h3 className={cx("font-poppins font-bold text-lg mb-2 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                        <Database className={isDark ? "text-brand-greenLight" : "text-green-500"} size={20} />
+                        Cloud SQL Postgres
+                      </h3>
+                      <p className="text-sm text-slate-500 mb-4">Instância: operaciones-br/us-central1/x-lici-pg</p>
+                      <div className={cx("space-y-2 font-mono text-xs p-4 rounded-lg", isDark ? "bg-black/30 text-slate-300" : "bg-slate-100 text-slate-700")}>
+                        <div className="flex justify-between"><span>Status:</span><span className={isDark ? "text-brand-greenLight" : "text-green-600 font-bold"}>ONLINE</span></div>
+                        <div className="flex justify-between"><span>Conexões Ativas:</span><span>14 / 100</span></div>
+                        <div className="flex justify-between"><span>CPU Usage:</span><span>12%</span></div>
+                        <div className="flex justify-between"><span>Datastream CDC:</span><span className={isDark ? "text-brand-greenLight" : "text-green-600 font-bold"}>SYNCING (14ms lag)</span></div>
+                      </div>
+                    </Card>
+
+                    <Card className={cx("p-6 border-l-4", isDark ? "border-l-brand-primaryLight" : "border-l-blue-500")}>
+                      <h3 className={cx("font-poppins font-bold text-lg mb-2 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                        <Cpu className={isDark ? "text-brand-primaryLight" : "text-blue-500"} size={20} />
+                        Cloud Run Backend
+                      </h3>
+                      <p className="text-sm text-slate-500 mb-4">Serviço: lici-adk-backend</p>
+                      <div className={cx("space-y-2 font-mono text-xs p-4 rounded-lg", isDark ? "bg-black/30 text-slate-300" : "bg-slate-100 text-slate-700")}>
+                        <div className="flex justify-between"><span>Status:</span><span className={isDark ? "text-brand-primaryLight" : "text-blue-600 font-bold"}>SERVING (2 instances)</span></div>
+                        <div className="flex justify-between"><span>Error Rate (5xx):</span><span>0.0%</span></div>
+                        <div className="flex justify-between"><span>P95 Latency:</span><span>145ms</span></div>
+                        <div className="flex justify-between"><span>Memory Usage:</span><span>450MB / 2GB</span></div>
+                      </div>
+                    </Card>
+                    
+                    <Card className={cx("p-6 border-l-4 md:col-span-2", isDark ? "border-l-brand-pinkLight" : "border-l-fuchsia-500")}>
+                      <h3 className={cx("font-poppins font-bold text-lg mb-4 flex items-center gap-2", isDark ? "text-white" : "text-slate-800")}>
+                        <TerminalSquare className={isDark ? "text-brand-pinkLight" : "text-fuchsia-500"} size={20} />
+                        Pipeline Events Log (BigQuery)
+                      </h3>
+                      <div className={cx("font-mono text-xs h-40 overflow-y-auto p-4 rounded-lg border", isDark ? "bg-[#0A1320] text-slate-400 border-white/5" : "bg-slate-800 text-slate-300 border-slate-700")}>
+                        <div className="mb-1"><span className="text-green-400">[2026-04-19 14:32:01]</span> INFO: Persistor completed for Edital 1</div>
+                        <div className="mb-1"><span className="text-green-400">[2026-04-19 14:31:58]</span> INFO: AnalistaLicitatorio finished (Tokens: 12k in, 2k out)</div>
+                        <div className="mb-1"><span className="text-green-400">[2026-04-19 14:31:45]</span> INFO: AnalistaComercial finished (Tokens: 14k in, 1k out)</div>
+                        <div className="mb-1"><span className="text-blue-400">[2026-04-19 14:31:10]</span> DEBUG: Drive sync triggered for Folder d3</div>
+                        <div className="mb-1"><span className="text-green-400">[2026-04-19 14:31:05]</span> INFO: Extrator completed successfully.</div>
+                        <div className="mb-1"><span className="text-yellow-400">[2026-04-19 14:30:12]</span> WARN: OCR quality low on page 14.</div>
+                        <div className="mb-1"><span className="text-green-400">[2026-04-19 14:30:00]</span> INFO: Pipeline triggered for new Edital (id: 1)</div>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        // ============================================================================
+        // MAIN APP CONTAINER (Layout & Routing logic)
+        // ============================================================================
+
+        const AppContent = () => {
+          const { isDark, toggleTheme } = useTheme();
+          const [view, setView] = useState('pipeline'); // pipeline, edital, upload, historico, admin, config
+          const [selectedEditalId, setSelectedEditalId] = useState(null);
+          const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+          const handleOpenEdital = (id) => {
+            setSelectedEditalId(id);
+            setView('edital');
+          };
+
+          const SIDEBAR_ITEMS = [
+            { id: 'pipeline', label: 'Pipeline', icon: FolderKanban },
+            { id: 'historico', label: 'Histórico', icon: FileBadge2 },
+            { id: 'admin', label: 'Admin', icon: TerminalSquare }
+          ];
+
+          return (
+            <div className={cx("min-h-screen flex flex-col font-roboto selection:bg-brand-primaryLight selection:text-white relative overflow-hidden", isDark ? "bg-navy-800" : "bg-slate-100")}>
+              <GlobalStyles />
+              {isDark && (
+                <>
+                  <div className="glow-bg-primary"></div>
+                  <div className="glow-bg-pink"></div>
+                </>
+              )}
+
+              {/* --- HEADER --- */}
+              <header className={cx("sticky top-0 z-50 border-b shrink-0 backdrop-blur-xl", isDark ? "bg-navy-800/80 border-white/5" : "bg-white/90 border-slate-200 shadow-sm")}>
+                <div className="max-w-[1800px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+                  <div className="flex items-center gap-4 sm:gap-8">
+                    {/* Logo */}
+                    <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setView('pipeline')}>
+                      <div className={cx("w-8 h-8 rounded bg-gradient-to-br p-[1px] transition-all", isDark ? "from-brand-primary to-brand-pinkLight group-hover:shadow-[0_0_15px_rgba(255,137,255,0.4)]" : "from-brand-primary to-brand-pink")}>
+                        <div className={cx("w-full h-full rounded flex items-center justify-center", isDark ? "bg-navy-800" : "bg-white")}>
+                          <span className={cx("font-poppins font-bold text-lg leading-none", isDark ? "text-white" : "text-slate-800")}>X</span>
+                        </div>
+                      </div>
+                      <span className={cx("font-poppins font-bold text-lg tracking-tight hidden sm:block", isDark ? "text-white" : "text-slate-800")}>
+                        x-lici <span className={cx("text-[10px] uppercase tracking-widest ml-1 border px-1.5 py-0.5 rounded-full font-sans", isDark ? "text-brand-primaryLight border-brand-primaryLight/30" : "text-brand-primary border-brand-primary/30")}>v2</span>
+                      </span>
+                    </div>
+
+                    {/* Main Nav */}
+                    <nav className="hidden md:flex items-center gap-1.5">
+                      {SIDEBAR_ITEMS.map(nav => (
+                        <button 
+                          key={nav.id}
+                          onClick={() => setView(nav.id)}
+                          className={cx(
+                            "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                            view === nav.id 
+                              ? (isDark ? "bg-white/10 text-white shadow-inner border border-white/5" : "bg-slate-100 text-slate-800 shadow-sm border border-slate-200") 
+                              : (isDark ? "text-slate-400 hover:text-white hover:bg-white/[0.04]" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50")
+                          )}
+                        >
+                          <nav.icon size={16} className={view === nav.id ? (isDark ? 'text-brand-primaryLight' : 'text-brand-primary') : ''} />
+                          {nav.label}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className={cx("hidden lg:flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border", isDark ? "text-slate-400 bg-black/20 border-white/5" : "text-slate-600 bg-slate-100 border-slate-200")}>
+                      <span className={cx("w-2 h-2 rounded-full animate-pulse", isDark ? "bg-brand-greenLight" : "bg-green-500")}></span>
+                      Sistema Operante
+                    </div>
+                    
+                    <IconButton icon={isDark ? Sun : Moon} onClick={toggleTheme} title="Alternar Tema" />
+                    
+                    <div className="relative">
+                      <IconButton icon={Bell} onClick={() => setNotificationsOpen(true)} title="Notificações" />
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-red rounded-full"></span>
+                    </div>
+
+                    <IconButton icon={Sliders} onClick={() => setView('config')} title="Configurações" className="hidden sm:flex" />
+                    
+                    <div className={cx("h-6 w-px mx-1", isDark ? "bg-white/10" : "bg-slate-200")}></div>
+                    
+                    <div className={cx("flex items-center gap-3 cursor-pointer p-1.5 rounded-lg transition-colors", isDark ? "hover:bg-white/5" : "hover:bg-slate-100")}>
+                       <Avatar user={USERS[0]} size="md" />
+                       <div className="hidden md:block text-left">
+                         <p className={cx("text-xs font-semibold leading-tight", isDark ? "text-white" : "text-slate-800")}>{USERS[0].name}</p>
+                         <p className="text-[10px] text-slate-500 leading-tight">{USERS[0].role}</p>
+                       </div>
+                       <ChevronDown size={14} className="text-slate-500 hidden sm:block" />
+                    </div>
+                  </div>
+                </div>
+              </header>
+
+              {/* --- CONTENT AREA --- */}
+              <main className="relative z-10 flex-1 w-full max-w-[1800px] mx-auto p-4 sm:p-6 overflow-hidden flex flex-col">
+                {view === 'pipeline' && <PipelineView onOpenEdital={handleOpenEdital} onNewEdital={() => setView('upload')} />}
+                {view === 'edital' && <EditalDetailView editalId={selectedEditalId} onBack={() => setView('pipeline')} />}
+                {view === 'upload' && <UploadView onComplete={() => setView('edital')} onCancel={() => setView('pipeline')} />}
+                {view === 'historico' && <HistoricoView />}
+                {view === 'admin' && <AdminView />}
+                {view === 'config' && <ConfigView />}
+              </main>
+
+              {/* --- NOTIFICATIONS DRAWER --- */}
+              <Drawer isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} title="Notificações do Sistema">
+                 <div className="divide-y divide-slate-200 dark:divide-white/5">
+                   {NOTIFICATIONS_MOCK.map(n => (
+                     <div key={n.id} className={cx("p-5 transition-colors cursor-pointer", !n.read && (isDark ? "bg-white/[0.02]" : "bg-blue-50/50"), isDark ? "hover:bg-white/[0.04]" : "hover:bg-slate-50")}>
+                       <div className="flex justify-between items-start mb-1">
+                         <div className="flex items-center gap-2">
+                           {n.type === 'alert' && <ShieldAlert size={14} className={isDark ? "text-brand-red" : "text-red-500"} />}
+                           {n.type === 'success' && <CheckCircle2 size={14} className={isDark ? "text-brand-greenLight" : "text-green-600"} />}
+                           {n.type === 'warning' && <AlertTriangle size={14} className={isDark ? "text-brand-orange" : "text-orange-500"} />}
+                           {n.type === 'info' && <Info size={14} className={isDark ? "text-brand-primaryLight" : "text-blue-500"} />}
+                           <h4 className={cx("font-poppins font-semibold text-sm", isDark ? "text-white" : "text-slate-800")}>{n.title}</h4>
+                         </div>
+                         <span className="text-[10px] text-slate-500">{n.time}</span>
+                       </div>
+                       <p className={cx("text-xs leading-relaxed mt-2", isDark ? "text-slate-400" : "text-slate-600")}>{n.desc}</p>
+                     </div>
+                   ))}
+                 </div>
+                 <div className="p-4 text-center">
+                   <Button variant="ghost" fullWidth>Marcar todas como lidas</Button>
+                 </div>
+              </Drawer>
+            </div>
+          );
+        };
+
+        const XLiciApp = () => (
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<XLiciApp />);
+    </script>
+</body>
+</html>

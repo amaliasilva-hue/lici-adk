@@ -431,7 +431,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
 
   return (
     <div className="space-y-6">
-      <h2 className="font-poppins font-bold text-lg text-slate-900">Habilitação Técnica</h2>
+      <h2 className="font-poppins font-bold text-lg text-white">Habilitação Técnica</h2>
 
       {/* TCU: Somatório analysis */}
       {atestadoAnalise && (
@@ -723,7 +723,7 @@ export default function EditalPage() {
         <div className="flex flex-col sm:flex-row sm:items-start gap-6">
           {/* Left: info */}
           <div className="flex-1 min-w-0">
-            <h1 className="font-poppins font-bold text-2xl text-slate-900 leading-tight mb-1">
+            <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white leading-tight mb-1">
               {edital.orgao || '—'}
             </h1>
             <p className="text-slate-500 text-sm mb-3 leading-relaxed">

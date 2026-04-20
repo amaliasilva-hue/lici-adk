@@ -57,7 +57,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-poppins font-bold text-2xl text-white">Painel Administrativo</h1>
+        <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Painel Administrativo</h1>
         <span className={`badge ${health?.status === 'ok' ? 'badge-green' : 'badge-red'}`}>
           {health ? `backend: ${health.status}` : 'verificando…'}
         </span>
