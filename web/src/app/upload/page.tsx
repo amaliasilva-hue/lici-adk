@@ -95,23 +95,23 @@ export default function UploadPage() {
         <span className="text-slate-600">Novo edital</span>
       </div>
 
-      <h1 className="font-poppins font-bold text-2xl text-slate-900">Upload de Edital</h1>
+      <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Upload de Edital</h1>
 
       {/* Drop zone */}
       <div
         onClick={() => stage === 'idle' && inputRef.current?.click()}
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
         className={[
-          'rounded-2xl border-2 border-dashed p-10 text-center transition-all',
-          dragging ? 'border-primary bg-blue-50' : 'border-slate-300 hover:border-slate-400',
-          file ? 'border-green-accent/40 bg-green-500/5' : '',
+          'rounded-2xl border-2 border-dashed p-10 text-center transition-all backdrop-blur-sm',
+          dragging ? 'border-primary-light bg-primary/10' : 'border-white/15 hover:border-white/25',
+          file ? 'border-green-accent/40 bg-green-accent/5' : '',
           stage !== 'idle' ? 'pointer-events-none opacity-60' : 'cursor-pointer',
         ].join(' ')}
       >
         {file ? (
           <div className="space-y-1">
-            <p className="text-green-700 font-semibold text-lg">{file.name}</p>
-            <p className="text-slate-400 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p className="text-green-accent font-semibold text-lg">{file.name}</p>
+            <p className="text-slate-500 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
             {stage === 'idle' && (
               <button onClick={e => { e.stopPropagation(); setFile(null); }} className="text-xs text-slate-300 hover:text-danger mt-2">
                 remover

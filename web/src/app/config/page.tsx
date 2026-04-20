@@ -55,8 +55,8 @@ export default function ConfigPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="font-poppins font-bold text-2xl text-white">Configurações</h1>
-        <p className="text-white/50 text-sm mt-1">
+        <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Configurações</h1>
+        <p className="text-slate-400 text-sm mt-1">
           Personalize instruções adicionais para cada agente da pipeline.
           Estas instruções são concatenadas ao system prompt padrão.
         </p>

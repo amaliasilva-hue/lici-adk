@@ -2,15 +2,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 
-const STAGES: { key: string; label: string }[] = [
-  { key: 'identificacao', label: 'Identificação' },
-  { key: 'analise',       label: 'Análise' },
-  { key: 'pre_disputa',   label: 'Pré-disputa' },
-  { key: 'proposta',      label: 'Proposta' },
-  { key: 'disputa',       label: 'Disputa' },
-  { key: 'habilitacao',   label: 'Habilitação' },
-  { key: 'recursos',      label: 'Recursos' },
-  { key: 'homologado',    label: 'Homologado' },
+const STAGES: { key: string; label: string; color: string }[] = [
+  { key: 'identificacao', label: 'Identificação', color: '#94A3B8' },
+  { key: 'analise',       label: 'Análise',       color: '#00BEFF' },
+  { key: 'pre_disputa',   label: 'Pré-disputa',   color: '#FF89FF' },
+  { key: 'proposta',      label: 'Proposta',       color: '#047EA9' },
+  { key: 'disputa',       label: 'Disputa',        color: '#F59E0B' },
+  { key: 'habilitacao',   label: 'Habilitação',    color: '#A85CA9' },
+  { key: 'recursos',      label: 'Recursos',       color: '#E14849' },
+  { key: 'homologado',    label: 'Homologado',     color: '#C0FF7D' },
 ];
 
 const TERMINAL_COLORS: Record<string, string> = {
@@ -153,12 +153,12 @@ export default function PipelinePage() {
   const aptoCount   = editais.filter(e => e.score_comercial != null && e.score_comercial >= 70).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="font-poppins font-bold text-2xl text-slate-900">Pipeline de Editais</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Pipeline de Editais</h1>
+          <p className="text-sm text-slate-400 mt-1">
             {activeCount} em andamento · {aptoCount} APTO (score ≥ 70)
           </p>
         </div>
@@ -167,9 +167,9 @@ export default function PipelinePage() {
 
       {/* Selection action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
-          <span className="text-slate-700">
-            <strong>{selected.size}</strong> selecionado{selected.size > 1 ? 's' : ''}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm backdrop-blur-sm">
+          <span className="text-slate-300">
+            <strong className="text-white">{selected.size}</strong> selecionado{selected.size > 1 ? 's' : ''}
           </span>
           <div className="flex gap-2">
             <button onClick={clearSelection} className="btn btn-ghost text-xs" disabled={deleting}>
@@ -194,14 +194,15 @@ export default function PipelinePage() {
             const prevStage = idx > 0 ? STAGES[idx - 1].key : null;
             const nextStage = idx < STAGES.length - 1 ? STAGES[idx + 1].key : null;
             return (
-              <div key={stage.key} className="stage-col w-52">
+              <div key={stage.key} className="stage-col w-56">
                 <div className="stage-col-title">
-                  <span>{stage.label}</span>
-                  {cards.length > 0 && (
-                    <span className="bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5 text-[10px]">
-                      {cards.length}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                    <span>{stage.label}</span>
+                  </div>
+                  <span className="bg-white/[0.08] text-slate-400 rounded-full px-2 py-0.5 text-[10px] font-mono">
+                    {cards.length}
+                  </span>
                 </div>
                 {cards.map((e) => {
                   const isSelected = selected.has(e.edital_id);
@@ -223,17 +224,17 @@ export default function PipelinePage() {
                       disabled={deleting}
                       title="Apagar edital"
                       aria-label="Apagar edital"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-600 p-1 rounded"
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-brand-red p-1 rounded"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
                       </svg>
                     </button>
                     <Link href={`/edital/${e.edital_id}`} className="block mb-2 pl-5">
-                      <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5">
+                      <p className="text-xs font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-primary-light transition-colors">
                         {e.orgao || '—'}
                       </p>
-                      <p className="text-[11px] text-slate-400 truncate">{e.objeto || 'sem objeto'}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
                     </Link>
                     <div className="flex items-center gap-1 flex-wrap">
                       {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
@@ -241,7 +242,7 @@ export default function PipelinePage() {
                       <PriBadge pri={e.prioridade} />
                     </div>
                     {/* Move buttons */}
-                    <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-slate-200">
+                    <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-white/[0.06]">
                       {prevStage && (
                         <button
                           onClick={() => moveTo(e, prevStage)}
@@ -265,8 +266,8 @@ export default function PipelinePage() {
                   );
                 })}
                 {cards.length === 0 && (
-                  <div className="text-[11px] text-slate-300 text-center py-6 border border-dashed border-slate-200 rounded-xl">
-                    vazio
+                  <div className="text-[11px] text-slate-600 text-center py-6 border border-dashed border-white/[0.08] rounded-xl bg-white/[0.01]">
+                    Nenhum processo
                   </div>
                 )}
               </div>

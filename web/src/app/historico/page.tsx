@@ -85,7 +85,7 @@ export default function HistoricoPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-poppins font-bold text-2xl text-slate-900">Histórico de Editais</h1>
+          <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Histórico de Editais</h1>
           <p className="text-sm text-slate-400 mt-0.5">
             {loading ? 'Carregando…' : `${sorted.length} registros`}
           </p>

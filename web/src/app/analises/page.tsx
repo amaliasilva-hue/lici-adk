@@ -21,9 +21,9 @@ type Row = {
 };
 
 function badge(s: string) {
-  if (s === 'APTO') return 'bg-green-100 text-green-800';
-  if (s === 'APTO COM RESSALVAS') return 'bg-amber-100 text-amber-800';
-  return 'bg-red-100 text-red-800';
+  if (s === 'APTO') return 'badge badge-green';
+  if (s === 'APTO COM RESSALVAS') return 'badge badge-orange';
+  return 'badge badge-red';
 }
 
 export default async function AnalisesPage({ searchParams }: { searchParams: { orgao?: string; status?: string; uf?: string } }) {
@@ -51,12 +51,12 @@ export default async function AnalisesPage({ searchParams }: { searchParams: { o
   return (
     <div className="space-y-5">
       <div className="card">
-        <h1 className="text-xl font-bold mb-3">Histórico de análises</h1>
+        <h1 className="text-xl font-poppins font-bold mb-3 text-white">Histórico de análises</h1>
         <form className="flex flex-wrap gap-2 text-sm">
           <input name="orgao" defaultValue={searchParams.orgao} placeholder="Órgão"
-            className="border border-slate-300 rounded px-3 py-1.5" />
+            className="input w-auto" />
           <select name="status" defaultValue={searchParams.status || ''}
-            className="border border-slate-300 rounded px-3 py-1.5">
+            className="input w-auto">
             <option value="">Status…</option>
             <option>APTO</option>
             <option>APTO COM RESSALVAS</option>
@@ -64,7 +64,7 @@ export default async function AnalisesPage({ searchParams }: { searchParams: { o
             <option>NO-GO</option>
           </select>
           <input name="uf" defaultValue={searchParams.uf} placeholder="UF" maxLength={2}
-            className="border border-slate-300 rounded px-3 py-1.5 w-20 uppercase" />
+            className="input w-20 uppercase" />
           <button className="btn btn-primary text-sm">Filtrar</button>
         </form>
       </div>
