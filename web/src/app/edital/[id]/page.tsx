@@ -6,11 +6,15 @@ import Link from 'next/link';
 // ─── Types ────────────────────────────────────────────────
 type Evidencia = {
   requisito: string;
+  texto_edital?: string;       // verbatim do edital para este requisito
   fonte_tabela: string;
   fonte_id?: string;
   trecho_literal: string;
   tipo_evidencia: 'atestado' | 'contrato' | 'deal_won' | 'certificado' | 'yaml';
   confianca: number;
+  atestado_nome?: string;      // nomedaconta do AtestadoMatch
+  atestado_resumo?: string;    // resumodoatestado
+  atestado_link?: string;      // linkdeacesso
 };
 
 type Gap = {
@@ -18,6 +22,34 @@ type Gap = {
   tipo: string;
   delta_numerico?: number;
   recomendacao: string;
+};
+
+type ContribuinteEvidencia = {
+  fonte: 'atestado' | 'contrato' | 'drive_pdf';
+  fonte_id?: string;
+  rotulo: string;
+  valor?: number;
+  unidade?: string;
+  link?: string;
+};
+
+type NivelComprovacao = {
+  nivel: 'nacional' | 'internacional' | 'captacao';
+  status: 'atende' | 'parcial' | 'nao_atende';
+  valor_acumulado: number;
+  unidade?: string;
+  delta?: number;
+  contribuintes: ContribuinteEvidencia[];
+  observacao?: string;
+};
+
+type RequisitoCascata = {
+  requisito: string;
+  minimo_exigido: number;
+  unidade: string;
+  niveis: NivelComprovacao[];
+  status_consolidado: 'atende' | 'parcial' | 'nao_atende';
+  nivel_que_satisfaz?: string;
 };
 
 type ParecerComercial = {
@@ -29,6 +61,7 @@ type ParecerComercial = {
   gaps?: Gap[];
   estrategia?: string;
   alertas?: string[];
+  requisitos_cascata?: RequisitoCascata[];
 };
 
 type AtestadoRecomendado = {
@@ -218,6 +251,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
   const contratos  = evidencias.filter(e => e.tipo_evidencia === 'contrato');
   const certifics  = evidencias.filter(e => e.tipo_evidencia === 'certificado');
   const gaps       = parecer?.gaps ?? [];
+  const cascatas   = parecer?.requisitos_cascata ?? [];
 
   const kitJur = juridico?.kit_habilitacao;
   const ateRecomendados = kitJur?.atestados_recomendados ?? [];
@@ -226,10 +260,10 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
 
   const atestadoAnalise = juridico?.atestado_analise;
 
-  const hasAny = atestados.length > 0 || contratos.length > 0 || ateRecomendados.length > 0 || gaps.length > 0 || certifics.length > 0;
+  const hasAny = evidencias.length > 0 || ateRecomendados.length > 0 || gaps.length > 0 || cascatas.length > 0;
   if (!hasAny && !gapHab && !atestadoAnalise) return null;
 
-  // Group by requisito for glass-box display
+  // Group evidencias by requisito
   const byRequisito = (evs: Evidencia[]) => {
     const m = new Map<string, Evidencia[]>();
     for (const e of evs) {
@@ -240,8 +274,163 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
     return Array.from(m.entries());
   };
 
+  // Find cascata matching a requisito label
+  const findCascata = (req: string) =>
+    cascatas.find(c => c.requisito.toLowerCase().includes(req.toLowerCase().slice(0, 20)));
+
+  // Status icon for cascata level
+  function nivelIcon(s: NivelComprovacao['status']) {
+    if (s === 'atende') return <span className="text-[#C0FF7D]">✓</span>;
+    if (s === 'parcial') return <span className="text-[#FCD34D]">~</span>;
+    return <span className="text-[#F87171]">✗</span>;
+  }
+
+  // Evidence card for a single atestado/contrato evidence
+  function EvidCard({ e }: { e: Evidencia }) {
+    const isAtestado = e.tipo_evidencia === 'atestado';
+    const name = e.atestado_nome ?? e.fonte_id ?? '—';
+    const summary = e.atestado_resumo ?? e.trecho_literal;
+    const link = e.atestado_link;
+    const pct = Math.round(e.confianca * 100);
+    return (
+      <div className="rounded-lg border p-3 flex flex-col gap-1.5"
+           style={{ background: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.08)' }}>
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 font-bold
+              ${isAtestado ? 'bg-[rgba(192,255,125,0.15)] text-[#C0FF7D]' : 'bg-[rgba(245,158,11,0.15)] text-[#FCD34D]'}`}>
+              {isAtestado ? '✓' : '○'}
+            </span>
+            <span className="text-sm font-semibold text-slate-200 truncate">{name}</span>
+            {e.fonte_id && (
+              <span className="text-[10px] text-slate-500 font-mono shrink-0">#{e.fonte_id.slice(0,8)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`badge text-[10px] py-0 ${pct >= 80 ? 'badge-green' : pct >= 50 ? 'badge-blue' : 'badge-orange'}`}>
+              {pct}%
+            </span>
+            {link && (
+              <a href={link} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm py-0 px-2">
+                Drive ↗
+              </a>
+            )}
+          </div>
+        </div>
+        {/* Evidence text */}
+        {summary && (
+          <p className="text-xs text-slate-400 leading-relaxed line-clamp-4 pl-7">{summary}</p>
+        )}
+        {/* If atestado_resumo differs from trecho_literal, show the specific matching snippet */}
+        {e.atestado_resumo && e.trecho_literal && e.trecho_literal !== e.atestado_resumo && (
+          <div className="pl-7 mt-0.5">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Trecho relevante: </span>
+            <span className="text-xs text-[#00BEFF] italic">"{e.trecho_literal}"</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Cascata/soma display for a specific requisito
+  function CascataCard({ c }: { c: RequisitoCascata }) {
+    const statusColor = c.status_consolidado === 'atende' ? 'text-[#C0FF7D]'
+      : c.status_consolidado === 'parcial' ? 'text-[#FCD34D]' : 'text-[#F87171]';
+    const borderColor = c.status_consolidado === 'atende' ? 'rgba(192,255,125,0.2)'
+      : c.status_consolidado === 'parcial' ? 'rgba(245,158,11,0.2)' : 'rgba(225,72,73,0.2)';
+
+    return (
+      <div className="rounded-lg p-3 mt-2" style={{ background: 'rgba(0,0,0,0.15)', border: `1px solid ${borderColor}` }}>
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="text-xs font-semibold text-slate-300">Somatório</span>
+          <span className="text-xs text-slate-500">
+            Mínimo: {c.minimo_exigido.toLocaleString('pt-BR')} {c.unidade}
+          </span>
+          <span className={`ml-auto text-xs font-bold ${statusColor}`}>
+            {c.status_consolidado === 'atende' ? '✓ Atende' : c.status_consolidado === 'parcial' ? '~ Parcial' : '✗ Insuficiente'}
+          </span>
+        </div>
+        {c.niveis.map((n, i) => (
+          <div key={i} className="pl-3 border-l border-white/10 mb-2 last:mb-0">
+            <div className="flex items-center gap-2 text-xs mb-1">
+              {nivelIcon(n.status)}
+              <span className="text-slate-300 capitalize">{n.nivel}</span>
+              <span className="text-slate-500">
+                {n.valor_acumulado.toLocaleString('pt-BR')} {n.unidade ?? c.unidade}
+              </span>
+              {n.delta != null && n.delta < 0 && (
+                <span className="text-[#F87171]">faltam {Math.abs(n.delta).toLocaleString('pt-BR')}</span>
+              )}
+            </div>
+            {n.contribuintes.length > 0 && (
+              <div className="space-y-0.5 pl-3">
+                {n.contribuintes.map((ct, j) => (
+                  <div key={j} className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="w-1 h-1 rounded-full bg-slate-600 shrink-0" />
+                    <span className="truncate">{ct.rotulo}</span>
+                    {ct.valor != null && (
+                      <span className="text-slate-400 shrink-0">{ct.valor.toLocaleString('pt-BR')} {ct.unidade}</span>
+                    )}
+                    {ct.link && (
+                      <a href={ct.link} target="_blank" rel="noreferrer" className="text-[#00BEFF] shrink-0">↗</a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {n.observacao && <p className="text-[11px] text-slate-500 italic pl-3 mt-1">{n.observacao}</p>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Requirement block: edital text + evidence cards + optional cascata
+  function RequisitoBlock({ req, evs, tipo }: { req: string; evs: Evidencia[]; tipo: string }) {
+    const editalText = evs[0]?.texto_edital;
+    const cascata = findCascata(req);
+    const statusAtende = evs.some(e => e.confianca >= 0.7);
+    const badgeCls = statusAtende ? 'badge-green' : 'badge-orange';
+    const badgeTxt = statusAtende ? 'Atendido' : 'Parcial';
+
+    return (
+      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        {/* Requisito header */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{tipo}</span>
+              <span className={`badge ${badgeCls} text-[10px] py-0`}>{badgeTxt}</span>
+            </div>
+            {/* Edital verbatim text */}
+            {editalText ? (
+              <blockquote className="text-sm text-slate-300 leading-relaxed border-l-2 pl-3 italic"
+                          style={{ borderColor: 'rgba(0,190,255,0.4)' }}>
+                {editalText}
+              </blockquote>
+            ) : (
+              <p className="text-sm text-slate-300 leading-relaxed font-medium">{req}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Evidence cards */}
+        <div className="space-y-2">
+          {evs.map((e, i) => <EvidCard key={i} e={e} />)}
+        </div>
+
+        {/* Cascata/soma if available */}
+        {cascata && <CascataCard c={cascata} />}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <h2 className="font-poppins font-bold text-lg text-slate-900">Habilitação Técnica</h2>
 
       {/* TCU: Somatório analysis */}
@@ -282,120 +471,90 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         </div>
       )}
 
-      {/* Atestados formais disponíveis */}
-      {(atestados.length > 0 || ateRecomendados.length > 0) && (
-        <div className="section-card section-card-green">
-          <p className="section-title">
-            Atestados formais disponíveis
-            <span className="ml-2 text-green-700/70">({Math.max(atestados.length, ateRecomendados.length)})</span>
+      {/* ── Requisitos com atestados ───────────────────── */}
+      {atestados.length > 0 && (
+        <div className="space-y-3">
+          <p className="section-title px-1">
+            Requisitos técnicos — atestados formais
+            <span className="ml-1.5 text-[#C0FF7D]/60">({byRequisito(atestados).length})</span>
           </p>
-          <p className="text-xs text-slate-400 mb-3">Documentos prontos para apresentar como comprovação de capacidade técnica</p>
-
-          {/* Drive files (from legal analysis) */}
-          {ateRecomendados.length > 0 && (
-            <div className="space-y-0 mb-4">
-              {ateRecomendados.map((a, i) => (
-                <div key={i} className="evidence-row">
-                  <div className="evidence-icon bg-green-100 text-green-700">✓</div>
-                  <div className="evidence-meta">
-                    <div className="evidence-source">
-                      {a.drive_file_name ?? a.contratante ?? `Atestado ${i+1}`}
-                      {a.satisfaz_parcela_maior_relevancia && (
-                        <span className="ml-2 badge badge-green text-[10px] py-0">PMR ✓</span>
-                      )}
-                    </div>
-                    <div className="evidence-excerpt">
-                      {a.contratante && `Contratante: ${a.contratante}`}
-                      {a.volume_contribuido != null && ` · Volume: ${a.volume_contribuido.toLocaleString('pt-BR')}`}
-                      {a.satisfaz_parcela_maior_relevancia
-                        ? ' · Satisfaz parcela de maior relevância (art. 67 §1º)'
-                        : ' · Contribui para somatório de atestados'}
-                    </div>
-                  </div>
-                  {a.drive_file_id && (
-                    <a
-                      href={`https://drive.google.com/file/d/${a.drive_file_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-ghost btn-sm shrink-0"
-                    >
-                      Drive →
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Glass-box: group by requisito */}
-          {atestados.length > 0 && (
-            <div className="space-y-2">
-              {ateRecomendados.length > 0 && <p className="text-xs text-slate-400 mb-2 mt-2">Também encontrados na base de dados:</p>}
-              {byRequisito(atestados).map(([req, evs], gi) => (
-                <div key={gi} className="req-group">
-                  <div className="req-group-title">Requisito</div>
-                  <div className="req-group-text">{req}</div>
-                  <div className="space-y-0">
-                    {evs.map((e, i) => (
-                      <div key={i} className="evidence-row">
-                        <div className="evidence-icon bg-green-100 text-green-700 text-xs">✓</div>
-                        <div className="evidence-meta">
-                          <div className="evidence-excerpt">{e.trecho_literal}</div>
-                        </div>
-                        <span className="badge badge-green shrink-0">
-                          {Math.round(e.confianca * 100)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {byRequisito(atestados).map(([req, evs], i) => (
+            <RequisitoBlock key={i} req={req} evs={evs} tipo="Atestado" />
+          ))}
         </div>
       )}
 
-      {/* Contratos sem atestado formal — solicitar emissão */}
-      {contratos.length > 0 && (
-        <div className="section-card section-card-orange">
-          <p className="section-title">
-            Contratos sem atestado formal
-            <span className="ml-2 text-orange-600/70">({contratos.length})</span>
-          </p>
-          <div className="alert-warning mb-3">
-            <strong>Ação necessária:</strong> Os contratos abaixo comprovam experiência técnica, mas não possuem atestado formal emitido. Solicite ao cliente a emissão do documento para compor o kit de habilitação.
-          </div>
-          <div className="space-y-2">
-            {byRequisito(contratos).map(([req, evs], gi) => (
-              <div key={gi} className="req-group">
-                <div className="req-group-title">Requisito</div>
-                <div className="req-group-text">{req}</div>
-                {evs.map((e, i) => (
-                  <div key={i} className="contract-row">
-                    <div className="evidence-icon bg-orange-50 text-orange-600 shrink-0">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div className="evidence-meta">
-                      <div className="contract-row-excerpt">{e.trecho_literal}</div>
-                    </div>
-                    <span className="badge badge-orange shrink-0">Solicitar</span>
+      {/* ── Kit jurídico: atestados recomendados ──────── */}
+      {ateRecomendados.length > 0 && atestados.length === 0 && (
+        <div className="section-card section-card-green">
+          <p className="section-title">Atestados recomendados pelo Analista Jurídico</p>
+          <p className="text-xs text-slate-400 mb-3">Documentos do Drive identificados como comprovação de capacidade técnica</p>
+          <div className="space-y-0">
+            {ateRecomendados.map((a, i) => (
+              <div key={i} className="evidence-row">
+                <div className="evidence-icon bg-green-100 text-green-700">✓</div>
+                <div className="evidence-meta">
+                  <div className="evidence-source">
+                    {a.drive_file_name ?? a.contratante ?? `Atestado ${i+1}`}
+                    {a.satisfaz_parcela_maior_relevancia && (
+                      <span className="ml-2 badge badge-green text-[10px] py-0">PMR ✓</span>
+                    )}
                   </div>
-                ))}
+                  <div className="evidence-excerpt">
+                    {a.contratante && `Contratante: ${a.contratante}`}
+                    {a.volume_contribuido != null && ` · Volume: ${a.volume_contribuido.toLocaleString('pt-BR')}`}
+                    {a.satisfaz_parcela_maior_relevancia
+                      ? ' · Satisfaz parcela de maior relevância (art. 67 §1º)'
+                      : ' · Contribui para somatório de atestados'}
+                  </div>
+                </div>
+                {a.drive_file_id && (
+                  <a href={`https://drive.google.com/file/d/${a.drive_file_id}`}
+                     target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm shrink-0">
+                    Drive ↗
+                  </a>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Gaps de habilitação */}
-      {gaps.length > 0 && (
+      {/* ── Cascatas avulsas (sem evidência vinculada) ─── */}
+      {cascatas.filter(c => !byRequisito(atestados).find(([req]) => req.toLowerCase().includes(c.requisito.toLowerCase().slice(0,20)))).length > 0 && (
+        <div className="space-y-3">
+          <p className="section-title px-1">Análise de somatório — requisitos quantitativos</p>
+          {cascatas.map((c, i) => (
+            <div key={i} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="text-sm font-medium text-slate-300 mb-2">{c.requisito}</p>
+              <CascataCard c={c} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Contratos sem atestado formal ─────────────── */}
+      {contratos.length > 0 && (
+        <div className="space-y-3">
+          <p className="section-title px-1">
+            Contratos sem atestado formal — solicitar emissão
+            <span className="ml-1.5 text-[#FCD34D]/60">({byRequisito(contratos).length})</span>
+          </p>
+          <div className="alert-warning">
+            <strong>Ação necessária:</strong> Os contratos abaixo comprovam experiência mas não possuem atestado emitido. Solicite ao cliente o documento para compor o kit de habilitação.
+          </div>
+          {byRequisito(contratos).map(([req, evs], i) => (
+            <RequisitoBlock key={i} req={req} evs={evs} tipo="Contrato (sem atestado)" />
+          ))}
+        </div>
+      )}
+
+      {/* ── Gaps de habilitação ────────────────────────── */}
+      {(gaps.length > 0 || gapHab) && (
         <div className="section-card section-card-red">
           <p className="section-title">
             Gaps de Habilitação
-            <span className="ml-2 text-red-600/70">({gaps.length})</span>
+            {gaps.length > 0 && <span className="ml-1.5 text-[#F87171]/60">({gaps.length})</span>}
           </p>
           <div className="space-y-3">
             {gaps.map((g, i) => (
@@ -411,13 +570,11 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
               </div>
             ))}
           </div>
-          {gapHab && (
-            <div className="mt-3 alert-warning text-sm">{gapHab}</div>
-          )}
+          {gapHab && <div className="mt-3 alert-warning text-sm">{gapHab}</div>}
         </div>
       )}
 
-      {/* Certidões */}
+      {/* ── Certidões ──────────────────────────────────── */}
       {certidoes.length > 0 && (
         <div className="section-card">
           <p className="section-title">Certidões Necessárias</p>
@@ -435,26 +592,13 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         </div>
       )}
 
-      {/* Certificações */}
+      {/* ── Certificações ──────────────────────────────── */}
       {certifics.length > 0 && (
-        <div className="section-card section-card-pink">
-          <p className="section-title">Certificações ({certifics.length})</p>
-          <div className="space-y-2">
-            {byRequisito(certifics).map(([req, evs], gi) => (
-              <div key={gi} className="req-group">
-                <div className="req-group-title">Requisito</div>
-                <div className="req-group-text">{req}</div>
-                {evs.map((e, i) => (
-                  <div key={i} className="evidence-row">
-                    <div className="evidence-icon bg-pink-100 text-pink-700 text-xs">🏅</div>
-                    <div className="evidence-meta">
-                      <div className="evidence-excerpt">{e.trecho_literal}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+        <div className="space-y-3">
+          <p className="section-title px-1">Certificações</p>
+          {byRequisito(certifics).map(([req, evs], i) => (
+            <RequisitoBlock key={i} req={req} evs={evs} tipo="Certificação" />
+          ))}
         </div>
       )}
     </div>

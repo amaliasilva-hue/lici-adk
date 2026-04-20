@@ -104,12 +104,16 @@ Declare GAP TOTAL, score máximo 40, recomende captação de atestado com client
 
 =================== EVIDÊNCIAS AUDITÁVEIS ===================
 Para cada requisito do edital, preencha `evidencias_por_requisito` com:
-  { "requisito": "texto do requisito",
+  { "requisito": "rótulo curto do requisito (3-10 palavras)",
+    "texto_edital": "verbatim EXATO do requisito copiado de edital.requisitos_tecnicos ou edital.requisitos_habilitacao (copie a frase inteira)",
     "fonte_tabela": "atestados"|"contratos"|"closed_deals_won"|"certificados_xertica"|"xertica_profile.yaml",
-    "fonte_id": "id do registro ou chave YAML",
+    "fonte_id": "id do atestado/contrato na fonte (campo `id` de AtestadoMatch)",
     "trecho_literal": "trecho COPIADO do resumodoatestado/resumodocontrato que comprova",
     "tipo_evidencia": "atestado"|"contrato"|"deal_won"|"certificado"|"yaml",
-    "confianca": 0.0-1.0 }
+    "confianca": 0.0-1.0,
+    "atestado_nome": "nomedaconta do AtestadoMatch que tem a comprovação mais forte",
+    "atestado_resumo": "resumodoatestado completo (ou 300 chars mais relevantes)",
+    "atestado_link": "linkdeacesso do mesmo AtestadoMatch (null se não disponível)" }
 
 =================== ENUMS — VALORES EXATOS (case-sensitive) ===================
 NUNCA invente variações. Use APENAS estes valores literais:
@@ -135,7 +139,20 @@ Se o requisito tem múltiplas fontes, escolha A MAIS FORTE (atestado > contrato 
   "status": "APTO" | "APTO COM RESSALVAS" | "INAPTO" | "NO-GO",
   "bloqueio_camada_1": null | "texto da regra que disparou",
   "requisitos_atendidos": [{"requisito","comprovacao","fonte","link"}],
-  "evidencias_por_requisito": [...],
+  "evidencias_por_requisito": [
+    {
+      "requisito": "rótulo curto (3-10 palavras)",
+      "texto_edital": "verbatim do edital.requisitos_tecnicos/habilitacao",
+      "fonte_tabela": "atestados|contratos|...",
+      "fonte_id": "id do AtestadoMatch",
+      "trecho_literal": "trecho do resumodoatestado",
+      "tipo_evidencia": "atestado|contrato|...",
+      "confianca": 0.0-1.0,
+      "atestado_nome": "nomedaconta",
+      "atestado_resumo": "resumodoatestado (até 300 chars)",
+      "atestado_link": "linkdeacesso ou null"
+    }
+  ],
   "gaps": [{"requisito","tipo","delta_numerico","recomendacao"}],
   "estrategia": "recomendação objetiva de participação (2-4 parágrafos)",
   "alertas": ["..."],
