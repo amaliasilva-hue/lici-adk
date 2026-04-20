@@ -386,3 +386,126 @@ select.input option { background: #1B3351; color: #E2E8F0; }
 .score-number.text-blue-600  { text-shadow: 0 0 20px rgba(0,190,255,0.3); }
 .score-number.text-red-600   { text-shadow: 0 0 20px rgba(225,72,73,0.3); }
 
+/* ─────────────────────────────────────────────────────────
+   Selection / bulk-delete UX (premium)
+   ───────────────────────────────────────────────────────── */
+
+/* Round selection control on cards */
+.sel-dot {
+  @apply relative flex-shrink-0 rounded-full transition-all cursor-pointer flex items-center justify-center;
+  width: 18px; height: 18px;
+  background: rgba(0,0,0,0.35);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(4px);
+}
+.sel-dot:hover {
+  border-color: #00BEFF;
+  background: rgba(0,190,255,0.15);
+  box-shadow: 0 0 0 3px rgba(0,190,255,0.12);
+}
+.sel-dot-on {
+  background: #047EA9;
+  border-color: #00BEFF;
+  box-shadow: 0 0 0 3px rgba(0,190,255,0.18), 0 0 12px rgba(0,190,255,0.35);
+}
+.sel-dot-on:hover { background: #0590c0; }
+.sel-dot svg { width: 10px; height: 10px; color: white; }
+
+/* Hidden until card hover or selection-mode */
+.sel-dot-hidden { opacity: 0; }
+.kanban-card:hover .sel-dot,
+.kanban-card.is-selected .sel-dot,
+.has-selection .sel-dot,
+tr:hover .sel-dot,
+tr.is-selected .sel-dot { opacity: 1; }
+
+/* Card selected state */
+.kanban-card.is-selected {
+  background: rgba(0,190,255,0.06) !important;
+  border-color: rgba(0,190,255,0.5) !important;
+  box-shadow: 0 0 0 1px rgba(0,190,255,0.4), 0 8px 24px rgba(0,190,255,0.1);
+}
+
+/* Card delete icon (top-right) */
+.card-trash {
+  @apply absolute top-1.5 right-1.5 p-1 rounded-md transition-all opacity-0;
+  color: #64748B;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+}
+.kanban-card:hover .card-trash { opacity: 1; }
+.card-trash:hover { color: #F87171; background: rgba(225,72,73,0.15); }
+.card-trash svg { width: 13px; height: 13px; }
+
+/* Floating bulk-action bar (sticky top) */
+.bulk-bar {
+  @apply sticky top-2 z-30 flex items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-sm;
+  background: linear-gradient(135deg, rgba(4,126,169,0.18), rgba(20,38,61,0.85));
+  border: 1px solid rgba(0,190,255,0.35);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0,190,255,0.15), 0 0 0 1px rgba(0,190,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bulk-bar-count {
+  @apply inline-flex items-center justify-center font-poppins font-bold tabular-nums rounded-full text-xs;
+  width: 24px; height: 24px;
+  background: #00BEFF; color: #0A1320;
+  box-shadow: 0 0 12px rgba(0,190,255,0.5);
+}
+@keyframes slideDown {
+  0%   { opacity: 0; transform: translateY(-12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Confirmation modal */
+.modal-backdrop {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.18s ease-out;
+}
+.modal-panel {
+  @apply rounded-2xl p-6 w-full max-w-md;
+  background: linear-gradient(180deg, #1B3351, #14263D);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+  animation: modalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalIn {
+  0%   { opacity: 0; transform: scale(0.94) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Toast */
+.toast {
+  @apply fixed bottom-6 right-6 z-50 rounded-xl px-4 py-3 text-sm font-medium flex items-center gap-2.5;
+  background: #1B3351;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-success { border-color: rgba(192,255,125,0.4); color: #C0FF7D; }
+.toast-error   { border-color: rgba(225,72,73,0.4);  color: #FCA5A5; }
+@keyframes toastIn {
+  0%   { opacity: 0; transform: translateX(24px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* Card removing animation */
+.card-removing {
+  animation: cardOut 0.25s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes cardOut {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.92); }
+}
+
+/* Stage column: select-all action (visible on column hover) */
+.stage-col-select {
+  @apply text-[10px] font-medium uppercase tracking-wider transition-colors px-1.5 py-0.5 rounded opacity-0;
+  color: #00BEFF;
+}
+.stage-col:hover .stage-col-select { opacity: 0.7; }
+.stage-col-select:hover { opacity: 1 !important; background: rgba(0,190,255,0.1); }
+

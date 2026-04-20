@@ -1,6 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import {
+  SelectDot, TrashIcon, ConfirmModal, BulkActionBar, ToastStack, useToasts,
+} from '@/components/bulk-actions';
 
 const STAGES: { key: string; label: string; color: string }[] = [
   { key: 'identificacao', label: 'Identificação', color: '#94A3B8' },
@@ -53,7 +56,10 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [moving, setMoving] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<{ ids: string[]; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const { toasts, push: toast, remove: closeToast } = useToasts();
 
   const load = useCallback(async () => {
     try {
@@ -65,6 +71,15 @@ export default function PipelinePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Esc clears selection
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !confirm && selected.size > 0) setSelected(new Set());
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected.size, confirm]);
 
   async function moveTo(edital: Edital, newStage: string) {
     if (moving) return;
@@ -90,52 +105,68 @@ export default function PipelinePage() {
     });
   }
 
-  function clearSelection() {
-    setSelected(new Set());
+  function selectStage(stageKey: string) {
+    const stageIds = editais.filter((e) => e.fase_atual === stageKey && !e.estado_terminal).map((e) => e.edital_id);
+    if (stageIds.length === 0) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const allIn = stageIds.every((id) => next.has(id));
+      if (allIn) stageIds.forEach((id) => next.delete(id));
+      else stageIds.forEach((id) => next.add(id));
+      return next;
+    });
   }
 
-  async function deleteIds(ids: string[]) {
-    if (ids.length === 0 || deleting) return;
+  async function performDelete(ids: string[]) {
+    if (ids.length === 0) return;
     setDeleting(true);
+    setRemovingIds(new Set(ids));
     try {
-      const results = await Promise.allSettled(
-        ids.map((id) =>
-          fetch(`/api/proxy/editais/${id}`, { method: 'DELETE' }).then((r) => {
-            if (!r.ok && r.status !== 204) throw new Error(`falha ${r.status}`);
-            return id;
-          })
-        )
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      if (failed > 0) {
-        alert(`Falha ao apagar ${failed} de ${ids.length} edital(is).`);
-      }
+      const r = await fetch('/api/proxy/editais/bulk_delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!r.ok) throw new Error(`falha ${r.status}`);
+      const out = await r.json().catch(() => ({}));
+      const deleted: number = typeof out.deleted === 'number' ? out.deleted : ids.length;
+      const failed = ids.length - deleted;
+      await new Promise((res) => setTimeout(res, 220));
       setSelected((prev) => {
         const next = new Set(prev);
         ids.forEach((id) => next.delete(id));
         return next;
       });
       await load();
+      if (failed > 0) toast('error', `${deleted} apagado(s), ${failed} falhou(aram)`);
+      else toast('success', deleted === 1 ? 'Edital apagado' : `${deleted} editais apagados`);
+    } catch (e: any) {
+      toast('error', `Falha ao apagar: ${e.message || e}`);
     } finally {
+      setRemovingIds(new Set());
       setDeleting(false);
+      setConfirm(null);
     }
   }
 
-  async function deleteOne(edital: Edital) {
-    if (!confirm(`Apagar este edital?\n\n${edital.orgao || edital.edital_id}`)) return;
-    await deleteIds([edital.edital_id]);
+  function askDeleteOne(edital: Edital) {
+    setConfirm({
+      ids: [edital.edital_id],
+      label: edital.orgao || edital.numero_pregao || edital.edital_id,
+    });
   }
 
-  async function deleteSelected() {
+  function askDeleteSelected() {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    if (!confirm(`Apagar ${ids.length} edital(is) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
-    await deleteIds(ids);
+    setConfirm({ ids, label: `${ids.length} editais` });
   }
 
-  const byStage = (stage: string) =>
-    editais.filter((e) => e.fase_atual === stage && !e.estado_terminal);
-  const terminal = editais.filter((e) => !!e.estado_terminal);
+  const byStage = useCallback((stage: string) =>
+    editais.filter((e) => e.fase_atual === stage && !e.estado_terminal),
+  [editais]);
+  const terminal = useMemo(() => editais.filter((e) => !!e.estado_terminal), [editais]);
+  const hasSelection = selected.size > 0;
 
   if (loading) {
     return (
@@ -153,7 +184,7 @@ export default function PipelinePage() {
   const aptoCount   = editais.filter(e => e.score_comercial != null && e.score_comercial >= 70).length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className={`space-y-6 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -165,26 +196,13 @@ export default function PipelinePage() {
         <Link href="/upload" className="btn btn-primary shrink-0">+ Novo edital</Link>
       </div>
 
-      {/* Selection action bar */}
-      {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm backdrop-blur-sm">
-          <span className="text-slate-300">
-            <strong className="text-white">{selected.size}</strong> selecionado{selected.size > 1 ? 's' : ''}
-          </span>
-          <div className="flex gap-2">
-            <button onClick={clearSelection} className="btn btn-ghost text-xs" disabled={deleting}>
-              Limpar
-            </button>
-            <button
-              onClick={deleteSelected}
-              disabled={deleting}
-              className="btn text-xs bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {deleting ? 'Apagando…' : `Apagar ${selected.size}`}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Bulk action bar (sticky) */}
+      <BulkActionBar
+        count={selected.size}
+        busy={deleting}
+        onClear={() => setSelected(new Set())}
+        onDelete={askDeleteSelected}
+      />
 
       {/* Kanban */}
       <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6">
@@ -193,6 +211,8 @@ export default function PipelinePage() {
             const cards   = byStage(stage.key);
             const prevStage = idx > 0 ? STAGES[idx - 1].key : null;
             const nextStage = idx < STAGES.length - 1 ? STAGES[idx + 1].key : null;
+            const stageIds = cards.map((c) => c.edital_id);
+            const allStageSelected = stageIds.length > 0 && stageIds.every((id) => selected.has(id));
             return (
               <div key={stage.key} className="stage-col w-56">
                 <div className="stage-col-title">
@@ -200,69 +220,79 @@ export default function PipelinePage() {
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
                     <span>{stage.label}</span>
                   </div>
-                  <span className="bg-white/[0.08] text-slate-400 rounded-full px-2 py-0.5 text-[10px] font-mono">
-                    {cards.length}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {cards.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => selectStage(stage.key)}
+                        className="stage-col-select"
+                        title={allStageSelected ? 'Desmarcar todos do estágio' : 'Selecionar todos do estágio'}
+                      >
+                        {allStageSelected ? '✕ todos' : '☐ todos'}
+                      </button>
+                    )}
+                    <span className="bg-white/[0.08] text-slate-400 rounded-full px-2 py-0.5 text-[10px] font-mono">
+                      {cards.length}
+                    </span>
+                  </div>
                 </div>
                 {cards.map((e) => {
                   const isSelected = selected.has(e.edital_id);
+                  const isRemoving = removingIds.has(e.edital_id);
                   return (
-                  <div
-                    key={e.edital_id}
-                    className={`kanban-card group relative ${isSelected ? 'ring-2 ring-xertica-500' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelected(e.edital_id)}
-                      aria-label="Selecionar edital"
-                      className={`absolute top-2 left-2 w-3.5 h-3.5 cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => deleteOne(e)}
-                      disabled={deleting}
-                      title="Apagar edital"
-                      aria-label="Apagar edital"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-brand-red p-1 rounded"
+                    <div
+                      key={e.edital_id}
+                      className={`kanban-card group relative ${isSelected ? 'is-selected' : ''} ${isRemoving ? 'card-removing' : ''}`}
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-                      </svg>
-                    </button>
-                    <Link href={`/edital/${e.edital_id}`} className="block mb-2 pl-5">
-                      <p className="text-xs font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-primary-light transition-colors">
-                        {e.orgao || '—'}
-                      </p>
-                      <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
-                    </Link>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
-                      <ScoreBadge score={e.score_comercial} />
-                      <PriBadge pri={e.prioridade} />
+                      {/* Selection dot — top-left */}
+                      <div className="absolute top-2 left-2">
+                        <SelectDot checked={isSelected} onChange={() => toggleSelected(e.edital_id)} />
+                      </div>
+                      {/* Trash — top-right */}
+                      <button
+                        type="button"
+                        onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); askDeleteOne(e); }}
+                        disabled={deleting}
+                        title="Apagar edital"
+                        aria-label="Apagar edital"
+                        className="card-trash"
+                      >
+                        <TrashIcon />
+                      </button>
+
+                      <Link href={`/edital/${e.edital_id}`} className="block mb-2 pl-7 pr-6">
+                        <p className="text-xs font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-primary-light transition-colors">
+                          {e.orgao || '—'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
+                      </Link>
+                      <div className="flex items-center gap-1 flex-wrap pl-7">
+                        {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
+                        <ScoreBadge score={e.score_comercial} />
+                        <PriBadge pri={e.prioridade} />
+                      </div>
+                      {/* Move buttons */}
+                      <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-white/[0.06]">
+                        {prevStage && (
+                          <button
+                            onClick={() => moveTo(e, prevStage)}
+                            disabled={moving === e.edital_id}
+                            className="text-[10px] btn btn-ghost px-2 py-0.5 opacity-60 hover:opacity-100"
+                          >
+                            ← {STAGES[idx-1].label}
+                          </button>
+                        )}
+                        {nextStage && (
+                          <button
+                            onClick={() => moveTo(e, nextStage)}
+                            disabled={moving === e.edital_id}
+                            className="text-[10px] btn btn-primary px-2 py-0.5 ml-auto"
+                          >
+                            {STAGES[idx+1].label} →
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {/* Move buttons */}
-                    <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-white/[0.06]">
-                      {prevStage && (
-                        <button
-                          onClick={() => moveTo(e, prevStage)}
-                          disabled={moving === e.edital_id}
-                          className="text-[10px] btn btn-ghost px-2 py-0.5 opacity-60 hover:opacity-100"
-                        >
-                          ← {STAGES[idx-1].label}
-                        </button>
-                      )}
-                      {nextStage && (
-                        <button
-                          onClick={() => moveTo(e, nextStage)}
-                          disabled={moving === e.edital_id}
-                          className="text-[10px] btn btn-primary px-2 py-0.5 ml-auto"
-                        >
-                          {STAGES[idx+1].label} →
-                        </button>
-                      )}
-                    </div>
-                  </div>
                   );
                 })}
                 {cards.length === 0 && (
@@ -289,16 +319,23 @@ export default function PipelinePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
+                  <th className="pb-2 pr-2 w-8"></th>
                   <th className="pb-2 pr-4 font-normal">Órgão</th>
                   <th className="pb-2 pr-4 font-normal">UF</th>
                   <th className="pb-2 pr-4 font-normal">Objeto</th>
                   <th className="pb-2 pr-3 font-normal">Estado</th>
-                  <th className="pb-2 font-normal">Score</th>
+                  <th className="pb-2 pr-2 font-normal">Score</th>
+                  <th className="pb-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {terminal.map((e) => (
-                  <tr key={e.edital_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                {terminal.map((e) => {
+                  const isSelected = selected.has(e.edital_id);
+                  return (
+                  <tr key={e.edital_id} className={`group border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSelected ? 'is-selected bg-white/[0.03]' : ''}`}>
+                    <td className="py-2.5 pr-2">
+                      <SelectDot checked={isSelected} onChange={() => toggleSelected(e.edital_id)} />
+                    </td>
                     <td className="py-2.5 pr-4">
                       <Link href={`/edital/${e.edital_id}`} className="text-slate-700 hover:text-slate-900 transition-colors">
                         {e.orgao}
@@ -311,15 +348,51 @@ export default function PipelinePage() {
                         {e.estado_terminal}
                       </span>
                     </td>
-                    <td className="py-2.5"><ScoreBadge score={e.score_comercial} /></td>
+                    <td className="py-2.5 pr-2"><ScoreBadge score={e.score_comercial} /></td>
+                    <td className="py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => askDeleteOne(e)}
+                        disabled={deleting}
+                        title="Apagar edital"
+                        className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </details>
       )}
+
+      {/* Confirm modal */}
+      <ConfirmModal
+        open={!!confirm}
+        busy={deleting}
+        title={confirm && confirm.ids.length > 1 ? `Apagar ${confirm.ids.length} editais?` : 'Apagar edital?'}
+        message={
+          confirm && confirm.ids.length > 1 ? (
+            <>
+              Esta ação removerá <strong className="text-white">{confirm.ids.length}</strong> editais do pipeline.
+              <br />Não poderá ser desfeita.
+            </>
+          ) : (
+            <>
+              Esta ação removerá <strong className="text-white">{confirm?.label}</strong> do pipeline.
+              <br />Não poderá ser desfeita.
+            </>
+          )
+        }
+        confirmLabel={confirm && confirm.ids.length > 1 ? `Apagar ${confirm.ids.length}` : 'Apagar'}
+        onCancel={() => !deleting && setConfirm(null)}
+        onConfirm={() => confirm && performDelete(confirm.ids)}
+      />
+
+      <ToastStack toasts={toasts} onClose={closeToast} />
     </div>
   );
 }
-

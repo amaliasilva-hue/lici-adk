@@ -275,6 +275,42 @@ def historical_analysis(analysis_id: str) -> dict:
     return dict(rows[0])
 
 
+@app.delete("/analyses/{analysis_id}", status_code=204)
+def delete_historical_analysis(analysis_id: str) -> None:
+    """Hard delete de uma análise persistida no BigQuery."""
+    sql = f"DELETE FROM {_FULL_TABLE} WHERE analysis_id = @id"
+    job = _bq().query(
+        sql,
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("id", "STRING", analysis_id)]
+        ),
+    )
+    job.result()
+    if (job.num_dml_affected_rows or 0) == 0:
+        raise HTTPException(status_code=404, detail="análise não encontrada")
+
+
+class _BulkDeleteRequest(BaseModel):
+    ids: list[str]
+
+
+@app.post("/analyses/bulk_delete")
+def bulk_delete_historical_analyses(body: _BulkDeleteRequest) -> dict:
+    """Apaga múltiplas análises de uma vez."""
+    ids = [i for i in (body.ids or []) if i]
+    if not ids:
+        return {"deleted": 0}
+    sql = f"DELETE FROM {_FULL_TABLE} WHERE analysis_id IN UNNEST(@ids)"
+    job = _bq().query(
+        sql,
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ArrayQueryParameter("ids", "STRING", ids)]
+        ),
+    )
+    job.result()
+    return {"deleted": int(job.num_dml_affected_rows or 0), "requested": len(ids)}
+
+
 # ──────────────────────── Fase 5 — Análise Jurídica ─────────────────────────
 
 
@@ -697,6 +733,21 @@ async def delete_edital(edital_id: str) -> None:
     ok = await asyncio.to_thread(soft_delete_edital, edital_id)
     if not ok:
         raise HTTPException(status_code=404, detail="edital não encontrado")
+
+
+class _BulkDeleteEditaisRequest(BaseModel):
+    ids: list[str]
+
+
+@app.post("/editais/bulk_delete")
+async def bulk_delete_editais(body: _BulkDeleteEditaisRequest) -> dict:
+    """Soft delete em lote de editais."""
+    ids = [i for i in (body.ids or []) if i]
+    if not ids:
+        return {"deleted": 0, "requested": 0}
+    results = await asyncio.gather(*[asyncio.to_thread(soft_delete_edital, i) for i in ids])
+    deleted = sum(1 for ok in results if ok)
+    return {"deleted": deleted, "requested": len(ids)}
 
 
 class _ComentarioRequest(BaseModel):
