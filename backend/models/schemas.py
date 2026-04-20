@@ -206,6 +206,9 @@ class Evidencia(BaseModel):
     atestado_nome: Optional[str] = None   # nomedaconta do AtestadoMatch
     atestado_resumo: Optional[str] = None # resumodoatestado (ênfase no trecho relevante)
     atestado_link: Optional[str] = None   # linkdeacesso do AtestadoMatch (Drive)
+    # Valor monetário/volumétrico que esta evidência comprova
+    valor_comprovado: Optional[float] = None  # ex: 17730000.0 (BRL) ou 480000 (licenças)
+    unidade_valor: Optional[str] = None       # "BRL" | "horas" | "licenças" | "UST" | etc.
 
 
 class GapIdentificado(BaseModel):

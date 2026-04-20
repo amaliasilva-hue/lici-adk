@@ -15,6 +15,8 @@ type Evidencia = {
   atestado_nome?: string;      // nomedaconta do AtestadoMatch
   atestado_resumo?: string;    // resumodoatestado
   atestado_link?: string;      // linkdeacesso
+  valor_comprovado?: number;   // valor monetário/volumétrico comprovado
+  unidade_valor?: string;      // "BRL" | "horas" | "licenças" | "UST"
 };
 
 type Gap = {
@@ -292,6 +294,11 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
     const summary = e.atestado_resumo ?? e.trecho_literal;
     const link = e.atestado_link;
     const pct = Math.round(e.confianca * 100);
+    const valorFmt = e.valor_comprovado != null
+      ? (e.unidade_valor === 'BRL'
+        ? e.valor_comprovado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+        : `${e.valor_comprovado.toLocaleString('pt-BR')} ${e.unidade_valor || ''}`)
+      : null;
     return (
       <div className="rounded-lg border p-3 flex flex-col gap-1.5"
            style={{ background: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.08)' }}>
@@ -308,6 +315,9 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {valorFmt && (
+              <span className="text-xs font-bold text-[#C0FF7D]">{valorFmt}</span>
+            )}
             <span className={`badge text-[10px] py-0 ${pct >= 80 ? 'badge-green' : pct >= 50 ? 'badge-blue' : 'badge-orange'}`}>
               {pct}%
             </span>
