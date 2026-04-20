@@ -85,7 +85,7 @@ export default function PipelinePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-white/40 text-sm gap-3">
+      <div className="flex items-center justify-center h-64 text-slate-400 text-sm gap-3">
         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -103,8 +103,8 @@ export default function PipelinePage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-poppins font-bold text-2xl text-white">Pipeline de Editais</h1>
-          <p className="text-sm text-white/45 mt-0.5">
+          <h1 className="font-poppins font-bold text-2xl text-slate-900">Pipeline de Editais</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
             {activeCount} em andamento · {aptoCount} APTO (score ≥ 70)
           </p>
         </div>
@@ -123,7 +123,7 @@ export default function PipelinePage() {
                 <div className="stage-col-title">
                   <span>{stage.label}</span>
                   {cards.length > 0 && (
-                    <span className="bg-white/10 text-white/50 rounded-full px-1.5 py-0.5 text-[10px]">
+                    <span className="bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5 text-[10px]">
                       {cards.length}
                     </span>
                   )}
@@ -131,10 +131,10 @@ export default function PipelinePage() {
                 {cards.map((e) => (
                   <div key={e.edital_id} className="kanban-card group">
                     <Link href={`/edital/${e.edital_id}`} className="block mb-2">
-                      <p className="text-xs font-semibold text-white/90 leading-snug line-clamp-2 mb-0.5">
+                      <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5">
                         {e.orgao || '—'}
                       </p>
-                      <p className="text-[11px] text-white/40 truncate">{e.objeto || 'sem objeto'}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{e.objeto || 'sem objeto'}</p>
                     </Link>
                     <div className="flex items-center gap-1 flex-wrap">
                       {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
@@ -142,7 +142,7 @@ export default function PipelinePage() {
                       <PriBadge pri={e.prioridade} />
                     </div>
                     {/* Move buttons */}
-                    <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-white/8">
+                    <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-slate-200">
                       {prevStage && (
                         <button
                           onClick={() => moveTo(e, prevStage)}
@@ -165,7 +165,7 @@ export default function PipelinePage() {
                   </div>
                 ))}
                 {cards.length === 0 && (
-                  <div className="text-[11px] text-white/15 text-center py-6 border border-dashed border-white/8 rounded-xl">
+                  <div className="text-[11px] text-slate-300 text-center py-6 border border-dashed border-slate-200 rounded-xl">
                     vazio
                   </div>
                 )}
@@ -179,15 +179,15 @@ export default function PipelinePage() {
       {terminal.length > 0 && (
         <details className="accordion">
           <summary>
-            <span>Encerrados <span className="ml-1.5 text-white/40 font-normal">({terminal.length})</span></span>
-            <svg className="w-4 h-4 text-white/35 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span>Encerrados <span className="ml-1.5 text-slate-400 font-normal">({terminal.length})</span></span>
+            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
           <div className="accordion-body overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-white/35 border-b border-white/8">
+                <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
                   <th className="pb-2 pr-4 font-normal">Órgão</th>
                   <th className="pb-2 pr-4 font-normal">UF</th>
                   <th className="pb-2 pr-4 font-normal">Objeto</th>
@@ -197,14 +197,14 @@ export default function PipelinePage() {
               </thead>
               <tbody>
                 {terminal.map((e) => (
-                  <tr key={e.edital_id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <tr key={e.edital_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 pr-4">
-                      <Link href={`/edital/${e.edital_id}`} className="text-white/80 hover:text-white transition-colors">
+                      <Link href={`/edital/${e.edital_id}`} className="text-slate-700 hover:text-slate-900 transition-colors">
                         {e.orgao}
                       </Link>
                     </td>
-                    <td className="py-2.5 pr-4 text-white/50">{e.uf}</td>
-                    <td className="py-2.5 pr-4 max-w-xs truncate text-white/50">{e.objeto}</td>
+                    <td className="py-2.5 pr-4 text-slate-500">{e.uf}</td>
+                    <td className="py-2.5 pr-4 max-w-xs truncate text-slate-500">{e.objeto}</td>
                     <td className="py-2.5 pr-3">
                       <span className={`badge ${TERMINAL_COLORS[e.estado_terminal!] ?? 'badge-gray'}`}>
                         {e.estado_terminal}

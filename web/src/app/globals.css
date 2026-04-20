@@ -10,40 +10,42 @@
 }
 
 body {
-  background: #14263D;
-  color: #e2ecf4;
+  background: #F8FAFC;
+  color: #0F172A;
   font-family: var(--font-roboto);
   min-height: 100vh;
 }
 
 /* ── Base card ───────────────────────────────────────────── */
 .card {
-  @apply rounded-xl border border-white/10 p-5;
-  background: rgba(27, 51, 81, 0.75);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
+  @apply rounded-xl p-5;
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 .card-flat {
-  @apply rounded-xl border border-white/10 p-4;
-  background: rgba(20, 38, 61, 0.9);
+  @apply rounded-xl p-4;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
 }
 
 /* ── Section card (with accent left border) ─────────────── */
 .section-card {
-  @apply rounded-xl border border-white/10 p-5;
-  background: rgba(27, 51, 81, 0.75);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
+  @apply rounded-xl p-5;
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
-.section-card-green  { border-left: 3px solid #C0FF7D; }
+.section-card-green  { border-left: 3px solid #16A34A; }
 .section-card-blue   { border-left: 3px solid #047EA9; }
-.section-card-orange { border-left: 3px solid #FFAA4D; }
-.section-card-pink   { border-left: 3px solid #FF89FF; }
-.section-card-red    { border-left: 3px solid #E14849; }
+.section-card-orange { border-left: 3px solid #D97706; }
+.section-card-pink   { border-left: 3px solid #DB2777; }
+.section-card-red    { border-left: 3px solid #DC2626; }
 
 /* ── Section title ───────────────────────────────────────── */
 .section-title {
-  @apply font-poppins font-bold text-sm uppercase tracking-wider text-white/50 mb-3;
+  @apply font-poppins font-bold text-sm uppercase tracking-wider mb-3;
+  color: #64748B;
 }
 
 /* ── Info grid ───────────────────────────────────────────── */
@@ -51,10 +53,12 @@ body {
   @apply grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm;
 }
 .info-grid-item label {
-  @apply block text-xs text-white/40 mb-0.5 uppercase tracking-wide;
+  @apply block text-xs mb-0.5 uppercase tracking-wide;
+  color: #94A3B8;
 }
 .info-grid-item span {
-  @apply text-white/80 font-medium tabular-nums;
+  @apply font-medium tabular-nums;
+  color: #334155;
 }
 
 /* ── Score display ───────────────────────────────────────── */
@@ -65,7 +69,8 @@ body {
 
 /* ── Evidence rows ───────────────────────────────────────── */
 .evidence-row {
-  @apply flex items-start gap-3 py-2.5 border-b border-white/5 last:border-0;
+  @apply flex items-start gap-3 py-3 border-b last:border-0;
+  border-color: #F1F5F9;
 }
 .evidence-icon {
   @apply flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm;
@@ -74,83 +79,130 @@ body {
   @apply flex-1 min-w-0;
 }
 .evidence-source {
-  @apply text-sm font-medium text-white/90 truncate;
+  @apply text-sm font-semibold truncate;
+  color: #0F172A;
 }
 .evidence-excerpt {
-  @apply text-xs text-white/50 line-clamp-2 mt-0.5;
+  @apply text-xs line-clamp-3 mt-0.5 leading-relaxed;
+  color: #475569;
 }
 
 /* ── Contract row (without attestation) ──────────────────── */
 .contract-row {
-  @apply flex items-start gap-3 py-2.5 border-b border-white/5 last:border-0;
+  @apply flex items-start gap-3 py-3 border-b last:border-0;
+  border-color: #F1F5F9;
 }
 .contract-row-source {
-  @apply text-sm font-medium text-white/80 truncate;
+  @apply text-sm font-semibold truncate;
+  color: #0F172A;
 }
 .contract-row-excerpt {
-  @apply text-xs text-white/50 line-clamp-2 mt-0.5;
+  @apply text-xs line-clamp-2 mt-0.5;
+  color: #475569;
 }
 
 /* ── Gap item ───────────────────────────────────────────── */
 .gap-item {
-  @apply border-l-2 border-orange-400/70 pl-3 py-2;
+  @apply border-l-2 pl-3 py-2;
+  border-color: #D97706;
 }
 .gap-item-title {
-  @apply text-sm font-medium text-white/80;
+  @apply text-sm font-medium;
+  color: #0F172A;
 }
 .gap-item-sub {
-  @apply text-xs text-white/50 mt-0.5;
+  @apply text-xs mt-1 leading-relaxed;
+  color: #64748B;
+}
+
+/* ── Requirement group (glass-box) ──────────────────────── */
+.req-group {
+  @apply rounded-lg p-4 mb-3 last:mb-0;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+}
+.req-group-title {
+  @apply text-xs font-bold uppercase tracking-wide mb-2;
+  color: #475569;
+}
+.req-group-text {
+  @apply text-sm font-medium mb-3 leading-relaxed;
+  color: #0F172A;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium transition text-sm;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium transition-colors text-sm;
 }
-.btn-primary { @apply bg-primary text-white hover:bg-primary-light; }
-.btn-ghost   { @apply text-primary-light hover:bg-white/10; }
-.btn-danger  { @apply bg-danger text-white hover:opacity-80; }
+.btn-primary { background: #047EA9; color: white; }
+.btn-primary:hover { background: #035f7e; }
+.btn-ghost   { color: #047EA9; background: transparent; }
+.btn-ghost:hover { background: #EFF6FF; }
+.btn-danger  { background: #DC2626; color: white; }
+.btn-danger:hover { background: #B91C1C; }
 .btn-sm      { @apply px-3 py-1 text-xs; }
 
 /* ── Badges ──────────────────────────────────────────────── */
 .badge {
   @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold;
 }
-.badge-green  { @apply bg-green-accent/20 text-green-accent; }
-.badge-pink   { @apply bg-pink-accent/20  text-pink-accent; }
-.badge-red    { @apply bg-danger/20        text-danger; }
-.badge-blue   { @apply bg-primary/20       text-primary-light; }
-.badge-gray   { @apply bg-white/10         text-white/60; }
-.badge-orange { background: rgba(255,170,77,0.18); color: #ffaa4d; }
+.badge-green  { background: #DCFCE7; color: #166534; }
+.badge-pink   { background: #FCE7F3; color: #9D174D; }
+.badge-red    { background: #FEE2E2; color: #991B1B; }
+.badge-blue   { background: #DBEAFE; color: #1E40AF; }
+.badge-gray   { background: #F1F5F9; color: #475569; }
+.badge-orange { background: #FEF3C7; color: #92400E; }
+
+/* ── Custom checkbox ─────────────────────────────────────── */
+.checkbox-custom {
+  @apply flex items-center gap-2.5 cursor-pointer select-none;
+}
+.checkbox-box {
+  @apply flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors;
+}
+.checkbox-box-off { border-color: #CBD5E1; background: white; }
+.checkbox-box-on  { border-color: #047EA9; background: #047EA9; }
 
 /* ── Form inputs ─────────────────────────────────────────── */
 .input {
-  @apply w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white
-         placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-primary;
+  @apply w-full rounded-lg px-3 py-2 text-sm;
+  background: white;
+  border: 1px solid #CBD5E1;
+  color: #0F172A;
+  outline: none;
 }
-select.input option { background: #1B3351; color: #e2ecf4; }
+.input::placeholder { color: #94A3B8; }
+.input:focus {
+  border-color: #047EA9;
+  box-shadow: 0 0 0 3px rgba(4,126,169,0.1);
+}
+select.input option { background: white; color: #0F172A; }
 
-/* ── Stage pill (kanban columns) ─────────────────────────── */
+/* ── Stage column (kanban) ───────────────────────────────── */
 .stage-col {
-  @apply flex-shrink-0 w-52 rounded-xl border border-white/10 p-3 flex flex-col gap-2;
-  background: rgba(16, 30, 50, 0.85);
+  @apply flex-shrink-0 w-52 rounded-xl p-3 flex flex-col gap-2;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
 }
 .stage-col-title {
-  @apply text-xs font-semibold uppercase tracking-wider text-white/40 mb-1 flex items-center justify-between;
+  @apply text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between;
+  color: #94A3B8;
 }
-
-/* ── Kanban card ─────────────────────────────────────────── */
 .kanban-card {
-  @apply rounded-xl border border-white/10 p-3 cursor-pointer transition-all;
-  background: rgba(27, 51, 81, 0.8);
+  @apply rounded-xl p-3 cursor-pointer transition-all;
+  background: white;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 .kanban-card:hover {
-  border-color: rgba(4,126,169,0.5);
-  box-shadow: 0 0 0 1px rgba(4,126,169,0.2);
+  border-color: #047EA9;
+  box-shadow: 0 0 0 2px rgba(4,126,169,0.12);
 }
 
 /* ── Timeline ────────────────────────────────────────────── */
 .timeline-dot {
-  @apply w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0 mt-1;
+  @apply w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1;
+  background: #047EA9;
 }
 .timeline-line {
   @apply flex gap-3 text-sm;
@@ -158,53 +210,51 @@ select.input option { background: #1B3351; color: #e2ecf4; }
 
 /* ── Accordion ───────────────────────────────────────────── */
 .accordion {
-  @apply rounded-xl border border-white/10 overflow-hidden;
-  background: rgba(27, 51, 81, 0.75);
+  @apply rounded-xl overflow-hidden;
+  background: white;
+  border: 1px solid #E2E8F0;
 }
 .accordion > summary {
   @apply list-none cursor-pointer select-none flex items-center justify-between p-4
-         font-poppins font-semibold text-sm text-white hover:bg-white/5 transition;
+         font-poppins font-semibold text-sm transition-colors;
+  color: #334155;
 }
+.accordion > summary:hover { background: #F8FAFC; }
 .accordion > summary::-webkit-details-marker { display: none; }
 .accordion-body {
-  @apply p-4 pt-0 border-t border-white/10;
+  @apply p-4 pt-3;
+  border-top: 1px solid #E2E8F0;
 }
 
-/* ── Alert box ───────────────────────────────────────────── */
+/* ── Alert boxes ─────────────────────────────────────────── */
 .alert-danger {
   @apply p-3 rounded-lg text-sm;
-  background: rgba(225,72,73,0.12);
-  border: 1px solid rgba(225,72,73,0.3);
-  color: #f87171;
+  background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B;
 }
 .alert-warning {
   @apply p-3 rounded-lg text-sm;
-  background: rgba(255,170,77,0.12);
-  border: 1px solid rgba(255,170,77,0.3);
-  color: #ffaa4d;
+  background: #FFFBEB; border: 1px solid #FCD34D; color: #78350F;
 }
 .alert-success {
   @apply p-3 rounded-lg text-sm;
-  background: rgba(192,255,125,0.10);
-  border: 1px solid rgba(192,255,125,0.3);
-  color: #C0FF7D;
+  background: #F0FDF4; border: 1px solid #86EFAC; color: #166534;
 }
 .alert-info {
   @apply p-3 rounded-lg text-sm;
-  background: rgba(4,126,169,0.12);
-  border: 1px solid rgba(4,126,169,0.3);
-  color: #00BEFF;
+  background: #EFF6FF; border: 1px solid #93C5FD; color: #1E40AF;
 }
 
-/* ── Copy box (for legal documents) ─────────────────────── */
+/* ── Copy box (legal documents) ──────────────────────────── */
 .copy-box {
-  @apply rounded-lg p-4 text-xs font-mono text-white/75 whitespace-pre-wrap;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.08);
+  @apply rounded-lg p-4 text-xs font-mono whitespace-pre-wrap;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  color: #334155;
 }
 
 /* ── Divider ─────────────────────────────────────────────── */
 .divider {
-  @apply border-t border-white/10 my-4;
+  @apply my-4;
+  border-top: 1px solid #E2E8F0;
 }
 

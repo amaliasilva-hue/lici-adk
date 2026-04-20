@@ -132,6 +132,9 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             # Persiste result completo para sobreviver a restarts
             if pipeline_result.parecer:
                 data["result_json"] = json.dumps(pipeline_result.parecer.model_dump(), ensure_ascii=False, default=str)
+            # Persiste edital_json para permitir reanálise jurídica após restart
+            if pipeline_result.edital:
+                data["edital_json_storage"] = json.dumps(pipeline_result.edital.model_dump(), ensure_ascii=False, default=str)
             row = create_edital(data)
             eid = str(row["edital_id"])
             # Guarda edital_id no job para que o polling possa redirecionar
@@ -329,7 +332,32 @@ async def trigger_analise_juridica(
     """
     job = _JOBS.get(analysis_id)
     if not job:
-        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+        # Tenta reconstruir job a partir do Postgres (edital_id = analysis_id após container restart)
+        try:
+            from backend.tools.pg_tools import get_edital as _get_edital_pg
+            pg_row = await asyncio.to_thread(_get_edital_pg, analysis_id)
+        except Exception:
+            pg_row = None
+        if not pg_row:
+            raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+        edital_json_stored = pg_row.get("edital_json_storage")
+        result_json_stored = pg_row.get("result_json")
+        if not edital_json_stored or not result_json_stored:
+            raise HTTPException(
+                status_code=409,
+                detail="Dados insuficientes para reanálise — processe o edital novamente para armazenar edital_json",
+            )
+        edital_json_data = json.loads(edital_json_stored) if isinstance(edital_json_stored, str) else edital_json_stored
+        result_data = json.loads(result_json_stored) if isinstance(result_json_stored, str) else result_json_stored
+        _JOBS[analysis_id] = JobState(
+            analysis_id=analysis_id,
+            status="done",
+            edital_json=edital_json_data,
+            result=ParecerComercial.model_validate(result_data),
+            pg_edital_id=str(pg_row["edital_id"]),
+            edital_filename=pg_row.get("edital_filename"),
+        )
+        job = _JOBS[analysis_id]
     if job.status != "done":
         raise HTTPException(status_code=409, detail="análise comercial ainda não concluída — aguarde status=done")
     if not job.edital_json:
