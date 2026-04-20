@@ -191,6 +191,9 @@ class Evidencia(BaseModel):
     """Evidência auditável por requisito — transforma parecer em artefato contestável."""
 
     requisito: str
+    # texto_edital: verbatim do requisito extraído do PDF (cópia de requisitos_tecnicos /
+    # requisitos_habilitacao). Permite exibir o trecho exato do edital no frontend.
+    texto_edital: Optional[str] = None
     fonte_tabela: Literal[
         "atestados", "contratos", "closed_deals_won", "certificados_xertica", "xertica_profile.yaml"
     ]
@@ -198,6 +201,11 @@ class Evidencia(BaseModel):
     trecho_literal: str  # trecho do resumodoatestado/resumodocontrato que comprova
     tipo_evidencia: Literal["atestado", "contrato", "deal_won", "certificado", "yaml"]
     confianca: float = Field(ge=0.0, le=1.0)  # 0-1 (self-reported pelo LLM)
+    # Detalhes do documento de origem — preenchidos pelo Analista para o frontend
+    # (evita lookup adicional ao BigQuery na hora de renderizar)
+    atestado_nome: Optional[str] = None   # nomedaconta do AtestadoMatch
+    atestado_resumo: Optional[str] = None # resumodoatestado (ênfase no trecho relevante)
+    atestado_link: Optional[str] = None   # linkdeacesso do AtestadoMatch (Drive)
 
 
 class GapIdentificado(BaseModel):
