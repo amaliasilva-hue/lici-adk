@@ -52,6 +52,8 @@ export default function PipelinePage() {
   const [editais, setEditais] = useState<Edital[]>([]);
   const [loading, setLoading] = useState(true);
   const [moving, setMoving] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +79,58 @@ export default function PipelinePage() {
     } finally {
       setMoving(null);
     }
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function deleteIds(ids: string[]) {
+    if (ids.length === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/proxy/editais/${id}`, { method: 'DELETE' }).then((r) => {
+            if (!r.ok && r.status !== 204) throw new Error(`falha ${r.status}`);
+            return id;
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        alert(`Falha ao apagar ${failed} de ${ids.length} edital(is).`);
+      }
+      setSelected((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      await load();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function deleteOne(edital: Edital) {
+    if (!confirm(`Apagar este edital?\n\n${edital.orgao || edital.edital_id}`)) return;
+    await deleteIds([edital.edital_id]);
+  }
+
+  async function deleteSelected() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`Apagar ${ids.length} edital(is) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    await deleteIds(ids);
   }
 
   const byStage = (stage: string) =>
@@ -111,6 +165,27 @@ export default function PipelinePage() {
         <Link href="/upload" className="btn btn-primary shrink-0">+ Novo edital</Link>
       </div>
 
+      {/* Selection action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+          <span className="text-slate-700">
+            <strong>{selected.size}</strong> selecionado{selected.size > 1 ? 's' : ''}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={clearSelection} className="btn btn-ghost text-xs" disabled={deleting}>
+              Limpar
+            </button>
+            <button
+              onClick={deleteSelected}
+              disabled={deleting}
+              className="btn text-xs bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleting ? 'Apagando…' : `Apagar ${selected.size}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Kanban */}
       <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6">
         <div className="flex gap-2.5 min-w-max">
@@ -128,9 +203,33 @@ export default function PipelinePage() {
                     </span>
                   )}
                 </div>
-                {cards.map((e) => (
-                  <div key={e.edital_id} className="kanban-card group">
-                    <Link href={`/edital/${e.edital_id}`} className="block mb-2">
+                {cards.map((e) => {
+                  const isSelected = selected.has(e.edital_id);
+                  return (
+                  <div
+                    key={e.edital_id}
+                    className={`kanban-card group relative ${isSelected ? 'ring-2 ring-xertica-500' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelected(e.edital_id)}
+                      aria-label="Selecionar edital"
+                      className={`absolute top-2 left-2 w-3.5 h-3.5 cursor-pointer ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => deleteOne(e)}
+                      disabled={deleting}
+                      title="Apagar edital"
+                      aria-label="Apagar edital"
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-600 p-1 rounded"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                      </svg>
+                    </button>
+                    <Link href={`/edital/${e.edital_id}`} className="block mb-2 pl-5">
                       <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5">
                         {e.orgao || '—'}
                       </p>
@@ -163,7 +262,8 @@ export default function PipelinePage() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {cards.length === 0 && (
                   <div className="text-[11px] text-slate-300 text-center py-6 border border-dashed border-slate-200 rounded-xl">
                     vazio
