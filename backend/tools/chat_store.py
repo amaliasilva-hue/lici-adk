@@ -24,8 +24,11 @@ def _now() -> datetime:
 
 def _row(r: Any) -> dict:
     """Converte RowMapping/Row SQLAlchemy para dict JSON-safe."""
-    mapping = r._mapping if hasattr(r, "_mapping") else r
-    return _serialize_row(dict(mapping))
+    if hasattr(r, "_asdict"):
+        return _serialize_row(r._asdict())
+    if hasattr(r, "_mapping"):
+        return _serialize_row(dict(r._mapping))
+    return _serialize_row(dict(r))
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
