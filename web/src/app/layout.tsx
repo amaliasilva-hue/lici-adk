@@ -12,6 +12,7 @@ const NAV = [
   { href: '/',          label: 'Pipeline' },
   { href: '/upload',    label: 'Upload' },
   { href: '/historico', label: 'Histórico' },
+  { href: '/chat',      label: 'Chat IA' },
   { href: '/config',    label: 'Config' },
   { href: '/admin',     label: 'Admin' },
 ];

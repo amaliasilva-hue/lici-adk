@@ -450,3 +450,79 @@ def chat(
     updated_history = list(messages) + [{"role": "assistant", "content": text_response}]
 
     return text_response, updated_history
+
+
+# ── Multimodal session-based chat ─────────────────────────────────────────────
+
+def chat_session(
+    history: list[dict],
+    user_text: str,
+    file_parts: list[dict] | None = None,
+    edital_context: str | None = None,
+    max_tool_calls: int = 8,
+) -> str:
+    """
+    Chat session-based com suporte a arquivos (imagens, PDFs).
+
+    Args:
+        history:        Mensagens anteriores [{role:'user'|'assistant', content:'...'}]
+        user_text:      Texto da nova mensagem do usuário
+        file_parts:     Lista de [{mime_type: str, data: bytes}] (imagens/PDFs inline)
+        edital_context: Texto extra injetado no system prompt (descrição do edital vinculado)
+        max_tool_calls: Limite de iterações de tool calling
+
+    Returns:
+        Texto da resposta do assistente
+    """
+    vertexai.init(project=DEST_PROJECT, location=REGION)
+
+    # System prompt pode ter contexto do edital injetado
+    system_prompt = _SYSTEM_PROMPT
+    if edital_context:
+        system_prompt = (
+            f"{_SYSTEM_PROMPT}\n\n"
+            f"# Contexto do edital vinculado\n{edital_context}"
+        )
+
+    model = GenerativeModel(
+        os.getenv("LICI_CHAT_MODEL", "gemini-2.5-flash"),
+        system_instruction=system_prompt,
+        tools=[_TOOLS],
+        generation_config=GenerationConfig(
+            temperature=0.1,
+            max_output_tokens=8192,
+        ),
+    )
+
+    # Converter histórico para Content objects
+    gemini_history: list[Content] = []
+    for msg in history:
+        role = "user" if msg["role"] == "user" else "model"
+        gemini_history.append(Content(role=role, parts=[Part.from_text(msg["content"])]))
+
+    # Montar parts da mensagem atual: texto + arquivos
+    current_parts: list[Part] = []
+    if file_parts:
+        for fp in file_parts:
+            mime = fp.get("mime_type", "application/octet-stream")
+            data = fp.get("data", b"")
+            if isinstance(data, (bytes, bytearray)) and data:
+                current_parts.append(Part.from_data(data=bytes(data), mime_type=mime))
+    current_parts.append(Part.from_text(user_text))
+
+    chat_obj = model.start_chat(history=gemini_history)
+    response = chat_obj.send_message(current_parts)
+
+    tool_calls_made = 0
+    while response.candidates[0].function_calls and tool_calls_made < max_tool_calls:
+        tool_calls_made += 1
+        tool_results = []
+        for fc in response.candidates[0].function_calls:
+            result_json = _execute_tool(fc.name, dict(fc.args))
+            tool_results.append(
+                Part.from_function_response(name=fc.name, response={"result": result_json})
+            )
+        response = chat_obj.send_message(tool_results)
+
+    return response.candidates[0].content.parts[0].text.strip()
+
