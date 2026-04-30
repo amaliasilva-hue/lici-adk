@@ -410,7 +410,7 @@ def chat(
     """
     vertexai.init(project=DEST_PROJECT, location=REGION)
     model = GenerativeModel(
-        "gemini-2.5-flash-preview-04-17",
+        os.getenv("LICI_CHAT_MODEL", "gemini-2.5-flash"),
         system_instruction=_SYSTEM_PROMPT,
         tools=[_TOOLS],
         generation_config=GenerationConfig(
