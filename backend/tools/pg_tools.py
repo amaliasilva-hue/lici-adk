@@ -86,6 +86,22 @@ def get_engine() -> Engine:
     return engine
 
 
+# ── Serialization helper ──────────────────────────────────────────────────────
+
+def _serialize_row(row: dict) -> dict:
+    """Converte tipos Postgres para JSON-safe (datetime → ISO, Decimal → float)."""
+    import decimal
+    out: dict = {}
+    for k, v in row.items():
+        if hasattr(v, "isoformat"):
+            out[k] = v.isoformat()
+        elif isinstance(v, decimal.Decimal):
+            out[k] = float(v)
+        else:
+            out[k] = v
+    return out
+
+
 # ── Schema ───────────────────────────────────────────────────────────────────
 
 _DDL_ATESTADOS_CACHE = """
@@ -213,6 +229,32 @@ _DDL_EDITAIS_MIGRATIONS = [
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_json_storage JSONB",
 ]
 
+# ── Chat Sessions ─────────────────────────────────────────────────────────────
+
+_DDL_CHAT_SESSIONS = """
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    title        TEXT        NOT NULL DEFAULT 'Nova conversa',
+    edital_id    UUID        REFERENCES editais(edital_id) ON DELETE SET NULL,
+    user_email   TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS chat_sessions_updated_idx ON chat_sessions (updated_at DESC);
+"""
+
+_DDL_CHAT_MESSAGES = """
+CREATE TABLE IF NOT EXISTS chat_messages (
+    message_id       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id       UUID        NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
+    role             TEXT        NOT NULL CHECK (role IN ('user', 'assistant')),
+    content          TEXT        NOT NULL,
+    attachments_meta JSONB,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS chat_messages_session_idx ON chat_messages (session_id, created_at ASC);
+"""
+
 
 def ensure_schema() -> None:
     """Cria todas as tabelas Postgres se não existirem (idempotente)."""
@@ -225,6 +267,8 @@ def ensure_schema() -> None:
             conn.execute(text(_DDL_COMENTARIOS))
             conn.execute(text(_DDL_GATES))
             conn.execute(text(_DDL_USUARIOS))
+            conn.execute(text(_DDL_CHAT_SESSIONS))
+            conn.execute(text(_DDL_CHAT_MESSAGES))
             # Migrations — adicionam colunas se não existirem (safe para tabelas já criadas)
             for migration in _DDL_EDITAIS_MIGRATIONS:
                 conn.execute(text(migration))

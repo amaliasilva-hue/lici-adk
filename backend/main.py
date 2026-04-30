@@ -836,3 +836,151 @@ async def chat_endpoint(body: _ChatRequest) -> _ChatResponse:
         reply=reply,
         messages=[_ChatMessage(**m) for m in updated],
     )
+
+
+# ────────────────────── Chat Sessões (histórico persistente) ──────────────────
+
+from fastapi import Form, UploadFile as _UploadFile
+from backend.tools.chat_store import (
+    create_session as _cs_create,
+    list_sessions as _cs_list,
+    get_session_with_messages as _cs_get,
+    delete_session as _cs_delete,
+    add_message as _cs_add_msg,
+    get_messages as _cs_get_msgs,
+    update_session_title as _cs_retitle,
+)
+
+
+def _edital_context_str(edital_id: str) -> str | None:
+    """Monta string de contexto do edital para injetar no system prompt."""
+    try:
+        row = get_edital(edital_id)
+        if not row:
+            return None
+        parts = [f"Edital: {row.get('orgao', '')} ({row.get('uf', '')})"]
+        if row.get("objeto"):
+            parts.append(f"Objeto: {row['objeto']}")
+        if row.get("fase_atual"):
+            parts.append(f"Fase atual: {row['fase_atual']}")
+        if row.get("score_comercial") is not None:
+            import decimal
+            parts.append(f"Score comercial: {float(row['score_comercial']):.0f}%")
+        if row.get("valor_estimado"):
+            parts.append(f"Valor estimado: R$ {float(row['valor_estimado']):,.2f}")
+        if row.get("data_encerramento"):
+            parts.append(f"Encerramento: {row['data_encerramento']}")
+        return "\n".join(parts)
+    except Exception:
+        return None
+
+
+@app.get("/chat/sessions")
+async def list_chat_sessions(limit: int = 60) -> list[dict]:
+    return await asyncio.to_thread(_cs_list, limit)
+
+
+@app.post("/chat/sessions", status_code=201)
+async def create_chat_session(
+    title: str = "Nova conversa",
+    edital_id: str | None = None,
+    user_email: str | None = None,
+) -> dict:
+    return await asyncio.to_thread(_cs_create, title, edital_id, user_email)
+
+
+@app.get("/chat/sessions/{session_id}")
+async def get_chat_session(session_id: str) -> dict:
+    result = await asyncio.to_thread(_cs_get, session_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+    return result
+
+
+@app.delete("/chat/sessions/{session_id}", status_code=204)
+async def delete_chat_session(session_id: str) -> None:
+    ok = await asyncio.to_thread(_cs_delete, session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+
+
+@app.patch("/chat/sessions/{session_id}/title")
+async def rename_chat_session(session_id: str, title: str) -> dict:
+    await asyncio.to_thread(_cs_retitle, session_id, title)
+    return {"session_id": session_id, "title": title}
+
+
+@app.post("/chat/sessions/{session_id}/messages")
+async def send_session_message(
+    session_id: str,
+    text: str = Form(...),
+    files: list[_UploadFile] = File(default=[]),
+) -> dict:
+    """Envia mensagem (com arquivos opcionais) em uma sessão persistida."""
+    from backend.agents.chat_agent import chat_session as _chat_session
+
+    # Verifica que a sessão existe
+    session = await asyncio.to_thread(_cs_get, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+
+    # Processa arquivos (imagens + PDFs passados diretamente ao Gemini)
+    file_parts: list[dict] = []
+    attachments_meta: list[dict] = []
+    MAX_FILE_BYTES = 20 * 1024 * 1024  # 20 MB
+
+    for f in files:
+        if not f.filename:
+            continue
+        data = await f.read()
+        if len(data) > MAX_FILE_BYTES:
+            raise HTTPException(status_code=413, detail=f"Arquivo {f.filename} excede 20 MB")
+        mime = f.content_type or "application/octet-stream"
+        # Só aceita tipos que Gemini suporta
+        allowed = ("image/", "application/pdf", "text/plain")
+        if not any(mime.startswith(a) for a in allowed):
+            raise HTTPException(status_code=415, detail=f"Tipo não suportado: {mime}. Use imagens, PDF ou texto.")
+        file_parts.append({"mime_type": mime, "data": data})
+        attachments_meta.append({"filename": f.filename, "mime_type": mime, "size": len(data)})
+
+    # Histórico anterior como lista de dicts simples
+    history_msgs = [{"role": m["role"], "content": m["content"]} for m in session["messages"]]
+
+    # Contexto do edital vinculado (se houver)
+    edital_ctx: str | None = None
+    if session.get("edital_id"):
+        edital_ctx = await asyncio.to_thread(_edital_context_str, str(session["edital_id"]))
+
+    # Persiste mensagem do usuário
+    attach_meta_for_db = attachments_meta if attachments_meta else None
+    file_names = [a["filename"] for a in attachments_meta]
+    user_content = text
+    if file_names:
+        user_content = f"[Arquivos: {', '.join(file_names)}]\n{text}"
+
+    await asyncio.to_thread(_cs_add_msg, session_id, "user", user_content, attach_meta_for_db)
+
+    # Chama o agente (em thread)
+    try:
+        reply = await asyncio.to_thread(
+            _chat_session,
+            history_msgs,
+            text,
+            file_parts if file_parts else None,
+            edital_ctx,
+        )
+    except Exception as exc:
+        log.exception("chat_session.agent_error")
+        raise HTTPException(status_code=500, detail=f"Erro no agente: {str(exc)[:300]}")
+
+    # Persiste resposta do assistente
+    msg_row = await asyncio.to_thread(_cs_add_msg, session_id, "assistant", reply)
+
+    # Auto-titulo na primeira mensagem
+    if len(history_msgs) == 0:
+        short_title = text[:60].strip()
+        if short_title:
+            await asyncio.to_thread(_cs_retitle, session_id, short_title)
+
+    return {"reply": reply, "message_id": str(msg_row.get("message_id", ""))}
+
