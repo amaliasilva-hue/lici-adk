@@ -34,6 +34,7 @@ from backend.tools.pg_tools import (
     add_comentario, list_comentarios,
     seed_gates, list_gates, set_gate,
     STAGES_ORDER, ESTADOS_TERMINAIS,
+    get_engine,
 )
 from google.cloud import bigquery
 
@@ -844,6 +845,7 @@ from fastapi import Form, UploadFile as _UploadFile
 from backend.tools.chat_store import (
     create_session as _cs_create,
     list_sessions as _cs_list,
+    get_session as _cs_get_plain,
     get_session_with_messages as _cs_get,
     delete_session as _cs_delete,
     add_message as _cs_add_msg,
@@ -878,6 +880,67 @@ def _edital_context_str(edital_id: str) -> str | None:
 @app.get("/chat/sessions")
 async def list_chat_sessions(limit: int = 60) -> list[dict]:
     return await asyncio.to_thread(_cs_list, limit)
+
+
+@app.post("/chat/sessions/{session_id}/upload_edital", status_code=202)
+async def upload_edital_in_chat(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    file: _UploadFile = File(...),
+) -> dict:
+    """Recebe PDF de edital enviado pelo chat, inicia pipeline completo e vincula sessão."""
+    sess = await asyncio.to_thread(_cs_get_plain, session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="arquivo deve ser .pdf")
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="PDF vazio")
+    if len(pdf_bytes) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail=f"PDF excede {MAX_PDF_BYTES//(1024*1024)}MB")
+
+    analysis_id = str(uuid.uuid4())
+    _JOBS[analysis_id] = JobState(analysis_id=analysis_id, edital_filename=file.filename)
+
+    await asyncio.to_thread(
+        _cs_add_msg, session_id, "assistant",
+        f"📄 Recebi **{file.filename}**. O pipeline completo foi iniciado — extrai dados, verifica aptidão técnica e cruza com atestados. Leva ≈35s. Resultado aparece aqui quando terminar!",
+    )
+
+    def _run_and_link(aid: str, pb: bytes, fname: str, sid: str) -> None:
+        _run_pipeline(aid, pb, fname)
+        job = _JOBS.get(aid)
+        if not job:
+            return
+        if job.pg_edital_id:
+            try:
+                from sqlalchemy import text as _sqlt
+                eng = get_engine()
+                with eng.connect() as conn:
+                    conn.execute(
+                        _sqlt("UPDATE chat_sessions SET edital_id = :eid::uuid, updated_at = NOW() WHERE session_id = :sid::uuid"),
+                        {"eid": job.pg_edital_id, "sid": sid},
+                    )
+                    conn.commit()
+                orgao = (job.edital_json or {}).get("orgao", "edital")
+                score = job.result.score_aderencia if job.result else None
+                score_str = f" | Score: **{score:.0f}%**" if score is not None else ""
+                status_str = f"**{job.result.status}**" if job.result and job.result.status else "análise concluída"
+                _cs_add_msg(
+                    sid, "assistant",
+                    f"✅ **Pipeline concluído!** Edital de **{orgao}** — {status_str}{score_str}\n\n"
+                    f"Agora posso responder sobre aptidão técnica, atestados necessários, gaps e estratégia. "
+                    f"Clique em **'ver edital'** no topo para o relatório completo!",
+                )
+            except Exception as link_exc:
+                log.warning(f"upload_edital_in_chat.link_failed: {link_exc}")
+                _cs_add_msg(sid, "assistant", "⚠️ Pipeline concluído, mas erro ao vincular o edital. Acesse em Pipeline.")
+        elif job.status == "failed":
+            _cs_add_msg(sid, "assistant", f"❌ Pipeline falhou: {job.error or 'erro desconhecido'}. Tente novamente.")
+
+    background_tasks.add_task(_run_and_link, analysis_id, pdf_bytes, file.filename or "edital.pdf", session_id)
+    return {"analysis_id": analysis_id, "status": "queued", "poll_url": f"/analyze/{analysis_id}"}
 
 
 @app.post("/chat/sessions", status_code=201)
