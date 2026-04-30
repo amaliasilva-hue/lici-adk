@@ -468,11 +468,14 @@ function ChatPageInner() {
   const [isDragging, setIsDragging] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [isPolling, setIsPolling] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCountRef = useRef(0);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeSession?.messages?.length]);
   useEffect(() => { loadSessions(); }, []);
@@ -504,6 +507,37 @@ function ChatPageInner() {
       startTransition(() => setActiveSession(data));
       setTimeout(() => inputRef.current?.focus(), 80);
     } catch {}
+  }
+
+  function startPolling(sessionId: string, prevMsgCount: number) {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollCountRef.current = 0;
+    setIsPolling(true);
+    pollRef.current = setInterval(async () => {
+      pollCountRef.current += 1;
+      if (pollCountRef.current > 24) { // max 2min (24 × 5s)
+        clearInterval(pollRef.current!); pollRef.current = null; setIsPolling(false); return;
+      }
+      try {
+        const r = await fetch(`/api/proxy/chat/sessions/${sessionId}`);
+        if (!r.ok) return;
+        const data: Session = await r.json();
+        const newCount = (data.messages ?? []).length;
+        if (newCount > prevMsgCount) {
+          startTransition(() => setActiveSession(data));
+          clearInterval(pollRef.current!); pollRef.current = null; setIsPolling(false);
+        }
+      } catch {}
+    }, 3000);
+  }
+
+  async function manualRefresh() {
+    if (!activeSession) return;
+    const r = await fetch(`/api/proxy/chat/sessions/${activeSession.session_id}`);
+    if (!r.ok) return;
+    const data: Session = await r.json();
+    startTransition(() => setActiveSession(data));
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; setIsPolling(false); }
   }
 
   async function createSession(editalId?: string) {
@@ -553,7 +587,12 @@ function ChatPageInner() {
     try {
       const r = await fetch(`/api/proxy/chat/sessions/${sid}/upload_edital`, { method: 'POST', body: form });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d?.detail || `Erro ${r.status}`); }
-      await selectSession(sid);
+      // Refresh to get the "📄 Recebi..." message just posted by backend
+      const refreshed = await fetch(`/api/proxy/chat/sessions/${sid}`).then(res => res.json()).catch(() => null);
+      const msgCount = (refreshed?.messages ?? []).length;
+      startTransition(() => { if (refreshed) setActiveSession(refreshed); });
+      // Poll every 3s for up to 2min waiting for the ✅ pipeline result message
+      startPolling(sid, msgCount);
     } catch (e: any) {
       setError(e.message || 'Falha no upload do edital');
     } finally {
@@ -786,15 +825,30 @@ function ChatPageInner() {
             </div>
 
             {activeSession && (
-              <button onClick={(e) => deleteSession(activeSession.session_id, e)} title="Deletar"
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
-                style={{ color: '#334155' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,0.06)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#334155'; (e.currentTarget as HTMLElement).style.background = ''; }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isPolling && (
+                  <button onClick={manualRefresh} title="Pipeline em execução — clique para atualizar"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all"
+                    style={{ color: '#FFB340', background: 'rgba(255,179,64,0.08)', border: '1px solid rgba(255,179,64,0.2)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,179,64,0.15)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,179,64,0.08)'; }}>
+                    <svg className="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                      <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    processando…
+                  </button>
+                )}
+                <button onClick={(e) => deleteSession(activeSession.session_id, e)} title="Deletar"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0"
+                  style={{ color: '#334155' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.background = 'rgba(248,113,113,0.06)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#334155'; (e.currentTarget as HTMLElement).style.background = ''; }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
 
