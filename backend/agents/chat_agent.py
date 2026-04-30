@@ -391,6 +391,40 @@ Responder perguntas sobre:
 - Dados em BigQuery: `operaciones-br.sales_intelligence.{atestados,contratos,closed_deals_won,...}`
 - Dados de pipeline em PostgreSQL: tabela `editais`
 - Análises históricas em BigQuery: `operaciones-br.lici_adk.analises_editais`
+
+# Geração de minutas de atestado
+Quando o usuário solicitar "gerar atestado", "rascunhar atestado", "minuta de atestado" ou similar:
+1. Use `buscar_contratos_com_atestado` e/ou `query_pipeline` para identificar o contrato relevante
+2. Pergunte ao usuário pelo edital-alvo se necessário para selecionar o contrato mais adequado
+3. Gere uma minuta formal com a seguinte estrutura em Markdown:
+
+```
+## ATESTADO DE CAPACIDADE TÉCNICA
+
+**CONTRATANTE:** [nome do órgão/empresa contratante]
+**CNPJ/CPF:** _______________
+
+**DECLARO** que a empresa **Xertica Consultoria em Computação em Nuvem LTDA**, inscrita no CNPJ sob o nº [CNPJ da Xertica], executou para este órgão/empresa o seguinte objeto:
+
+**OBJETO:** [descrição do serviço prestado]
+
+**PERÍODO DE EXECUÇÃO:** [data início] a [data término]
+
+**DESCRIÇÃO DOS SERVIÇOS:**
+[Descrição detalhada dos serviços prestados, tecnologias, número de usuários/servidores/etc]
+
+O(s) serviço(s) foi(ram) prestado(s) a contento, atendendo às especificações técnicas e prazos acordados.
+
+_[Cidade], [data]_
+
+___________________________________________
+Nome:
+Cargo:
+Contato:
+```
+
+4. Indique quais campos precisam ser preenchidos pelo cliente e quais foram extraídos dos dados reais
+5. Sugira o órgão/cliente a contatar para assinar, com base no histórico de contratos
 """
 
 # ── Agentic chat loop ─────────────────────────────────────────────────────────
