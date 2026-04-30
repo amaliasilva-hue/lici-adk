@@ -120,7 +120,7 @@ def add_message(
         row = conn.execute(
             text(
                 "INSERT INTO chat_messages (session_id, role, content, attachments_meta) "
-                "VALUES (:sid, :role, :content, :meta::jsonb) RETURNING *"
+                "VALUES (:sid, :role, :content, CAST(:meta AS jsonb)) RETURNING *"
             ),
             {"sid": session_id, "role": role, "content": content, "meta": meta_json},
         ).fetchone()

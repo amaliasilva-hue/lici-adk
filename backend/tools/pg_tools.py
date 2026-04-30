@@ -516,7 +516,7 @@ def set_cache(edital_id: str, somatorio) -> None:
                     INSERT INTO atestados_cache
                         (edital_id, somatorio_json, drive_folder_id, pdfs_processados, pdfs_com_erro)
                     VALUES
-                        (:eid, :payload::jsonb,
+                        (:eid, CAST(:payload AS jsonb),
                          :folder_id, :pdfs_ok, :pdfs_err)
                     ON CONFLICT (edital_id) DO UPDATE SET
                         somatorio_json   = EXCLUDED.somatorio_json,
