@@ -919,7 +919,7 @@ async def upload_edital_in_chat(
                 eng = get_engine()
                 with eng.connect() as conn:
                     conn.execute(
-                        _sqlt("UPDATE chat_sessions SET edital_id = :eid::uuid, updated_at = NOW() WHERE session_id = :sid::uuid"),
+                        _sqlt("UPDATE chat_sessions SET edital_id = :eid, updated_at = NOW() WHERE session_id = :sid"),
                         {"eid": job.pg_edital_id, "sid": sid},
                     )
                     conn.commit()

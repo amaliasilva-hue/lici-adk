@@ -89,11 +89,16 @@ def get_engine() -> Engine:
 # ── Serialization helper ──────────────────────────────────────────────────────
 
 def _serialize_row(row: dict) -> dict:
-    """Converte tipos Postgres para JSON-safe (datetime → ISO, Decimal → float)."""
+    """Converte tipos Postgres para JSON-safe (datetime → ISO, Decimal → float, UUID → str)."""
     import decimal
+    import uuid as _uuid
     out: dict = {}
     for k, v in row.items():
-        if hasattr(v, "isoformat"):
+        if v is None:
+            out[k] = v
+        elif isinstance(v, _uuid.UUID):
+            out[k] = str(v)
+        elif hasattr(v, "isoformat"):
             out[k] = v.isoformat()
         elif isinstance(v, decimal.Decimal):
             out[k] = float(v)
