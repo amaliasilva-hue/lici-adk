@@ -219,22 +219,23 @@ select.input option { background: #1B3351; color: #E2E8F0; }
 
 /* ── Stage column (kanban) ───────────────────────────────── */
 .stage-col {
-  @apply flex-shrink-0 w-56 rounded-2xl p-3 flex flex-col gap-2;
+  @apply flex-shrink-0 rounded-xl p-2 flex flex-col gap-1.5;
+  width: 172px;
   background: rgba(0,0,0,0.12);
   border: 1px solid rgba(255,255,255,0.05);
 }
 .stage-col-title {
-  @apply text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between;
+  @apply text-[10px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between;
   color: #64748B;
 }
 .kanban-card {
-  @apply rounded-xl p-3 cursor-pointer transition-all duration-200;
+  @apply rounded-lg p-2 cursor-pointer transition-all duration-200;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.06);
 }
 .kanban-card:hover {
   border-color: rgba(0,190,255,0.4);
-  box-shadow: 0 0 0 1px rgba(4,126,169,0.15), 0 8px 24px rgba(0,190,255,0.08);
+  box-shadow: 0 0 0 1px rgba(4,126,169,0.15), 0 4px 16px rgba(0,190,255,0.08);
   transform: translateY(-1px);
   background: rgba(255,255,255,0.04);
 }

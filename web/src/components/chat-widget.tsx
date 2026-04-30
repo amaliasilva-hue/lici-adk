@@ -267,8 +267,9 @@ export default function ChatWidget() {
         <div
           className="chat-widget-open fixed bottom-24 right-6 z-50 flex flex-col rounded-2xl overflow-hidden"
           style={{
-            width: 'min(420px, calc(100vw - 24px))',
-            height: 'min(620px, calc(100vh - 120px))',
+            width: 'min(380px, calc(100vw - 24px))',
+            height: 'min(540px, calc(100vh - 120px))',
+            maxHeight: '540px',
             background: 'linear-gradient(180deg, rgba(14,26,42,0.97) 0%, rgba(10,19,32,0.98) 100%)',
             border: '1px solid rgba(0,190,255,0.2)',
             boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,190,255,0.08), inset 0 1px 0 rgba(255,255,255,0.05)',
