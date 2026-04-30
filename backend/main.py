@@ -798,3 +798,41 @@ async def patch_gate(edital_id: str, gate_key: str, body: _GatePatchRequest) -> 
     if not row:
         raise HTTPException(status_code=404, detail=f"gate '{gate_key}' não encontrado para stage '{stage}'")
     return _serialize_edital(row)
+
+
+# ────────────────────────────── Chat Agêntico ─────────────────────────────────
+
+class _ChatMessage(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+class _ChatRequest(BaseModel):
+    messages: list[_ChatMessage]  # histórico completo incluindo a última mensagem do user
+
+class _ChatResponse(BaseModel):
+    reply: str
+    messages: list[_ChatMessage]  # histórico atualizado para o cliente cachear
+
+@app.post("/chat")
+async def chat_endpoint(body: _ChatRequest) -> _ChatResponse:
+    """Chat agêntico com acesso a atestados, contratos, análises e pipeline."""
+    from backend.agents.chat_agent import chat as _chat
+
+    if not body.messages:
+        raise HTTPException(status_code=400, detail="messages não pode ser vazio")
+
+    last = body.messages[-1]
+    if last.role != "user":
+        raise HTTPException(status_code=400, detail="última mensagem deve ser do usuário")
+
+    msgs = [m.model_dump() for m in body.messages]
+    try:
+        reply, updated = await asyncio.to_thread(_chat, msgs)
+    except Exception as exc:
+        log.exception("chat.endpoint_error")
+        raise HTTPException(status_code=500, detail=f"Erro no agente: {str(exc)[:300]}")
+
+    return _ChatResponse(
+        reply=reply,
+        messages=[_ChatMessage(**m) for m in updated],
+    )
