@@ -184,12 +184,12 @@ export default function PipelinePage() {
   const aptoCount   = editais.filter(e => e.score_comercial != null && e.score_comercial >= 70).length;
 
   return (
-    <div className={`space-y-6 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
+    <div className={`space-y-4 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Pipeline de Editais</h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <h1 className="font-poppins font-bold text-xl md:text-2xl text-white">Pipeline de Editais</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
             {activeCount} em andamento · {aptoCount} APTO (score ≥ 70)
           </p>
         </div>
@@ -206,7 +206,7 @@ export default function PipelinePage() {
 
       {/* Kanban */}
       <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6">
-        <div className="flex gap-2.5 min-w-max">
+        <div className="flex gap-2 min-w-max">
           {STAGES.map((stage, idx) => {
             const cards   = byStage(stage.key);
             const prevStage = idx > 0 ? STAGES[idx - 1].key : null;
@@ -214,10 +214,10 @@ export default function PipelinePage() {
             const stageIds = cards.map((c) => c.edital_id);
             const allStageSelected = stageIds.length > 0 && stageIds.every((id) => selected.has(id));
             return (
-              <div key={stage.key} className="stage-col w-56">
+              <div key={stage.key} className="stage-col">
                 <div className="stage-col-title">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage.color }} />
                     <span>{stage.label}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -245,7 +245,7 @@ export default function PipelinePage() {
                       className={`kanban-card group relative ${isSelected ? 'is-selected' : ''} ${isRemoving ? 'card-removing' : ''}`}
                     >
                       {/* Selection dot — top-left */}
-                      <div className="absolute top-2 left-2">
+                      <div className="absolute top-1.5 left-1.5">
                         <SelectDot checked={isSelected} onChange={() => toggleSelected(e.edital_id)} />
                       </div>
                       {/* Trash — top-right */}
@@ -260,13 +260,13 @@ export default function PipelinePage() {
                         <TrashIcon />
                       </button>
 
-                      <Link href={`/edital/${e.edital_id}`} className="block mb-2 pl-7 pr-6">
-                        <p className="text-xs font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-primary-light transition-colors">
+                      <Link href={`/edital/${e.edital_id}`} className="block mb-1.5 pl-6 pr-5">
+                        <p className="text-[11px] font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-primary-light transition-colors">
                           {e.orgao || '—'}
                         </p>
-                        <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
                       </Link>
-                      <div className="flex items-center gap-1 flex-wrap pl-7">
+                      <div className="flex items-center gap-1 flex-wrap pl-6">
                         {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
                         <ScoreBadge score={e.score_comercial} />
                         <PriBadge pri={e.prioridade} />
