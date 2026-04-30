@@ -129,6 +129,10 @@ NUNCA invente variações. Use APENAS estes valores literais:
 - `gaps[].tipo` ∈ {"ausencia_total", "volumetria_insuficiente", "temporal", "certificacao", "certidao"}
   (snake_case, sem acento — NUNCA "Volumetria", "Ausência Total", "Certificação")
 
+- `requisitos_cascata[].niveis[].contribuintes[].fonte` ∈ {"atestado", "contrato", "drive_pdf"}
+  (APENAS estes três — NUNCA "yaml", "deal_won", "certificado". Use "drive_pdf" para evidências
+  vindas do somatório Drive; nunca cite o perfil YAML como contribuinte de volumetria.)
+
 - `status` ∈ {"APTO", "APTO COM RESSALVAS", "INAPTO", "NO-GO"} (maiúsculas exatas)
 
 Se o requisito tem múltiplas fontes, escolha A MAIS FORTE (atestado > contrato > deal_won > certificado > yaml) e crie UMA entrada por evidência.
@@ -285,6 +289,31 @@ def _normalize_enums(d: dict) -> dict:
     for g in d.get("gaps") or []:
         if "tipo" in g:
             g["tipo"] = _pick(g["tipo"], _GAP_TIPO_MAP, valid_gap, "ausencia_total")
+
+    # requisitos_cascata[].niveis[].contribuintes[].fonte ∈ {atestado, contrato, drive_pdf}
+    valid_contrib = {"atestado", "contrato", "drive_pdf"}
+    contrib_map = {
+        "atestados": "atestado",
+        "contratos": "contrato",
+        "contratos_com_atestado": "contrato",
+        "contratos_sem_atestado": "contrato",
+        "deal_won": "contrato",
+        "deals_won": "contrato",
+        "closed_deals_won": "contrato",
+        "certificado": "drive_pdf",
+        "certificados": "drive_pdf",
+        "certificados_xertica": "drive_pdf",
+        "yaml": "drive_pdf",
+        "xertica_profile": "drive_pdf",
+        "xertica_profile.yaml": "drive_pdf",
+        "drive": "drive_pdf",
+        "pdf": "drive_pdf",
+    }
+    for rc in d.get("requisitos_cascata") or []:
+        for nv in rc.get("niveis") or []:
+            for c in nv.get("contribuintes") or []:
+                if "fonte" in c:
+                    c["fonte"] = _pick(c["fonte"], contrib_map, valid_contrib, "drive_pdf")
 
     # status: padroniza maiúsculas
     if isinstance(d.get("status"), str):

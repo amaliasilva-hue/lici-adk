@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import ChatWidget from '@/components/chat-widget';
 
 export const metadata: Metadata = {
   title: 'Licitações · Xertica',
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-8">
           {children}
         </main>
+        <ChatWidget />
       </body>
     </html>
   );
