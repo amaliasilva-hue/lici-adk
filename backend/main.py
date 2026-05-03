@@ -21,7 +21,7 @@ from typing import Literal
 import httpx
 from sqlalchemy import text
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from backend.agents.orchestrator_adk import analisar_edital
@@ -50,6 +50,9 @@ log = logging.getLogger("lici_adk.api")
 
 app = FastAPI(title="lici-adk", version="0.1.0")
 
+# Internal self-call client (used by webhooks to delegate to upload endpoints)
+_SELF_BASE = "http://localhost:8080"
+_client = httpx.AsyncClient(base_url=_SELF_BASE, timeout=60.0)
 
 @app.on_event("startup")
 async def _startup() -> None:
@@ -1234,6 +1237,62 @@ async def mark_read(
     count = await asyncio.to_thread(mark_notifications_read, user_email, ids)
     return {"marked_read": count}
 
+
+# ────────────────────────── Webhook ingest ───────────────────────────────────
+
+class _WebhookIngestRequest(BaseModel):
+    pdf_url: str | None = None
+    drive_file_id: str | None = None
+    pdf_base64: str | None = None
+    orgao: str | None = None
+    uf: str | None = None
+    vendedor_email: str | None = None
+
+
+@app.post("/webhooks/ingest", status_code=202)
+async def webhook_ingest(
+    background_tasks: BackgroundTasks,
+    body: _WebhookIngestRequest,
+    x_webhook_secret: str | None = Header(None, alias="X-Webhook-Secret"),
+) -> dict:
+    """Dispara ingestão via webhook externo. Protegido por LICI_WEBHOOK_SECRET."""
+    expected = os.getenv("LICI_WEBHOOK_SECRET", "")
+    if expected and x_webhook_secret != expected:
+        raise HTTPException(status_code=401, detail="webhook secret inválido")
+
+    if not any([body.pdf_url, body.drive_file_id, body.pdf_base64]):
+        raise HTTPException(status_code=422, detail="Forneça pdf_url, drive_file_id ou pdf_base64")
+
+    async def _run():
+        try:
+            if body.drive_file_id:
+                r = await _client.post(
+                    f"{_SELF_BASE}/upload/drive",
+                    json={"file_id": body.drive_file_id, "orgao": body.orgao, "uf": body.uf,
+                          "vendedor_email": body.vendedor_email},
+                )
+            elif body.pdf_url:
+                r = await _client.post(
+                    f"{_SELF_BASE}/upload/url",
+                    json={"url": body.pdf_url, "orgao": body.orgao, "uf": body.uf,
+                          "vendedor_email": body.vendedor_email},
+                )
+            else:
+                # base64 → upload bytes
+                import base64
+                pdf_bytes = base64.b64decode(body.pdf_base64)
+                from io import BytesIO
+                files = {"file": ("webhook.pdf", BytesIO(pdf_bytes), "application/pdf")}
+                data = {k: v for k, v in [("orgao", body.orgao), ("uf", body.uf),
+                                           ("vendedor_email", body.vendedor_email)] if v}
+                r = await _client.post(f"{_SELF_BASE}/upload", files=files, data=data)
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            logger.error("webhook_ingest background error: %s", exc)
+
+    background_tasks.add_task(_run)
+    return {"queued": True}
 
 # ────────────────────────────── Chat Agêntico ─────────────────────────────────
 
