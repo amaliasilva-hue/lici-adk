@@ -28,8 +28,21 @@ async function proxyMethod(req: NextRequest, params: { path: string[] }, method:
   const opts: any = { method, headers: { 'content-type': ct }, rawBody: buf };
   if (buf.length === 0) delete opts.rawBody;
   const r = await backendFetch(buildPath(params.path, search), opts);
+  const resCt = r.headers.get('content-type') || '';
+  // Pipe SSE responses directly without buffering
+  if (resCt.includes('text/event-stream')) {
+    return new NextResponse(r.body, {
+      status: r.status,
+      headers: {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache, no-transform',
+        'connection': 'keep-alive',
+        'x-accel-buffering': 'no',
+      },
+    });
+  }
   const body = await r.text();
-  return new NextResponse(body || null, { status: r.status, headers: { 'content-type': r.headers.get('content-type') || 'application/json' } });
+  return new NextResponse(body || null, { status: r.status, headers: { 'content-type': resCt || 'application/json' } });
 }
 
 export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {

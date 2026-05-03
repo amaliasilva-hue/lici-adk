@@ -54,6 +54,18 @@ export default function ConfigPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* WIP Banner */}
+      <div className="rounded-2xl px-5 py-4 flex items-start gap-4"
+        style={{ background: 'rgba(255,179,64,0.06)', border: '1px solid rgba(255,179,64,0.25)' }}>
+        <span className="text-xl mt-0.5">🔒</span>
+        <div>
+          <p className="font-semibold text-sm" style={{ color: 'var(--x-orange)' }}>Página interna em desenvolvimento</p>
+          <p className="text-xs text-white/40 mt-0.5">
+            As alterações são salvas localmente neste navegador. A integração com o backend (POST /config/prompts) ainda não está disponível.
+          </p>
+        </div>
+      </div>
+
       <div>
         <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Configurações</h1>
         <p className="text-slate-400 text-sm mt-1">

@@ -2,29 +2,34 @@ import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ChatWidget from '@/components/chat-widget';
+import NavLinks from '@/components/nav-links';
+import NotificationBell from '@/components/notification-bell';
 
 export const metadata: Metadata = {
   title: 'Licitações · Xertica',
   description: 'Análise de licitações públicas com IA agêntica',
+  icons: {
+    icon:  'https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/X%20-%20simbolo/Copy%20of%20X_symbol_variation4_Red_white.png',
+    apple: 'https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/X%20-%20simbolo/Copy%20of%20X_symbol_variation4_Red_white.png',
+  },
 };
-
-const NAV = [
-  { href: '/',          label: 'Pipeline' },
-  { href: '/upload',    label: 'Upload' },
-  { href: '/historico', label: 'Histórico' },
-  { href: '/chat',      label: 'Chat IA' },
-  { href: '/config',    label: 'Config' },
-  { href: '/admin',     label: 'Admin' },
-];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className="dark">
-      <body className="bg-navy-800 text-slate-300 antialiased">
+      <body className="text-slate-300 antialiased" style={{ background: 'var(--bg-deep)' }}>
+        {/* ── Brandbook background effects ── */}
+        <div className="bg-grid" aria-hidden="true" />
+        <div className="bg-orbs" aria-hidden="true">
+          <div className="orb orb-cyan" />
+          <div className="orb orb-pink" />
+          <div className="orb orb-green" />
+        </div>
+        <div className="noise-overlay" aria-hidden="true" />
         {/* ── Premium Header ── */}
-        <header className="sticky top-0 z-50 border-b border-white/[0.06]"
-            style={{ background: 'rgba(10,19,32,0.88)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-          <div className="max-w-screen-2xl mx-auto px-6 flex items-center justify-between h-14">
+        <header className="sticky top-0 z-50 header-border"
+            style={{ background: 'rgba(3,7,13,0.88)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
+          <div className="max-w-screen-2xl mx-auto px-8 flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-3 shrink-0 group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -35,37 +40,34 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 />
                 <div className="hidden sm:flex items-center gap-2">
                   <span className="w-px h-4 bg-white/10" />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                     Licitações
                   </span>
                 </div>
               </Link>
 
-              <nav className="hidden sm:flex items-center gap-0.5">
-                {NAV.map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="px-3.5 py-1.5 rounded-lg text-[13px] font-medium text-white/45 hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </nav>
+              <NavLinks />
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <span className="hidden md:inline text-[11px] text-white/20 font-medium tracking-wide">
                 Xertica Enterprise
               </span>
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-primary to-brand-primaryLight flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-brand-primary/20">
-                X
+              <NotificationBell />
+              {/* Xertica X symbol avatar — white variant to stay visible on dark bg */}
+              <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/15 shadow-lg shadow-black/30 hover:ring-white/30 transition-all bg-black/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/X%20-%20simbolo/Copy%20of%20X_symbol_variation4_Red_white.png"
+                  alt="Xertica"
+                  className="w-full h-full object-contain p-0.5"
+                />
               </div>
             </div>
           </div>
         </header>
 
-        <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-4">
+        <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
           {children}
         </main>
         <ChatWidget />
@@ -73,3 +75,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
