@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   DndContext,
@@ -62,11 +62,90 @@ function PriBadge({ pri }: { pri?: number }) {
   return <span className={`badge ${colors[pri] ?? 'badge-gray'}`}>{labels[pri]}</span>;
 }
 
+// ── Quick Note Popover ────────────────────────────────────────────────────────
+function QuickNote({ editalId, onSaved }: { editalId: string; onSaved: () => void }) {
+  const [open, setOpen]   = useState(false);
+  const [text, setText]   = useState('');
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  async function save() {
+    const t = text.trim();
+    if (!t || saving) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/proxy/editais/${editalId}/comentarios`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ texto: t, autor_email: 'pipeline' }),
+      });
+      setText('');
+      setOpen(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        title="Adicionar nota rápida"
+        onClick={() => setOpen(o => !o)}
+        className="text-white/20 hover:text-cyan-400 transition-colors p-0.5"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute bottom-6 left-0 z-[100] w-56 rounded-xl shadow-2xl p-3 space-y-2"
+          style={{ background: '#0d131f', border: '1px solid rgba(255,255,255,0.10)' }}>
+          <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Nota rápida</p>
+          <textarea
+            autoFocus
+            maxLength={200}
+            rows={3}
+            className="w-full text-xs bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-white/80 resize-none outline-none focus:border-cyan-500/50 placeholder-white/20"
+            placeholder="Adicionar anotação…"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) save(); }}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-white/15">{text.length}/200</span>
+            <div className="flex gap-1.5">
+              <button onClick={() => setOpen(false)} className="text-[11px] text-white/30 hover:text-white/60 px-2 py-0.5 rounded">Cancelar</button>
+              <button
+                disabled={!text.trim() || saving}
+                onClick={save}
+                className="text-[11px] px-2.5 py-0.5 rounded-lg font-medium disabled:opacity-40 transition-opacity"
+                style={{ background: 'var(--x-cyan)', color: '#000' }}
+              >
+                {saving ? '…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Droppable Kanban Column ───────────────────────────────────────────────────
 function KanbanColumn({
   stage, cards, idx, prevStage, nextStage,
   allStageSelected, selected, removingIds, moving, deleting,
-  onSelectAll, onToggle, onMoveTo, onDelete,
+  onSelectAll, onToggle, onMoveTo, onDelete, reload,
 }: {
   stage: { key: string; label: string; color: string };
   cards: Edital[];
@@ -82,6 +161,7 @@ function KanbanColumn({
   onToggle: (id: string) => void;
   onMoveTo: (e: Edital, stage: string) => void;
   onDelete: (e: Edital) => void;
+  reload: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.key });
 
@@ -167,19 +247,25 @@ function KanbanColumn({
                 </button>
               )}
             </div>
-            {/* Comment count (always visible when > 0) */}
-            {(e.comentarios_count ?? 0) > 0 && (
-              <Link
-                href={`/edital/${e.edital_id}#comentarios`}
-                onClick={(ev) => ev.stopPropagation()}
-                className="flex items-center gap-1 text-[10px] text-white/30 hover:text-cyan-400 transition-colors mt-1.5 pl-6"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-                {e.comentarios_count}
-              </Link>
-            )}
+            {/* Comment count + quick note */}
+            <div className="flex items-center gap-2 mt-1.5 pl-6">
+              {(e.comentarios_count ?? 0) > 0 && (
+                <Link
+                  href={`/edital/${e.edital_id}#comentarios`}
+                  onClick={(ev) => ev.stopPropagation()}
+                  className="flex items-center gap-1 text-[10px] text-white/30 hover:text-cyan-400 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                  </svg>
+                  {e.comentarios_count}
+                </Link>
+              )}
+              <QuickNote
+                editalId={e.edital_id}
+                onSaved={reload}
+              />
+            </div>
           </div>
         );
       })}
@@ -530,6 +616,7 @@ export default function PipelinePage() {
                   onToggle={toggleSelected}
                   onMoveTo={moveTo}
                   onDelete={askDeleteOne}
+                  reload={load}
                 />
               );
             })}
