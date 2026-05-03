@@ -630,6 +630,7 @@ export default function EditalPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [tab, setTab] = useState<'resumo' | 'comercial' | 'juridico' | 'habilitacao'>('resumo');
   const [juridicError, setJuridicError] = useState<string | null>(null);
+  const [historicoOrgao, setHistoricoOrgao] = useState<{ rows: any[]; win_rate: number | null; avg_score: number | null; avg_ticket: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -654,6 +655,24 @@ export default function EditalPage() {
       return () => clearTimeout(t);
     }
   }, [edital, load]);
+
+  // Fetch historico-orgao once when edital loads
+  useEffect(() => {
+    if (!edital?.edital_id || !edital.orgao) return;
+    fetch(`/api/proxy/editais/${edital.edital_id}/historico-orgao`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setHistoricoOrgao({
+            rows: data.participacoes ?? [],
+            win_rate: data.win_rate ?? null,
+            avg_score: data.score_medio ?? null,
+            avg_ticket: 0,
+          });
+        }
+      })
+      .catch(() => null);
+  }, [edital?.edital_id, edital?.orgao]);
 
   async function postComentario() {
     if (!comentario.trim() || !edital) return;
@@ -948,7 +967,81 @@ export default function EditalPage() {
       {/* ── Análise Comercial ───────────────────────────── */}
       {tab === 'comercial' && parecer && (
         <div className="space-y-4">
-          <h2 className="font-poppins font-bold text-lg text-slate-900">Análise Comercial</h2>
+          <h2 className="font-poppins font-bold text-lg text-white">Análise Comercial</h2>
+
+          {/* Score breakdown card */}
+          {score != null && (
+            <div className="card space-y-4">
+              {/* Score bar */}
+              <div className="flex items-end gap-4">
+                <div>
+                  <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Score atual</p>
+                  <p className={`text-5xl font-bold font-poppins leading-none ${scoreColor(score)}`}>{score}%</p>
+                </div>
+                {/* Max achievable — score + gaps count as achievable if solved */}
+                {(() => {
+                  const gaps = parecer.gaps ?? [];
+                  const gapPenalty = gaps.length * 5; // rough: each gap costs ~5pts
+                  const maxAchievable = Math.min(100, score + gapPenalty);
+                  return maxAchievable > score ? (
+                    <div className="mb-1">
+                      <p className="text-xs text-white/25 mb-1">Máximo alcançável</p>
+                      <p className="text-2xl font-semibold font-poppins text-white/40">{maxAchievable}%</p>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+              {/* Visual bar */}
+              <div className="space-y-2">
+                <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden relative">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${score}%`,
+                      background: score >= 70 ? 'linear-gradient(90deg,#52c41a,#C0FF7D)' : score >= 45 ? 'linear-gradient(90deg,#047EA9,#00BEFF)' : 'linear-gradient(90deg,#9e1212,#E14849)',
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-white/20">
+                  <span>0%</span>
+                  <span className="text-orange-400/70">45% (limiar)</span>
+                  <span className="text-green-400/70">70% (apto)</span>
+                  <span>100%</span>
+                </div>
+              </div>
+
+              {/* Status badge + go-nogo */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {parecer.status && (
+                  <span className={`badge ${statusBadge(parecer.status)} text-sm px-3 py-1`}>{parecer.status}</span>
+                )}
+                {parecer.bloqueio_camada_1 && (
+                  <span className="badge badge-red text-xs">Bloqueio camada 1</span>
+                )}
+              </div>
+
+              {/* Solicitar atestado CTA */}
+              {(parecer.gaps?.length ?? 0) > 0 && (
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-xs font-semibold text-white/50">
+                      {parecer.gaps!.length} gap(s) de habilitação
+                    </p>
+                    <p className="text-xs text-white/25 mt-0.5">
+                      Solicite atestados para elevar o score
+                    </p>
+                  </div>
+                  <a
+                    href="#habilitacao-tab"
+                    onClick={(e) => { e.preventDefault(); setTab('habilitacao'); }}
+                    className="btn btn-primary text-xs px-3 py-1.5"
+                  >
+                    Ver gaps de habilitação →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Estratégia */}
           {parecer.estrategia && (
@@ -1200,6 +1293,68 @@ export default function EditalPage() {
               {postingComment ? '…' : 'Enviar'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── Histórico do órgão ──────────────────────────── */}
+      {tab === 'resumo' && (
+        <div className="card space-y-3" id="historico-orgao">
+          <h2 className="font-poppins font-bold text-base text-white flex items-center gap-2">
+            {edital.orgao || 'Órgão'}
+            <span className="text-xs font-normal text-white/30">· participações anteriores</span>
+          </h2>
+          {historicoOrgao === null ? (
+            <p className="text-xs text-white/25 py-2">Carregando histórico…</p>
+          ) : historicoOrgao.rows.length === 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0" />
+              <p className="text-xs text-cyan-400">Primeira participação com este órgão.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-6 text-xs text-white/40 pb-1 border-b border-white/[0.06]">
+                {historicoOrgao.win_rate != null && (
+                  <span>Win rate: <strong className="text-green-400">{historicoOrgao.win_rate}%</strong></span>
+                )}
+                {historicoOrgao.avg_score != null && (
+                  <span>Score médio: <strong className="text-cyan-400">{historicoOrgao.avg_score}%</strong></span>
+                )}
+              </div>
+              <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
+                {historicoOrgao.rows.map((r: any) => {
+                  const isWon = ['ganho', 'homologado'].includes(r.estado_terminal ?? r.fase_atual ?? '');
+                  const isLost = ['perdido', 'inabilitado', 'revogado'].includes(r.estado_terminal ?? '');
+                  return (
+                    <div key={r.edital_id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-white/[0.04] last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${
+                          isWon ? 'bg-green-500/15 text-green-400' : isLost ? 'bg-red-500/15 text-red-400' : 'bg-white/[0.06] text-white/30'
+                        }`}>
+                          {isWon ? '✓' : isLost ? '✗' : '·'}
+                        </span>
+                        <a href={`/edital/${r.edital_id}`} className="text-white/60 hover:text-cyan-400 truncate transition-colors">
+                          {r.numero_pregao || r.objeto || r.edital_id}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-white/35">
+                        {r.score_comercial != null && (
+                          <span className={r.score_comercial >= 70 ? 'text-green-400' : r.score_comercial >= 45 ? 'text-cyan-400' : 'text-red-400'}>
+                            {r.score_comercial}%
+                          </span>
+                        )}
+                        {r.valor_estimado && (
+                          <span>R$ {(r.valor_estimado / 1e6).toFixed(1)}M</span>
+                        )}
+                        {r.criado_em && (
+                          <span className="hidden sm:inline">{new Date(r.criado_em).toLocaleDateString('pt-BR', { year: 'numeric', month: 'short' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 

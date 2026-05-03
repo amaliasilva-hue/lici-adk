@@ -651,23 +651,57 @@ function ChatPageInner() {
       form.append('text', text || '(arquivo)');
       for (const pf of capturedFiles) form.append('files', pf.file, pf.file.name);
 
-      const r = await fetch(`/api/proxy/chat/sessions/${sid}/messages`, { method: 'POST', body: form });
+      const r = await fetch(`/api/proxy/chat/sessions/${sid}/messages/stream`, { method: 'POST', body: form });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
         throw new Error(d?.detail || `Erro ${r.status}`);
       }
-      const data = await r.json();
-      const replyMsg: ChatMessage = {
-        message_id: data.message_id, role: 'assistant', content: data.reply, created_at: new Date().toISOString(),
-      };
+
+      const reader = r.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let messageId = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          if (!part.startsWith('data: ')) continue;
+          let payload: any;
+          try { payload = JSON.parse(part.slice(6)); } catch { continue; }
+          if (payload.error) throw new Error(payload.error);
+          if (payload.chunk) {
+            setActiveSession(prev => {
+              if (!prev) return prev;
+              const msgs = [...(prev.messages ?? [])];
+              const pi = msgs.findLastIndex((m: ChatMessage) => m.pending);
+              if (pi >= 0) msgs[pi] = { ...msgs[pi], content: (msgs[pi].content ?? '') + payload.chunk };
+              return { ...prev, messages: msgs };
+            });
+          }
+          if (payload.done) { messageId = payload.message_id ?? ''; }
+        }
+      }
+
+      // Finalise: remove pending flag, set message_id
       startTransition(() => {
         setActiveSession(prev => {
           if (!prev) return prev;
-          return { ...prev, messages: [...(prev.messages ?? []).filter(m => !m.pending), replyMsg] };
+          const finalContent = prev.messages?.find((m: ChatMessage) => m.pending)?.content ?? '';
+          const replyMsg: ChatMessage = {
+            message_id: messageId, role: 'assistant', content: finalContent,
+            created_at: new Date().toISOString(),
+          };
+          return { ...prev, messages: [...(prev.messages ?? []).filter((m: ChatMessage) => !m.pending), replyMsg] };
         });
-        setSessions(prev => prev.map(s =>
-          s.session_id === sid ? { ...s, last_message: data.reply.slice(0, 80), updated_at: new Date().toISOString() } : s
-        ));
+        setSessions(prev => prev.map(s => {
+          if (s.session_id !== sid) return s;
+          const lastContent = activeSession?.messages?.find((m: ChatMessage) => m.pending)?.content ?? '';
+          return { ...s, last_message: lastContent.slice(0, 80), updated_at: new Date().toISOString() };
+        }));
         if ((session?.messages ?? []).length === 0) setTimeout(loadSessions, 1200);
       });
       capturedFiles.forEach(f => { if (f.localUrl) URL.revokeObjectURL(f.localUrl); });

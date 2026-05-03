@@ -146,37 +146,164 @@ export function ToastStack({ toasts, onClose }: { toasts: Toast[]; onClose: (id:
 }
 
 /* ══════════════════════════════════════════════════════════
-   Bulk action bar (sticky)
+   Bulk action bar (sticky) — with "More actions" menu
    ══════════════════════════════════════════════════════════ */
+const STAGE_OPTIONS = [
+  { key: 'identificacao', label: 'Identificação' },
+  { key: 'analise',       label: 'Análise' },
+  { key: 'pre_disputa',   label: 'Pré-disputa' },
+  { key: 'proposta',      label: 'Proposta' },
+  { key: 'disputa',       label: 'Disputa' },
+  { key: 'habilitacao',   label: 'Habilitação' },
+  { key: 'recursos',      label: 'Recursos' },
+  { key: 'homologado',    label: 'Homologado' },
+];
+
+type BulkMenu = 'none' | 'vendedor' | 'prioridade' | 'fase';
+
 export function BulkActionBar({
-  count, onClear, onDelete, busy,
+  count, onClear, onDelete, onBulkUpdate, busy,
 }: {
   count: number;
   onClear: () => void;
   onDelete: () => void;
+  onBulkUpdate?: (fields: Record<string, unknown>) => Promise<void>;
   busy: boolean;
 }) {
+  const [menu, setMenu] = useState<BulkMenu>('none');
+  const [vendedor, setVendedor] = useState('');
+  const [prioridade, setPrioridade] = useState<string>('1');
+  const [fase, setFase] = useState<string>('analise');
+  const [applying, setApplying] = useState(false);
+
+  // close menu when selection is cleared
+  useEffect(() => { if (count === 0) setMenu('none'); }, [count]);
+
   if (count === 0) return null;
+
+  async function applyBulk(fields: Record<string, unknown>) {
+    if (!onBulkUpdate) return;
+    setApplying(true);
+    try { await onBulkUpdate(fields); setMenu('none'); }
+    finally { setApplying(false); }
+  }
+
   return (
-    <div className="bulk-bar">
-      <div className="flex items-center gap-3">
-        <span className="bulk-bar-count">{count}</span>
-        <span className="text-white font-medium">
-          {count === 1 ? 'item selecionado' : 'itens selecionados'}
-        </span>
-        <span className="hidden sm:inline text-xs text-slate-500 ml-2">
-          <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[10px] font-mono">Esc</kbd> para limpar
-        </span>
+    <>
+      {/* Inline input panel above bar */}
+      {menu !== 'none' && (
+        <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
+          <div className="card shadow-2xl space-y-3" style={{ borderColor: 'rgba(0,190,255,0.25)' }}>
+            {menu === 'vendedor' && (
+              <>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">Atribuir vendedor</p>
+                <input
+                  type="email"
+                  value={vendedor}
+                  onChange={(e) => setVendedor(e.target.value)}
+                  placeholder="vendedor@xertica.com"
+                  className="input w-full text-sm"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') applyBulk({ vendedor_email: vendedor }); if (e.key === 'Escape') setMenu('none'); }}
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setMenu('none')} className="btn btn-ghost text-xs">Cancelar</button>
+                  <button onClick={() => applyBulk({ vendedor_email: vendedor })} disabled={!vendedor || applying} className="btn btn-primary text-xs disabled:opacity-40">
+                    {applying ? 'Aplicando…' : `Aplicar (${count})`}
+                  </button>
+                </div>
+              </>
+            )}
+            {menu === 'prioridade' && (
+              <>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">Mudar prioridade</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPrioridade(String(p))}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${prioridade === String(p) ? 'bg-pink-500/20 border border-pink-500/50 text-pink-300' : 'border border-white/10 text-white/40 hover:border-white/25'}`}
+                    >
+                      P{p}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setMenu('none')} className="btn btn-ghost text-xs">Cancelar</button>
+                  <button onClick={() => applyBulk({ prioridade: Number(prioridade) })} disabled={applying} className="btn btn-primary text-xs disabled:opacity-40">
+                    {applying ? 'Aplicando…' : `Aplicar (${count})`}
+                  </button>
+                </div>
+              </>
+            )}
+            {menu === 'fase' && (
+              <>
+                <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">Mover para fase</p>
+                <select value={fase} onChange={(e) => setFase(e.target.value)} className="input w-full text-sm">
+                  {STAGE_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setMenu('none')} className="btn btn-ghost text-xs">Cancelar</button>
+                  <button onClick={() => applyBulk({ fase_atual: fase })} disabled={applying} className="btn btn-primary text-xs disabled:opacity-40">
+                    {applying ? 'Aplicando…' : `Mover (${count})`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="bulk-bar">
+        <div className="flex items-center gap-3">
+          <span className="bulk-bar-count">{count}</span>
+          <span className="text-white font-medium">
+            {count === 1 ? 'item selecionado' : 'itens selecionados'}
+          </span>
+          <span className="hidden sm:inline text-xs text-slate-500 ml-2">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[10px] font-mono">Esc</kbd> para limpar
+          </span>
+        </div>
+        <div className="flex gap-2 items-center">
+          {onBulkUpdate && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenu(menu === 'none' ? 'vendedor' : 'none')}
+                disabled={busy || applying}
+                className="btn btn-ghost text-xs gap-1"
+              >
+                ⋯ Mais ações
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              {menu !== 'none' && (
+                <div className="absolute bottom-full mb-2 right-0 bg-[#0d1117] border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[160px] z-50">
+                  {(['vendedor', 'prioridade', 'fase'] as BulkMenu[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMenu(m)}
+                      className={`w-full text-left px-4 py-2.5 text-xs hover:bg-white/[0.06] transition-colors ${menu === m ? 'text-cyan-400' : 'text-white/60'}`}
+                    >
+                      {m === 'vendedor'   && '👤 Atribuir vendedor'}
+                      {m === 'prioridade' && '🔴 Mudar prioridade'}
+                      {m === 'fase'       && '↗ Mover para fase'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={onClear} disabled={busy} className="btn btn-ghost text-xs">
+            Limpar
+          </button>
+          <button onClick={onDelete} disabled={busy} className="btn btn-danger text-xs gap-1.5">
+            <TrashIcon className="w-3.5 h-3.5" />
+            {busy ? 'Apagando…' : `Apagar ${count}`}
+          </button>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={onClear} disabled={busy} className="btn btn-ghost text-xs">
-          Limpar
-        </button>
-        <button onClick={onDelete} disabled={busy} className="btn btn-danger text-xs gap-1.5">
-          <TrashIcon className="w-3.5 h-3.5" />
-          {busy ? 'Apagando…' : `Apagar ${count}`}
-        </button>
-      </div>
-    </div>
+    </>
   );
 }

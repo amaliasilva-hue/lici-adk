@@ -1,13 +1,11 @@
 """FastAPI app — endpoint /analyze assíncrono.
 
 Contrato (ARCHITECTURE.md §Contrato da API):
-  POST /analyze         → multipart com PDF, retorna {analysis_id, status: queued}
-  GET  /analyze/{id}    → polling, retorna {status, current_agent, result?, error?}
-  GET  /healthz         → health check
-
-MVP: in-memory job store. Para múltiplas instâncias do Cloud Run em produção,
-trocar por Firestore (Fase 2). Mantemos `min-instances=1, max-instances=1` por
-enquanto para garantir consistência do dict.
+  POST /analyze              → multipart com PDF, retorna {analysis_id, status: queued}
+  GET  /analyze/{id}         → polling, retorna {status, current_agent, result?, error?}
+  POST /analyze/from-drive   → analisa PDF do Google Drive por file_id
+  POST /analyze/from-drive-folder → importa todos os PDFs de uma pasta Drive
+  GET  /health               → health check com status do Postgres
 """
 from __future__ import annotations
 
@@ -19,6 +17,9 @@ import uuid
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Literal
+
+import httpx
+from sqlalchemy import text
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -35,6 +36,12 @@ from backend.tools.pg_tools import (
     seed_gates, list_gates, set_gate,
     STAGES_ORDER, ESTADOS_TERMINAIS,
     get_engine,
+    # Fase 7 — jobs persistentes
+    create_job, get_job, touch_job, find_job_by_sha256, list_jobs,
+    mark_orphan_jobs_failed,
+    # Novos endpoints (Lote 1)
+    get_historico_orgao, bulk_update_editais,
+    create_notification, list_notifications, mark_notifications_read,
 )
 from google.cloud import bigquery
 
@@ -53,6 +60,14 @@ async def _startup() -> None:
     except Exception as exc:
         # Falha silenciosa: Cloud SQL pode não estar disponível em env dev
         log.warning("startup.pg_schema_failed", extra={"error": str(exc)})
+    # Marca jobs órfãos (queued/running sem atualização há > 10min) como failed
+    # Isso limpa estado inconsistente deixado por restarts anteriores
+    try:
+        count = await asyncio.to_thread(mark_orphan_jobs_failed)
+        if count:
+            log.warning("startup.orphan_jobs_cleaned", extra={"count": count})
+    except Exception as exc:
+        log.warning("startup.orphan_cleanup_failed", extra={"error": str(exc)})
 
 MAX_PDF_BYTES = int(os.getenv("LICI_MAX_PDF_BYTES", str(30 * 1024 * 1024)))  # 30 MB
 
@@ -79,23 +94,99 @@ class JobState(BaseModel):
     pg_edital_id: str | None = None
 
 
-# In-memory store (MVP — single instance).
-_JOBS: dict[str, JobState] = {}
+# ── Helpers de job (Fase 7: Postgres-backed, sem _JOBS in-memory) ─────────────
+
+def _get_job(analysis_id: str) -> JobState | None:
+    """Lê job do Postgres e hidrata JobState."""
+    row = get_job(analysis_id)
+    if not row:
+        return None
+    return _row_to_jobstate(row)
 
 
-def _touch(job: JobState, **kwargs) -> None:
+def _row_to_jobstate(row: dict) -> JobState:
+    """Converte row do Postgres em JobState deserializando campos JSONB."""
+    def _maybe_json(v):
+        if v is None:
+            return None
+        return v if isinstance(v, dict) else json.loads(v)
+
+    result = None
+    rj = _maybe_json(row.get("result_json"))
+    if rj:
+        try:
+            result = ParecerComercial.model_validate(rj)
+        except Exception:
+            pass
+
+    relatorio = None
+    rel_data = _maybe_json(row.get("relatorio_juridico_json"))
+    if rel_data:
+        try:
+            relatorio = RelatorioLicitatorio.model_validate(rel_data)
+        except Exception:
+            pass
+
+    return JobState(
+        analysis_id=str(row["analysis_id"]),
+        status=row.get("status", "queued"),
+        current_agent=row.get("current_agent"),
+        estimated_seconds=row.get("estimated_seconds", 35),
+        created_at=row["created_at"] if hasattr(row.get("created_at"), "tzinfo") else datetime.now(timezone.utc),
+        updated_at=row["updated_at"] if hasattr(row.get("updated_at"), "tzinfo") else datetime.now(timezone.utc),
+        result=result,
+        error=row.get("error"),
+        edital_filename=row.get("edital_filename"),
+        edital_json=_maybe_json(row.get("edital_json")),
+        somatorio_drive_json=_maybe_json(row.get("somatorio_drive_json")),
+        relatorio_juridico=relatorio,
+        job_juridico_status=row.get("job_juridico_status", "not_started"),
+        error_juridico=row.get("error_juridico"),
+        pg_edital_id=row.get("pg_edital_id"),
+    )
+
+
+def _touch(analysis_id: str | JobState, **kwargs) -> None:
+    """Persiste atualizações de campo no job (Postgres). Aceita analysis_id str ou JobState."""
+    aid = analysis_id.analysis_id if isinstance(analysis_id, JobState) else analysis_id
+    # Mapeia campos do JobState para colunas do Postgres
+    pg_kwargs: dict = {}
     for k, v in kwargs.items():
-        setattr(job, k, v)
-    job.updated_at = datetime.now(timezone.utc)
+        if k == "result":
+            pg_kwargs["result_json"] = v.model_dump() if v is not None else None
+        elif k == "relatorio_juridico":
+            pg_kwargs["relatorio_juridico_json"] = v.model_dump() if v is not None else None
+        else:
+            pg_kwargs[k] = v
+    touch_job(aid, **pg_kwargs)
+
+
+def _maybe_notify_analysis_done(analysis_id: str, edital_row: dict, parecer: object | None) -> None:
+    """Cria notificação in-app quando análise termina. Best-effort — não propaga exceções."""
+    vendedor = edital_row.get("vendedor_email") or edital_row.get("criado_por")
+    if not vendedor or vendedor == "pipeline":
+        return  # sem destinatário conhecido
+    orgao = edital_row.get("orgao") or "Edital"
+    score = getattr(parecer, "score_aderencia", None) if parecer else None
+    status_text = getattr(parecer, "status", None) if parecer else None
+    score_str = f" — Score {score}%" if score is not None else ""
+    status_str = f" ({status_text})" if status_text else ""
+    create_notification(
+        user_email=vendedor,
+        type="analysis_done",
+        title=f"Análise concluída: {orgao}{score_str}{status_str}",
+        body=f"A análise do edital de {orgao} foi concluída e está disponível no pipeline.",
+        entity_type="edital",
+        entity_id=str(edital_row.get("edital_id", "")),
+    )
 
 
 def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = None) -> None:
-    job = _JOBS[analysis_id]
     try:
-        _touch(job, status="running", current_agent="extrator")
+        _touch(analysis_id, status="running", current_agent="extrator")
         pipeline_result = analisar_edital(pdf_bytes, trace_id=analysis_id, edital_filename=filename)
         _touch(
-            job,
+            analysis_id,
             status="done",
             current_agent=None,
             result=pipeline_result.parecer,
@@ -130,28 +221,38 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
                 data["score_comercial"] = score
             if filename:
                 data["edital_filename"] = filename
-            # Persiste result completo para sobreviver a restarts
             if pipeline_result.parecer:
                 data["result_json"] = json.dumps(pipeline_result.parecer.model_dump(), ensure_ascii=False, default=str)
-            # Persiste edital_json para permitir reanálise jurídica após restart
             if pipeline_result.edital:
                 data["edital_json_storage"] = json.dumps(pipeline_result.edital.model_dump(), ensure_ascii=False, default=str)
             row = create_edital(data)
             eid = str(row["edital_id"])
-            # Guarda edital_id no job para que o polling possa redirecionar
-            _touch(job, pg_edital_id=eid)
+            _touch(analysis_id, pg_edital_id=eid)
             seed_gates(eid, "identificacao")
             log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": eid}})
+            # Notificação in-app (best-effort)
+            try:
+                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)
+            except Exception:
+                pass
         except Exception as pg_exc:  # noqa: BLE001
             log.warning("pipeline.pg_persist_failed", extra={"error": str(pg_exc)})
     except Exception as exc:  # noqa: BLE001
         log.exception("pipeline.failed", extra={"lici_adk": {"trace_id": analysis_id}})
-        _touch(job, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
+        _touch(analysis_id, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
 
 
 @app.get("/health")
-def healthz() -> dict:
-    return {"status": "ok", "jobs_in_memory": len(_JOBS)}
+async def healthz() -> dict:
+    pg_ok = False
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        pg_ok = True
+    except Exception:
+        pass
+    return {"status": "ok", "pg": "ok" if pg_ok else "degraded"}
 
 
 @app.post("/analyze", status_code=202)
@@ -171,11 +272,21 @@ async def analyze(
             detail=f"PDF excede {MAX_PDF_BYTES // (1024*1024)} MB",
         )
 
+    # SHA256 dedup — evita reprocessar o mesmo PDF em até 30 dias
+    import hashlib
+    pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    existing = await asyncio.to_thread(find_job_by_sha256, pdf_sha256)
+    if existing:
+        log.info("analyze.duplicate_detected", extra={"lici_adk": {"sha256": pdf_sha256[:16], "existing_id": existing["analysis_id"]}})
+        return {
+            "analysis_id": existing["analysis_id"],
+            "status": "already_exists",
+            "pg_edital_id": existing.get("pg_edital_id"),
+            "poll_url": f"/analyze/{existing['analysis_id']}",
+        }
+
     analysis_id = str(uuid.uuid4())
-    _JOBS[analysis_id] = JobState(
-        analysis_id=analysis_id,
-        edital_filename=file.filename,
-    )
+    await asyncio.to_thread(create_job, analysis_id, file.filename, pdf_sha256)
     log.info(
         "analyze.queued",
         extra={"lici_adk": {"trace_id": analysis_id, "filename": file.filename, "bytes": len(pdf_bytes)}},
@@ -190,26 +301,26 @@ async def analyze(
 
 
 @app.get("/analyze/{analysis_id}")
-def get_analysis(analysis_id: str) -> JobState:
-    job = _JOBS.get(analysis_id)
+async def get_analysis(analysis_id: str) -> JobState:
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         raise HTTPException(status_code=404, detail="analysis_id desconhecido")
     return job
 
 
 @app.get("/analyze")
-def list_analyses(limit: int = 20) -> list[dict]:
+async def list_analyses(limit: int = 20) -> list[dict]:
     """Lista jobs recentes (debug)."""
-    items = sorted(_JOBS.values(), key=lambda j: j.created_at, reverse=True)[:limit]
+    rows = await asyncio.to_thread(list_jobs, limit)
     return [
         {
-            "analysis_id": j.analysis_id,
-            "status": j.status,
-            "current_agent": j.current_agent,
-            "filename": j.edital_filename,
-            "created_at": j.created_at.isoformat(),
+            "analysis_id": r["analysis_id"],
+            "status": r["status"],
+            "current_agent": r.get("current_agent"),
+            "filename": r.get("edital_filename"),
+            "created_at": r["created_at"].isoformat() if hasattr(r.get("created_at"), "isoformat") else str(r.get("created_at", "")),
         }
-        for j in items
+        for r in rows
     ]
 
 
@@ -319,7 +430,7 @@ def _run_juridico(analysis_id: str, bid_config: BidConfig | None = None) -> None
     """Background task: executa o Analista Licitatório a partir do edital_json já armazenado."""
     from backend.agents.analista_licitatorio import analisar_juridico
 
-    job = _JOBS.get(analysis_id)
+    job = _get_job(analysis_id)
     if not job:
         return
     try:
@@ -330,7 +441,7 @@ def _run_juridico(analysis_id: str, bid_config: BidConfig | None = None) -> None
             somatorio_drive=job.somatorio_drive_json,
             trace_id=analysis_id,
         )
-        _touch(job, relatorio_juridico=relatorio, job_juridico_status="done")
+        _touch(analysis_id, relatorio_juridico=relatorio, job_juridico_status="done")
         # Persiste no Postgres para sobreviver a restarts
         if job.pg_edital_id:
             try:
@@ -353,7 +464,7 @@ def _run_juridico(analysis_id: str, bid_config: BidConfig | None = None) -> None
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("juridico.failed", extra={"lici_adk": {"trace_id": analysis_id}})
-        _touch(job, job_juridico_status="failed", error_juridico=f"{type(exc).__name__}: {exc}")
+        _touch(analysis_id, job_juridico_status="failed", error_juridico=f"{type(exc).__name__}: {exc}")
 
 
 @app.post("/editais/{analysis_id}/analise_juridica", status_code=202)
@@ -367,12 +478,11 @@ async def trigger_analise_juridica(
     Pré-requisito: POST /analyze deve ter sido concluído (status=done) para este analysis_id.
     Polling: GET /editais/{analysis_id}/analise_juridica
     """
-    job = _JOBS.get(analysis_id)
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         # Tenta reconstruir job a partir do Postgres (edital_id = analysis_id após container restart)
         try:
-            from backend.tools.pg_tools import get_edital as _get_edital_pg
-            pg_row = await asyncio.to_thread(_get_edital_pg, analysis_id)
+            pg_row = await asyncio.to_thread(get_edital, analysis_id)
         except Exception:
             pg_row = None
         if not pg_row:
@@ -380,17 +490,17 @@ async def trigger_analise_juridica(
         edital_json_stored = pg_row.get("edital_json_storage")
         result_json_stored = pg_row.get("result_json")
         relatorio_stored = pg_row.get("relatorio_juridico_json")
-        # Se o relatório jurídico já está no Postgres (edital pré-v9), reconstrói como done
+        # Se o relatório jurídico já está no Postgres, reconstrói como done
         if relatorio_stored:
             rel_data = json.loads(relatorio_stored) if isinstance(relatorio_stored, str) else relatorio_stored
             res_data = json.loads(result_json_stored) if result_json_stored and isinstance(result_json_stored, str) else (result_json_stored or {})
             edital_data = json.loads(edital_json_stored) if edital_json_stored and isinstance(edital_json_stored, str) else edital_json_stored
-            _JOBS[analysis_id] = JobState(
-                analysis_id=analysis_id,
+            await asyncio.to_thread(
+                touch_job, analysis_id,
                 status="done",
                 edital_json=edital_data,
-                result=ParecerComercial.model_validate(res_data) if res_data else None,
-                relatorio_juridico=RelatorioLicitatorio.model_validate(rel_data),
+                result_json=res_data if res_data else None,
+                relatorio_juridico_json=rel_data,
                 job_juridico_status="done",
                 pg_edital_id=str(pg_row["edital_id"]),
                 edital_filename=pg_row.get("edital_filename"),
@@ -403,26 +513,28 @@ async def trigger_analise_juridica(
             )
         edital_json_data = json.loads(edital_json_stored) if isinstance(edital_json_stored, str) else edital_json_stored
         result_data = json.loads(result_json_stored) if isinstance(result_json_stored, str) else result_json_stored
-        _JOBS[analysis_id] = JobState(
-            analysis_id=analysis_id,
+        await asyncio.to_thread(
+            touch_job, analysis_id,
             status="done",
             edital_json=edital_json_data,
-            result=ParecerComercial.model_validate(result_data),
+            result_json=result_data,
             pg_edital_id=str(pg_row["edital_id"]),
             edital_filename=pg_row.get("edital_filename"),
         )
-        job = _JOBS[analysis_id]
+        job = await asyncio.to_thread(_get_job, analysis_id)
+        if not job:
+            raise HTTPException(status_code=500, detail="Falha ao reconstruir job — tente novamente")
+
     if job.status != "done":
         raise HTTPException(status_code=409, detail="análise comercial ainda não concluída — aguarde status=done")
     if not job.edital_json:
         raise HTTPException(status_code=409, detail="edital_json não disponível (pipeline mais antigo?)")
-    # Já concluída — não re-executa
     if job.job_juridico_status == "done":
         return {"analysis_id": analysis_id, "status": "done"}
     if job.job_juridico_status == "running":
         return {"analysis_id": analysis_id, "status": "running", "message": "análise jurídica já em andamento"}
 
-    _touch(job, job_juridico_status="running", error_juridico=None, relatorio_juridico=None)
+    _touch(analysis_id, job_juridico_status="running", error_juridico=None, relatorio_juridico=None)
     background_tasks.add_task(_run_juridico, analysis_id, bid_config)
     return {"analysis_id": analysis_id, "status": "running"}
 
@@ -430,14 +542,10 @@ async def trigger_analise_juridica(
 @app.get("/editais/{analysis_id}/analise_juridica")
 async def get_analise_juridica(analysis_id: str) -> dict:
     """Polling da análise jurídica. Retorna RelatorioLicitatorio quando status=done."""
-    job = _JOBS.get(analysis_id)
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         # Tenta reconstruir de Postgres (container restart)
-        try:
-            from backend.tools.pg_tools import get_edital as _get_edital_pg
-            pg_row = await asyncio.to_thread(_get_edital_pg, analysis_id)
-        except Exception:
-            pg_row = None
+        pg_row = await asyncio.to_thread(get_edital, analysis_id)
         if pg_row and pg_row.get("relatorio_juridico_json"):
             rel_stored = pg_row["relatorio_juridico_json"]
             rel_data = json.loads(rel_stored) if isinstance(rel_stored, str) else rel_stored
@@ -445,19 +553,22 @@ async def get_analise_juridica(analysis_id: str) -> dict:
             result_stored = pg_row.get("result_json")
             edital_data = json.loads(edital_stored) if edital_stored and isinstance(edital_stored, str) else edital_stored
             res_data = json.loads(result_stored) if result_stored and isinstance(result_stored, str) else (result_stored or {})
-            _JOBS[analysis_id] = JobState(
-                analysis_id=analysis_id,
+            await asyncio.to_thread(
+                touch_job, analysis_id,
                 status="done",
                 edital_json=edital_data,
-                result=ParecerComercial.model_validate(res_data) if res_data else None,
-                relatorio_juridico=RelatorioLicitatorio.model_validate(rel_data),
+                result_json=res_data if res_data else None,
+                relatorio_juridico_json=rel_data,
                 job_juridico_status="done",
                 pg_edital_id=str(pg_row["edital_id"]),
                 edital_filename=pg_row.get("edital_filename"),
             )
-            job = _JOBS[analysis_id]
-        else:
-            raise HTTPException(status_code=404, detail="analysis_id não encontrado")
+            return {
+                "analysis_id": analysis_id,
+                "status": "done",
+                "relatorio": rel_data,
+            }
+        raise HTTPException(status_code=404, detail="analysis_id não encontrado")
     if job.job_juridico_status == "not_started":
         return {"analysis_id": analysis_id, "status": "not_started"}
     if job.job_juridico_status == "running":
@@ -472,9 +583,9 @@ async def get_analise_juridica(analysis_id: str) -> dict:
 
 
 @app.get("/editais/{analysis_id}/kit_habilitacao")
-def get_kit_habilitacao(analysis_id: str) -> dict:
+async def get_kit_habilitacao(analysis_id: str) -> dict:
     """Retorna o Bloco 6 (KitHabilitacao) da análise jurídica quando disponível."""
-    job = _JOBS.get(analysis_id)
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         raise HTTPException(status_code=404, detail="analysis_id não encontrado")
     if job.job_juridico_status != "done" or not job.relatorio_juridico:
@@ -483,11 +594,11 @@ def get_kit_habilitacao(analysis_id: str) -> dict:
 
 
 @app.get("/editais/{analysis_id}/documentos")
-def list_documentos(analysis_id: str) -> dict:
+async def list_documentos(analysis_id: str) -> dict:
     """Lista todos os documentos gerados: minutas (Bloco 4) + declarações padrão (Grupo B)."""
     from backend.agents.gerador_documentos import gerar_declaracoes, listar_tipos_disponiveis
 
-    job = _JOBS.get(analysis_id)
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         raise HTTPException(status_code=404, detail="analysis_id não encontrado")
 
@@ -501,7 +612,6 @@ def list_documentos(analysis_id: str) -> dict:
                 "prazo_limite": doc.prazo_limite,
             })
 
-    # Declarações disponíveis (sempre geráveis quando edital_json existe)
     declaracoes_disponiveis = listar_tipos_disponiveis() if job.edital_json else []
 
     return {
@@ -512,21 +622,14 @@ def list_documentos(analysis_id: str) -> dict:
 
 
 @app.get("/editais/{analysis_id}/documentos/{tipo}")
-def get_documento(analysis_id: str, tipo: str) -> dict:
-    """Retorna texto pronto para copiar de um documento específico.
-
-    tipo: impugnacao | esclarecimento | declaracoes | kit
-    Para declarações individuais: nao_emprega_menor | idoneidade | habilitacao |
-                                   fato_superveniente | pleno_conhecimento |
-                                   autenticidade | vinculo_tecnicos | credenciamento
-    """
+async def get_documento(analysis_id: str, tipo: str) -> dict:
+    """Retorna texto pronto para copiar de um documento específico."""
     from backend.agents.gerador_documentos import gerar_declaracoes, listar_tipos_disponiveis
 
-    job = _JOBS.get(analysis_id)
+    job = await asyncio.to_thread(_get_job, analysis_id)
     if not job:
         raise HTTPException(status_code=404, detail="analysis_id não encontrado")
 
-    # Minutas pré-sessão (Bloco 4)
     if tipo in ("impugnacao", "esclarecimento") and job.relatorio_juridico:
         docs = [
             d for d in job.relatorio_juridico.documentos_protocolo
@@ -534,18 +637,13 @@ def get_documento(analysis_id: str, tipo: str) -> dict:
         ]
         if not docs:
             raise HTTPException(status_code=404, detail=f"nenhum documento do tipo {tipo} gerado")
-        return {
-            "tipo": tipo,
-            "documentos": [d.model_dump() for d in docs],
-        }
+        return {"tipo": tipo, "documentos": [d.model_dump() for d in docs]}
 
-    # Kit de habilitação (Bloco 6)
     if tipo == "kit":
         if not job.relatorio_juridico:
             raise HTTPException(status_code=404, detail="análise jurídica não disponível")
         return {"tipo": "kit", "kit_habilitacao": job.relatorio_juridico.kit_habilitacao.model_dump()}
 
-    # Declarações padrão (Grupo B)
     if tipo == "declaracoes" or tipo in listar_tipos_disponiveis():
         if not job.edital_json:
             raise HTTPException(status_code=409, detail="edital_json não disponível")
@@ -560,6 +658,134 @@ def get_documento(analysis_id: str, tipo: str) -> dict:
         return {"tipo": "declaracoes", "declaracoes": declaracoes}
 
     raise HTTPException(status_code=400, detail=f"tipo desconhecido: {tipo}. Use: impugnacao | esclarecimento | declaracoes | kit | <tipo_declaracao>")
+
+
+# ──────────────────── Lote 1 — Drive Import endpoints ────────────────────────
+
+class _DriveFileRequest(BaseModel):
+    file_id: str
+    orgao: str | None = None
+    uf: str | None = None
+    vendedor_email: str | None = None
+
+
+class _DriveFolderRequest(BaseModel):
+    folder_id: str
+    orgao: str | None = None
+    uf: str | None = None
+    vendedor_email: str | None = None
+
+
+def _download_drive_pdf(file_id: str) -> tuple[bytes, str]:
+    """Baixa PDF do Drive via SA, retorna (pdf_bytes, filename)."""
+    import io
+    from googleapiclient.http import MediaIoBaseDownload
+    from backend.tools.drive_tools import _drive_service
+
+    svc = _drive_service()
+    meta = svc.files().get(fileId=file_id, fields="name,mimeType,size").execute()
+    if meta.get("mimeType") != "application/pdf":
+        raise ValueError(f"Arquivo não é PDF: {meta.get('mimeType')}")
+    size = int(meta.get("size", 0))
+    if size > MAX_PDF_BYTES:
+        raise ValueError(f"Arquivo excede {MAX_PDF_BYTES // (1024*1024)} MB")
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, svc.files().get_media(fileId=file_id))
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return fh.getvalue(), meta.get("name", f"{file_id}.pdf")
+
+
+@app.post("/analyze/from-drive", status_code=202)
+async def analyze_from_drive(body: _DriveFileRequest, background_tasks: BackgroundTasks) -> dict:
+    """Analisa um PDF do Google Drive a partir do file_id."""
+    try:
+        pdf_bytes, filename = await asyncio.to_thread(_download_drive_pdf, body.file_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro ao acessar Drive: {str(exc)[:200]}")
+
+    import hashlib
+    pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    existing = await asyncio.to_thread(find_job_by_sha256, pdf_sha256)
+    if existing:
+        return {
+            "analysis_id": existing["analysis_id"],
+            "status": "already_exists",
+            "pg_edital_id": existing.get("pg_edital_id"),
+            "poll_url": f"/analyze/{existing['analysis_id']}",
+        }
+
+    analysis_id = str(uuid.uuid4())
+    await asyncio.to_thread(create_job, analysis_id, filename, pdf_sha256)
+    log.info("analyze.from_drive.queued", extra={"lici_adk": {"trace_id": analysis_id, "file_id": body.file_id}})
+    background_tasks.add_task(_run_pipeline, analysis_id, pdf_bytes, filename)
+    return {
+        "analysis_id": analysis_id,
+        "status": "queued",
+        "estimated_seconds": 35,
+        "poll_url": f"/analyze/{analysis_id}",
+    }
+
+
+def _list_drive_pdfs(folder_id: str) -> list[dict]:
+    """Lista PDFs numa pasta do Drive. Retorna [{id, name}]."""
+    from backend.tools.drive_tools import _drive_service, _list_pdfs
+    svc = _drive_service()
+    return _list_pdfs(svc, folder_id)
+
+
+@app.post("/analyze/from-drive-folder", status_code=202)
+async def analyze_from_drive_folder(body: _DriveFolderRequest, background_tasks: BackgroundTasks) -> dict:
+    """Importa e analisa todos os PDFs de uma pasta do Google Drive.
+
+    Retorna imediatamente com a lista de analysis_ids enfileirados.
+    Cada job pode ser polled individualmente via GET /analyze/{id}.
+    """
+    try:
+        files = await asyncio.to_thread(_list_drive_pdfs, body.folder_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro ao listar pasta Drive: {str(exc)[:200]}")
+
+    if not files:
+        return {"queued": 0, "analysis_ids": [], "message": "Nenhum PDF encontrado na pasta"}
+
+    import hashlib
+    results = []
+    for f in files:
+        try:
+            pdf_bytes, filename = await asyncio.to_thread(_download_drive_pdf, f["id"])
+        except Exception as exc:
+            log.warning("drive_folder.download_failed", extra={"file_id": f["id"], "error": str(exc)})
+            results.append({"file_id": f["id"], "filename": f.get("name"), "status": "download_failed"})
+            continue
+
+        pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+        existing = await asyncio.to_thread(find_job_by_sha256, pdf_sha256)
+        if existing:
+            results.append({
+                "file_id": f["id"],
+                "filename": filename,
+                "analysis_id": existing["analysis_id"],
+                "status": "already_exists",
+            })
+            continue
+
+        analysis_id = str(uuid.uuid4())
+        await asyncio.to_thread(create_job, analysis_id, filename, pdf_sha256)
+        background_tasks.add_task(_run_pipeline, analysis_id, pdf_bytes, filename)
+        results.append({
+            "file_id": f["id"],
+            "filename": filename,
+            "analysis_id": analysis_id,
+            "status": "queued",
+        })
+
+    queued = sum(1 for r in results if r["status"] == "queued")
+    log.info("analyze.from_drive_folder.queued", extra={"lici_adk": {"folder_id": body.folder_id, "queued": queued}})
+    return {"queued": queued, "total_files": len(files), "analysis_ids": results}
 
 
 # ──────────────────────── Drive re-scan (Cloud Scheduler) ────────────────────
@@ -584,6 +810,105 @@ async def drive_rescan(body: _RescanRequest | None = None) -> dict:
     count = await asyncio.to_thread(invalidate_all_cache)
     log.info("drive_rescan.full", extra={"rows_deleted": count})
     return {"invalidated": count, "edital_id": None}
+
+
+# ──────────────────────── Importar de URL pública ────────────────────────────
+
+_KNOWN_PORTALS: dict[str, str] = {
+    "www.comprasnet.gov.br": "Comprasnet",
+    "comprasnet.gov.br": "Comprasnet",
+    "pncp.gov.br": "PNCP",
+    "www.pncp.gov.br": "PNCP",
+    "www.bec.sp.gov.br": "BEC-SP",
+    "bec.sp.gov.br": "BEC-SP",
+    "licitacoes-e.bb.com.br": "Licitações-e",
+    "www.licitacoes-e.bb.com.br": "Licitações-e",
+}
+_MAX_PDF_BYTES_URL = 30 * 1024 * 1024  # 30MB
+
+
+class _UrlRequest(BaseModel):
+    url: str
+    orgao: str | None = None
+    uf: str | None = None
+    vendedor_email: str | None = None
+
+
+@app.post("/analyze/from-url", status_code=202)
+async def analyze_from_url(body: _UrlRequest, background_tasks: BackgroundTasks) -> dict:
+    """Baixa e analisa um PDF a partir de URL pública (Comprasnet, PNCP, BEC-SP …)."""
+    import hashlib
+    from urllib.parse import urlparse
+
+    parsed = urlparse(body.url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=422, detail="URL deve começar com http:// ou https://")
+
+    portal = _KNOWN_PORTALS.get(parsed.hostname or "", None)
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; LiciADK/1.0; +https://xertica.com)",
+                "Accept": "application/pdf,*/*",
+            },
+        ) as client:
+            resp = await client.get(body.url)
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Portal exige autenticação (baixe manualmente e use a aba PDF). Portal: {portal or parsed.hostname}",
+            )
+        raise HTTPException(status_code=502, detail=f"Erro HTTP {exc.response.status_code} ao baixar URL")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Erro de rede: {str(exc)[:200]}")
+
+    content_type = resp.headers.get("content-type", "").lower()
+    if "pdf" not in content_type and not body.url.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=415,
+            detail=f"URL não retornou um PDF (Content-Type: {content_type}). Use a aba PDF para arquivos locais.",
+        )
+
+    pdf_bytes = resp.content
+    if len(pdf_bytes) > _MAX_PDF_BYTES_URL:
+        raise HTTPException(status_code=413, detail=f"PDF excede 30 MB ({len(pdf_bytes)//1024//1024} MB)")
+
+    pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    existing = await asyncio.to_thread(find_job_by_sha256, pdf_sha256)
+    if existing:
+        return {
+            "analysis_id": existing["analysis_id"],
+            "status": "already_exists",
+            "pg_edital_id": existing.get("pg_edital_id"),
+            "poll_url": f"/analyze/{existing['analysis_id']}",
+        }
+
+    # Derive filename from URL path
+    url_path = parsed.path.rstrip("/")
+    filename = url_path.split("/")[-1] if url_path else "edital.pdf"
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
+
+    analysis_id = str(uuid.uuid4())
+    await asyncio.to_thread(create_job, analysis_id, filename, pdf_sha256)
+
+    log.info(
+        "analyze.from_url.queued",
+        extra={"lici_adk": {"trace_id": analysis_id, "url": body.url[:200], "portal": portal}},
+    )
+    background_tasks.add_task(_run_pipeline, analysis_id, pdf_bytes, filename)
+    return {
+        "analysis_id": analysis_id,
+        "status": "queued",
+        "portal": portal,
+        "estimated_seconds": 35,
+        "poll_url": f"/analyze/{analysis_id}",
+    }
 
 
 # ──────────────────────── Fase 6 — Sistema de Controle de Editais ────────────
@@ -688,12 +1013,6 @@ async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
             "gates": [_serialize_edital(g) for g in gates],
             "movimentacoes": [_serialize_edital(m) for m in movs],
         }
-    # Fallback: job em memória (retrocompat — analysis_id efêmero)
-    job = _JOBS.get(edital_id_or_analysis_id)
-    if job:
-        data = job.model_dump()
-        # Inclui pg_edital_id no response para o frontend redirecionar
-        return data
     raise HTTPException(status_code=404, detail="edital não encontrado")
 
 
@@ -757,12 +1076,58 @@ class _ComentarioRequest(BaseModel):
     mencionados: list[str] = []
 
 
+# ── Notificação por e-mail via Apps Script (background, não bloqueia response) ─
+
+async def _notify_comment(edital_id: str, autor_email: str, texto: str) -> None:
+    """Dispara webhook para Apps Script após novo comentário.
+
+    Feature-flagged: se LICI_APPS_SCRIPT_WEBHOOK_URL não estiver definido, silencia.
+    """
+    apps_script_url = os.getenv("LICI_APPS_SCRIPT_WEBHOOK_URL")
+    webhook_secret = os.getenv("LICI_APPS_SCRIPT_SECRET", "")
+    if not apps_script_url:
+        return
+
+    try:
+        edital = await asyncio.to_thread(get_edital, edital_id)
+        if not edital:
+            return
+
+        # Coleta destinatários: comentadores anteriores + vendedor_email, exceto autor
+        rows = await asyncio.to_thread(list_comentarios, edital_id)
+        recipients: set[str] = {r["autor_email"] for r in rows if r.get("autor_email") and r["autor_email"] != autor_email}
+        if edital.get("vendedor_email") and edital["vendedor_email"] != autor_email:
+            recipients.add(edital["vendedor_email"])
+
+        if not recipients:
+            return
+
+        base_url = os.getenv("LICI_BASE_URL", "https://lici.example.com")
+        payload = {
+            "secret":     webhook_secret,
+            "to":         ", ".join(sorted(recipients)),
+            "subject":    f"[Lici] Novo comentário — {edital.get('orgao', 'Edital')}",
+            "user":       autor_email.split("@")[0],
+            "editalName": edital.get("orgao", "Edital"),
+            "comment":    texto[:300],
+            "link":       f"{base_url}/edital/{edital_id}#comentarios",
+        }
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(apps_script_url, json=payload)
+            resp.raise_for_status()
+        log.info("notify_comment.sent", extra={"edital_id": edital_id, "recipients": len(recipients)})
+    except Exception as exc:
+        log.warning("notify_comment.failed", extra={"error": str(exc)[:200]})
+
+
 @app.post("/editais/{edital_id}/comentarios", status_code=201)
-async def post_comentario(edital_id: str, body: _ComentarioRequest) -> dict:
+async def post_comentario(edital_id: str, body: _ComentarioRequest, background_tasks: BackgroundTasks) -> dict:
     current = await asyncio.to_thread(get_edital, edital_id)
     if not current:
         raise HTTPException(status_code=404, detail="edital não encontrado")
     row = await asyncio.to_thread(add_comentario, edital_id, body.autor_email, body.texto, body.mencionados)
+    background_tasks.add_task(_notify_comment, edital_id, body.autor_email, body.texto)
     return _serialize_edital(row)
 
 
@@ -799,6 +1164,75 @@ async def patch_gate(edital_id: str, gate_key: str, body: _GatePatchRequest) -> 
     if not row:
         raise HTTPException(status_code=404, detail=f"gate '{gate_key}' não encontrado para stage '{stage}'")
     return _serialize_edital(row)
+
+
+# ─────────────────────────── Histórico do órgão ──────────────────────────────
+
+@app.get("/editais/{edital_id}/historico-orgao")
+async def get_historico_orgao_endpoint(edital_id: str) -> dict:
+    edital = await asyncio.to_thread(get_edital, edital_id)
+    if not edital:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    orgao = edital.get("orgao", "")
+    if not orgao:
+        return {"orgao": "", "participacoes": [], "win_rate": None, "score_medio": None}
+    rows = await asyncio.to_thread(get_historico_orgao, orgao, edital_id)
+    ganhos = sum(1 for r in rows if r.get("estado_terminal") == "ganho")
+    win_rate = round(ganhos / len(rows) * 100) if rows else None
+    scores = [float(r["score_comercial"]) for r in rows if r.get("score_comercial") is not None]
+    score_medio = round(sum(scores) / len(scores), 1) if scores else None
+    return {
+        "orgao": orgao,
+        "participacoes": [_serialize_edital(r) for r in rows],
+        "win_rate": win_rate,
+        "score_medio": score_medio,
+    }
+
+
+# ─────────────────────────── Bulk update de editais ───────────────────────────
+
+class _BulkUpdateRequest(BaseModel):
+    ids: list[str]
+    vendedor_email: str | None = None
+    prioridade: int | None = None
+    fase_atual: str | None = None
+    classificacao: str | None = None
+    risco: str | None = None
+
+
+@app.post("/editais/bulk_update")
+async def bulk_update_editais_endpoint(body: _BulkUpdateRequest) -> dict:
+    ids = [i for i in (body.ids or []) if i]
+    if not ids:
+        return {"updated": 0, "requested": 0}
+    fields = {k: v for k, v in body.model_dump(exclude={"ids"}).items() if v is not None}
+    if not fields:
+        return {"updated": 0, "requested": len(ids), "message": "Nenhum campo para atualizar"}
+    updated = await asyncio.to_thread(bulk_update_editais, ids, fields)
+    return {"updated": updated, "requested": len(ids)}
+
+
+# ────────────────────────── Notificações in-app ──────────────────────────────
+
+@app.get("/notifications")
+async def get_notifications(
+    user_email: str,
+    unread: bool = False,
+    limit: int = 30,
+) -> list[dict]:
+    """Lista notificações do usuário. Passa ?unread=true para apenas não lidas."""
+    rows = await asyncio.to_thread(list_notifications, user_email, unread, limit)
+    return [_serialize_edital(r) for r in rows]
+
+
+@app.post("/notifications/read")
+async def mark_read(
+    user_email: str,
+    ids: list[str] | None = None,
+) -> dict:
+    """Marca notificações como lidas. Se ids=None, marca todas do usuário."""
+    count = await asyncio.to_thread(mark_notifications_read, user_email, ids)
+    return {"marked_read": count}
 
 
 # ────────────────────────────── Chat Agêntico ─────────────────────────────────
@@ -900,8 +1334,14 @@ async def upload_edital_in_chat(
     if len(pdf_bytes) > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail=f"PDF excede {MAX_PDF_BYTES//(1024*1024)}MB")
 
+    import hashlib as _hl
+    pdf_sha256 = _hl.sha256(pdf_bytes).hexdigest()
+    existing = await asyncio.to_thread(find_job_by_sha256, pdf_sha256)
+    if existing:
+        return {"analysis_id": existing["analysis_id"], "status": "already_exists", "poll_url": f"/analyze/{existing['analysis_id']}"}
+
     analysis_id = str(uuid.uuid4())
-    _JOBS[analysis_id] = JobState(analysis_id=analysis_id, edital_filename=file.filename)
+    await asyncio.to_thread(create_job, analysis_id, file.filename or "edital.pdf", pdf_sha256)
 
     await asyncio.to_thread(
         _cs_add_msg, session_id, "assistant",
@@ -910,7 +1350,7 @@ async def upload_edital_in_chat(
 
     def _run_and_link(aid: str, pb: bytes, fname: str, sid: str) -> None:
         _run_pipeline(aid, pb, fname)
-        job = _JOBS.get(aid)
+        job = _get_job(aid)
         if not job:
             return
         if job.pg_edital_id:
@@ -971,6 +1411,101 @@ async def delete_chat_session(session_id: str) -> None:
 async def rename_chat_session(session_id: str, title: str) -> dict:
     await asyncio.to_thread(_cs_retitle, session_id, title)
     return {"session_id": session_id, "title": title}
+
+
+@app.post("/chat/sessions/{session_id}/messages/stream")
+async def send_session_message_stream(
+    session_id: str,
+    text: str = Form(...),
+    files: list[_UploadFile] = File(default=[]),
+):
+    """SSE streaming version of the chat message endpoint.
+    Yields text/event-stream events as the agent processes and responds.
+    Tool-calling loop runs synchronously; final text is streamed word-by-word.
+    """
+    from fastapi.responses import StreamingResponse as _StreamingResponse
+    from backend.agents.chat_agent import chat_session as _chat_session
+
+    session = await asyncio.to_thread(_cs_get, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+
+    file_parts: list[dict] = []
+    attachments_meta: list[dict] = []
+    MAX_FILE_BYTES = 20 * 1024 * 1024
+
+    for f in files:
+        if not f.filename:
+            continue
+        data = await f.read()
+        if len(data) > MAX_FILE_BYTES:
+            raise HTTPException(status_code=413, detail=f"Arquivo {f.filename} excede 20 MB")
+        mime = f.content_type or "application/octet-stream"
+        allowed = ("image/", "application/pdf", "text/plain")
+        if not any(mime.startswith(a) for a in allowed):
+            raise HTTPException(status_code=415, detail=f"Tipo não suportado: {mime}")
+        file_parts.append({"mime_type": mime, "data": data})
+        attachments_meta.append({"filename": f.filename, "mime_type": mime, "size": len(data)})
+
+    history_msgs = [{"role": m["role"], "content": m["content"]} for m in session["messages"]]
+
+    edital_ctx: str | None = None
+    if session.get("edital_id"):
+        edital_ctx = await asyncio.to_thread(_edital_context_str, str(session["edital_id"]))
+
+    attach_meta_for_db = attachments_meta if attachments_meta else None
+    file_names = [a["filename"] for a in attachments_meta]
+    user_content = text
+    if file_names:
+        user_content = f"[Arquivos: {', '.join(file_names)}]\n{text}"
+
+    await asyncio.to_thread(_cs_add_msg, session_id, "user", user_content, attach_meta_for_db)
+
+    # Run agent synchronously in thread (tool-calling loop)
+    try:
+        reply = await asyncio.to_thread(
+            _chat_session,
+            history_msgs,
+            text,
+            file_parts if file_parts else None,
+            edital_ctx,
+        )
+    except Exception as exc:
+        log.exception("chat_session_stream.agent_error")
+
+        async def _error_stream():
+            yield f"data: {json.dumps({'error': str(exc)[:300]})}\n\n"
+
+        return _StreamingResponse(_error_stream(), media_type="text/event-stream")
+
+    msg_row = await asyncio.to_thread(_cs_add_msg, session_id, "assistant", reply)
+    message_id = str(msg_row.get("message_id", ""))
+
+    if len(history_msgs) == 0:
+        short_title = text[:60].strip()
+        if short_title:
+            await asyncio.to_thread(_cs_retitle, session_id, short_title)
+
+    async def event_stream():
+        # Stream response word-by-word for progressive display
+        words = reply.split(" ")
+        chunk_size = 4
+        for i in range(0, len(words), chunk_size):
+            chunk = " ".join(words[i : i + chunk_size])
+            if i + chunk_size < len(words):
+                chunk += " "
+            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+            await asyncio.sleep(0.025)
+        yield f"data: {json.dumps({'done': True, 'message_id': message_id})}\n\n"
+
+    return _StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/chat/sessions/{session_id}/messages")

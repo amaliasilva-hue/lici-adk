@@ -234,6 +234,33 @@ _DDL_EDITAIS_MIGRATIONS = [
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_json_storage JSONB",
 ]
 
+# ── Fase 7 — Jobs persistentes (substitui _JOBS in-memory) ───────────────────
+
+_DDL_ANALYSIS_JOBS = """
+CREATE TABLE IF NOT EXISTS analysis_jobs (
+    analysis_id          TEXT        PRIMARY KEY,
+    status               TEXT        NOT NULL DEFAULT 'queued',
+    current_agent        TEXT,
+    estimated_seconds    INTEGER     NOT NULL DEFAULT 35,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    error                TEXT,
+    edital_filename      TEXT,
+    pdf_sha256           TEXT,
+    result_json          JSONB,
+    edital_json          JSONB,
+    somatorio_drive_json JSONB,
+    relatorio_juridico_json JSONB,
+    job_juridico_status  TEXT        NOT NULL DEFAULT 'not_started',
+    error_juridico       TEXT,
+    pg_edital_id         TEXT
+);
+CREATE INDEX IF NOT EXISTS analysis_jobs_sha256_idx
+    ON analysis_jobs (pdf_sha256) WHERE pdf_sha256 IS NOT NULL;
+CREATE INDEX IF NOT EXISTS analysis_jobs_status_idx
+    ON analysis_jobs (status, created_at DESC);
+"""
+
 # ── Chat Sessions ─────────────────────────────────────────────────────────────
 
 _DDL_CHAT_SESSIONS = """
@@ -260,6 +287,22 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS chat_messages_session_idx ON chat_messages (session_id, created_at ASC);
 """
 
+_DDL_NOTIFICATIONS = """
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_email       TEXT        NOT NULL,
+    type             TEXT        NOT NULL,   -- analysis_done | comment | stage_change | alert
+    title            TEXT        NOT NULL,
+    body             TEXT,
+    entity_type      TEXT,                   -- edital | job | chat_session
+    entity_id        TEXT,
+    read_at          TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS notifications_user_unread_idx
+    ON notifications (user_email, created_at DESC) WHERE read_at IS NULL;
+"""
+
 
 def ensure_schema() -> None:
     """Cria todas as tabelas Postgres se não existirem (idempotente)."""
@@ -274,6 +317,8 @@ def ensure_schema() -> None:
             conn.execute(text(_DDL_USUARIOS))
             conn.execute(text(_DDL_CHAT_SESSIONS))
             conn.execute(text(_DDL_CHAT_MESSAGES))
+            conn.execute(text(_DDL_ANALYSIS_JOBS))
+            conn.execute(text(_DDL_NOTIFICATIONS))
             # Migrations — adicionam colunas se não existirem (safe para tabelas já criadas)
             for migration in _DDL_EDITAIS_MIGRATIONS:
                 conn.execute(text(migration))
@@ -331,7 +376,14 @@ def list_editais(
     where_sql = "WHERE " + " AND ".join(wheres)
     with engine.connect() as conn:
         rows = conn.execute(
-            text(f"SELECT * FROM editais {where_sql} ORDER BY atualizado_em DESC LIMIT :limit"),
+            text(f"""
+                SELECT e.*, COALESCE(c.cnt, 0) AS comentarios_count
+                FROM editais e
+                LEFT JOIN (
+                    SELECT edital_id, COUNT(*) AS cnt FROM edital_comentarios GROUP BY edital_id
+                ) c ON c.edital_id = e.edital_id
+                {where_sql} ORDER BY e.atualizado_em DESC LIMIT :limit
+            """),
             params,
         ).fetchall()
     return [dict(r._mapping) for r in rows]
@@ -570,3 +622,237 @@ def invalidate_all_cache() -> int:
     except Exception as exc:
         log.warning("pg.invalidate_all_failed", extra={"error": str(exc)})
         return 0
+
+
+# ── CRUD analysis_jobs (substitui _JOBS in-memory) ───────────────────────────
+
+def create_job(analysis_id: str, filename: str | None = None, pdf_sha256: str | None = None) -> dict:
+    """Cria um novo job de análise. Retorna a row criada."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO analysis_jobs (analysis_id, edital_filename, pdf_sha256)
+                VALUES (:aid, :fn, :sha)
+                RETURNING *
+            """),
+            {"aid": analysis_id, "fn": filename, "sha": pdf_sha256},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def get_job(analysis_id: str) -> Optional[dict]:
+    """Busca job por analysis_id. Retorna None se não existir."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT * FROM analysis_jobs WHERE analysis_id = :aid"),
+            {"aid": analysis_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def touch_job(analysis_id: str, **kwargs) -> None:
+    """Atualiza campos do job (updated_at sempre setado automaticamente).
+
+    Campos JSONB (result_json, edital_json, somatorio_drive_json,
+    relatorio_juridico_json) aceitam dict ou None.
+    """
+    if not kwargs:
+        return
+    json_fields = {"result_json", "edital_json", "somatorio_drive_json", "relatorio_juridico_json"}
+    params: dict = {"aid": analysis_id}
+    set_parts: list[str] = ["updated_at = NOW()"]
+
+    for k, v in kwargs.items():
+        if k in json_fields:
+            params[k] = json.dumps(v, ensure_ascii=False, default=str) if v is not None else None
+            set_parts.append(f"{k} = CAST(:{k} AS jsonb)")
+        else:
+            params[k] = v
+            set_parts.append(f"{k} = :{k}")
+
+    sql = f"UPDATE analysis_jobs SET {', '.join(set_parts)} WHERE analysis_id = :aid"
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text(sql), params)
+        conn.commit()
+
+
+def find_job_by_sha256(sha256: str) -> Optional[dict]:
+    """Retorna job recente (últimos 30 dias, não-failed) com mesmo SHA256 de PDF.
+
+    Usado para deduplicação: evita reprocessar o mesmo arquivo.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT * FROM analysis_jobs
+                WHERE pdf_sha256 = :sha
+                  AND status != 'failed'
+                  AND created_at > NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"sha": sha256},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
+def list_jobs(limit: int = 20) -> list[dict]:
+    """Lista jobs recentes (debug/admin)."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM analysis_jobs ORDER BY created_at DESC LIMIT :limit"),
+            {"limit": min(limit, 200)},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def mark_orphan_jobs_failed() -> int:
+    """Marca como 'failed' jobs que ficaram em queued/running (orphans de restart).
+
+    Chamado no startup do FastAPI para limpar estado inconsistente.
+    Só afeta jobs com mais de 10 minutos sem atualização.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                UPDATE analysis_jobs
+                SET status = 'failed',
+                    error  = 'Interrompido por restart da instância',
+                    updated_at = NOW()
+                WHERE status IN ('queued', 'running')
+                  AND updated_at < NOW() - INTERVAL '10 minutes'
+            """),
+        )
+        conn.commit()
+    count = result.rowcount or 0
+    if count:
+        log.warning("pg.orphan_jobs_marked_failed", extra={"count": count})
+    return count
+
+
+# ── Histório de participações por órgão ──────────────────────────────────────
+
+def get_historico_orgao(orgao: str, excluir_edital_id: str, limit: int = 5) -> list[dict]:
+    """Retorna participações anteriores com o mesmo órgão (case-insensitive).
+
+    Exclui o edital atual (excluir_edital_id).
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT edital_id, orgao, uf, objeto, numero_pregao,
+                       estado_terminal, score_comercial, valor_estimado,
+                       criado_em, data_encerramento
+                FROM editais
+                WHERE lower(orgao) = lower(:orgao)
+                  AND edital_id != :eid
+                  AND deleted_at IS NULL
+                ORDER BY criado_em DESC
+                LIMIT :limit
+            """),
+            {"orgao": orgao, "eid": excluir_edital_id, "limit": limit},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+# ── Bulk update de editais ────────────────────────────────────────────────────
+
+_BULK_UPDATE_ALLOWED_FIELDS = {"vendedor_email", "prioridade", "fase_atual", "classificacao", "risco"}
+
+
+def bulk_update_editais(ids: list[str], fields: dict) -> int:
+    """Atualiza campos em lote. Retorna número de linhas afetadas.
+
+    Apenas campos em _BULK_UPDATE_ALLOWED_FIELDS são aceitos (whitelist de segurança).
+    """
+    safe_fields = {k: v for k, v in fields.items() if k in _BULK_UPDATE_ALLOWED_FIELDS and v is not None}
+    if not safe_fields or not ids:
+        return 0
+
+    safe_fields["atualizado_em"] = "NOW()"
+    set_parts = [
+        "atualizado_em = NOW()" if k == "atualizado_em" else f"{k} = :{k}"
+        for k in safe_fields
+        if k != "atualizado_em"
+    ]
+    set_parts.append("atualizado_em = NOW()")
+
+    params = {k: v for k, v in safe_fields.items() if k != "atualizado_em"}
+    params["ids"] = ids
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text(f"""
+                UPDATE editais
+                SET {', '.join(set_parts)}
+                WHERE edital_id = ANY(:ids::uuid[])
+                  AND deleted_at IS NULL
+            """),
+            params,
+        )
+        conn.commit()
+    return result.rowcount or 0
+
+
+# ── Notificações in-app ───────────────────────────────────────────────────────
+
+def create_notification(
+    user_email: str,
+    type: str,
+    title: str,
+    body: str | None = None,
+    entity_type: str | None = None,
+    entity_id: str | None = None,
+) -> dict:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO notifications (user_email, type, title, body, entity_type, entity_id)
+                VALUES (:ue, :type, :title, :body, :et, :eid)
+                RETURNING *
+            """),
+            {"ue": user_email, "type": type, "title": title, "body": body, "et": entity_type, "eid": entity_id},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def list_notifications(user_email: str, unread_only: bool = False, limit: int = 30) -> list[dict]:
+    engine = get_engine()
+    where = "WHERE user_email = :ue"
+    if unread_only:
+        where += " AND read_at IS NULL"
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"SELECT * FROM notifications {where} ORDER BY created_at DESC LIMIT :limit"),
+            {"ue": user_email, "limit": min(limit, 100)},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def mark_notifications_read(user_email: str, notification_ids: list[str] | None = None) -> int:
+    """Marca notificações como lidas. Se notification_ids=None, marca todas do usuário."""
+    engine = get_engine()
+    if notification_ids:
+        sql = text("""
+            UPDATE notifications SET read_at = NOW()
+            WHERE user_email = :ue AND notification_id = ANY(:ids::uuid[]) AND read_at IS NULL
+        """)
+        params: dict = {"ue": user_email, "ids": notification_ids}
+    else:
+        sql = text("UPDATE notifications SET read_at = NOW() WHERE user_email = :ue AND read_at IS NULL")
+        params = {"ue": user_email}
+    with engine.connect() as conn:
+        result = conn.execute(sql, params)
+        conn.commit()
+    return result.rowcount or 0

@@ -1,0 +1,99 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: operaciones-br
+  REGION: us-central1
+  BACKEND_SERVICE: x-lici-bff
+  FRONTEND_SERVICE: x-lici-web
+
+jobs:
+  deploy-backend:
+    name: Deploy backend to Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write   # for Workload Identity
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit backend build
+        run: |
+          gcloud builds submit \
+            --project=$PROJECT_ID \
+            --tag=gcr.io/$PROJECT_ID/$BACKEND_SERVICE:${{ github.sha }} \
+            --file=Dockerfile \
+            .
+
+      - name: Deploy backend
+        run: |
+          gcloud run deploy $BACKEND_SERVICE \
+            --project=$PROJECT_ID \
+            --region=$REGION \
+            --image=gcr.io/$PROJECT_ID/$BACKEND_SERVICE:${{ github.sha }} \
+            --platform=managed \
+            --quiet
+
+  deploy-frontend:
+    name: Deploy frontend to Cloud Run
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit frontend build
+        run: |
+          gcloud builds submit \
+            --project=$PROJECT_ID \
+            --tag=gcr.io/$PROJECT_ID/$FRONTEND_SERVICE:${{ github.sha }} \
+            --file=web/Dockerfile \
+            web/
+
+      - name: Deploy frontend
+        run: |
+          gcloud run deploy $FRONTEND_SERVICE \
+            --project=$PROJECT_ID \
+            --region=$REGION \
+            --image=gcr.io/$PROJECT_ID/$FRONTEND_SERVICE:${{ github.sha }} \
+            --platform=managed \
+            --quiet
+
+  notify:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always()
+    steps:
+      - name: Send Slack notification
+        if: ${{ secrets.LICI_SLACK_WEBHOOK != '' }}
+        run: |
+          STATUS="${{ needs.deploy-frontend.result }}"
+          ICON=$([ "$STATUS" = "success" ] && echo "✅" || echo "❌")
+          curl -s -X POST "${{ secrets.LICI_SLACK_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$ICON *lici-adk* deploy $STATUS — <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|$(echo ${{ github.sha }} | cut -c1-7)> by ${{ github.actor }}\"}"
