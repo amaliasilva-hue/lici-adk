@@ -82,7 +82,7 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
     <div ref={ref} className="relative">
       <button
         onClick={handleOpen}
-        className="relative w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+        className="relative w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
         aria-label="Notificações"
       >
         {/* Bell icon */}
@@ -98,12 +98,12 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 rounded-2xl shadow-2xl z-[200] overflow-hidden"
-          style={{ background: '#0d131f', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-            <span className="text-sm font-semibold text-white">Notificações</span>
+        <div className="absolute right-0 top-10 w-80 rounded-2xl shadow-xl z-[200] overflow-hidden"
+          style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.09)' }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <span className="text-sm font-semibold text-slate-800">Notificações</span>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-[11px] text-white/30 hover:text-white/60 transition-colors">
+              <button onClick={markAllRead} className="text-[11px] text-slate-400 hover:text-slate-700 transition-colors">
                 Marcar todas como lidas
               </button>
             )}
@@ -111,7 +111,7 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
 
           <div className="max-h-80 overflow-y-auto custom-scrollbar">
             {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-white/25">
+              <div className="px-4 py-8 text-center text-xs text-slate-400">
                 Nenhuma notificação
               </div>
             ) : (
@@ -119,7 +119,7 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
                 const link = entityLink(n);
                 const isUnread = !n.read_at;
                 const inner = (
-                  <div className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors cursor-pointer flex gap-3 ${isUnread ? 'bg-white/[0.02]' : ''}`}>
+                  <div className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 ${isUnread ? 'bg-blue-50/30' : ''}`}>
                     <div className="mt-0.5 shrink-0">
                       {n.type === 'analysis_done' ? (
                         <span className="text-base">✅</span>
@@ -132,14 +132,14 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs leading-snug ${isUnread ? 'text-white' : 'text-white/60'}`}>
+                      <p className={`text-xs leading-snug ${isUnread ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>
                         {n.title}
                       </p>
-                      {n.body && <p className="text-[11px] text-white/30 mt-0.5 truncate">{n.body}</p>}
-                      <p className="text-[10px] text-white/20 mt-1">{timeAgo(n.created_at)}</p>
+                      {n.body && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{n.body}</p>}
+                      <p className="text-[10px] text-slate-300 mt-1">{timeAgo(n.created_at)}</p>
                     </div>
                     {isUnread && (
-                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: 'var(--x-cyan)' }} />
+                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: '#047EA9' }} />
                     )}
                   </div>
                 );
@@ -154,8 +154,8 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
             )}
           </div>
 
-          <div className="px-4 py-2.5 border-t border-white/[0.06]">
-            <p className="text-[10px] text-white/15 text-center">Atualiza a cada 30s</p>
+          <div className="px-4 py-2.5 border-t border-slate-100">
+            <p className="text-[10px] text-slate-300 text-center">Atualiza a cada 30s</p>
           </div>
         </div>
       )}

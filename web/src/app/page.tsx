@@ -121,7 +121,7 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
     <div className="cmd-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="cmd-modal">
         <div className="cmd-input-row">
-          <svg className="w-4 h-4 text-white/25 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
           </svg>
           <input
@@ -136,7 +136,7 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
 
         <div className="max-h-72 overflow-y-auto">
           {all.length === 0 && (
-            <p className="text-center text-sm py-10" style={{ color: 'rgba(255,255,255,0.2)' }}>Nenhum resultado para "{q}"</p>
+          <p className="text-center text-sm py-10 text-slate-300">Nenhum resultado para "{q}"</p>
           )}
 
           {editalHits.length > 0 && (
@@ -147,10 +147,10 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
                   className={`cmd-item ${clampedSel === i ? 'cmd-item-active' : ''}`}
                   onClick={onClose}
                 >
-                  <span className="text-[11px] font-mono shrink-0" style={{ color: 'var(--x-cyan)', opacity: 0.6 }}>⬡</span>
+                  <span className="text-[11px] font-mono shrink-0" style={{ color: 'var(--x-cyan)', opacity: 0.7 }}>⬡</span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate text-white/80">{e.orgao}</p>
-                    <p className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.28)' }}>{e.objeto || 'sem objeto'}</p>
+                    <p className="text-sm font-medium truncate text-slate-700">{e.orgao}</p>
+                    <p className="text-[11px] truncate text-slate-400">{e.objeto || 'sem objeto'}</p>
                   </div>
                   <ScoreBadge score={e.score_comercial} />
                 </a>
@@ -169,7 +169,7 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
                     onClick={onClose}
                   >
                     <span className="w-6 h-6 flex items-center justify-center text-xs rounded-lg font-mono shrink-0"
-                      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+                      style={{ background: 'rgba(4,126,169,0.08)', color: '#047EA9' }}>
                       {n.icon}
                     </span>
                     <span className="text-sm">{n.label}</span>
@@ -185,6 +185,168 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
           <span><kbd className="cmd-kbd">↵</kbd> abrir</span>
           <span><kbd className="cmd-kbd">ESC</kbd> fechar</span>
           <span className="ml-auto opacity-60">⌘K</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat Link Modal ───────────────────────────────────────────────────────────
+type ChatSession = { session_id: string; title: string; updated_at: string; message_count: number };
+
+function ChatLinkModal({ edital, onClose }: { edital: Edital; onClose: () => void }) {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [allSessions, setAllSessions] = useState<ChatSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [linking, setLinking] = useState<string | null>(null);
+  const [tab, setTab] = useState<'linked' | 'all'>('linked');
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [linked, all] = await Promise.all([
+        fetch(`/api/proxy/editais/${edital.edital_id}/chat-sessions`).then(r => r.ok ? r.json() : []),
+        fetch('/api/proxy/chat/sessions?limit=30').then(r => r.ok ? r.json() : []),
+      ]);
+      setSessions(linked);
+      setAllSessions(all.filter((s: ChatSession) => !linked.find((l: ChatSession) => l.session_id === s.session_id)));
+      setLoading(false);
+    }
+    load();
+  }, [edital.edital_id]);
+
+  async function linkSession(sessionId: string) {
+    setLinking(sessionId);
+    try {
+      await fetch(`/api/proxy/chat/sessions/${sessionId}/link-edital`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ edital_id: edital.edital_id }),
+      });
+      // Refresh
+      const [linked, all] = await Promise.all([
+        fetch(`/api/proxy/editais/${edital.edital_id}/chat-sessions`).then(r => r.json()),
+        fetch('/api/proxy/chat/sessions?limit=30').then(r => r.json()),
+      ]);
+      setSessions(linked);
+      setAllSessions(all.filter((s: ChatSession) => !linked.find((l: ChatSession) => l.session_id === s.session_id)));
+    } finally { setLinking(null); }
+  }
+
+  async function unlinkSession(sessionId: string) {
+    setLinking(sessionId);
+    try {
+      await fetch(`/api/proxy/chat/sessions/${sessionId}/link-edital`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ edital_id: null }),
+      });
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+      const s = sessions.find(x => x.session_id === sessionId);
+      if (s) setAllSessions(prev => [s, ...prev]);
+    } finally { setLinking(null); }
+  }
+
+  async function newLinkedChat() {
+    const res = await fetch(`/api/proxy/chat/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: `Chat — ${edital.orgao}`, edital_id: edital.edital_id }),
+    });
+    if (res.ok) {
+      const sess = await res.json();
+      window.location.href = `/chat?session=${sess.session_id}`;
+    }
+  }
+
+  const listed = tab === 'linked' ? sessions : allSessions;
+
+  return (
+    <div className="chat-link-modal" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="chat-link-panel">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Conversas vinculadas</p>
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[220px]">{edital.orgao}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex px-4 pt-3 gap-3">
+          <button
+            className={`text-xs font-medium pb-2 border-b-2 transition-colors ${tab === 'linked' ? 'border-[#047EA9] text-[#047EA9]' : 'border-transparent text-slate-400'}`}
+            onClick={() => setTab('linked')}
+          >
+            Vinculadas {sessions.length > 0 && <span className="ml-1 bg-[#047EA9] text-white rounded-full px-1.5 py-0.5 text-[9px]">{sessions.length}</span>}
+          </button>
+          <button
+            className={`text-xs font-medium pb-2 border-b-2 transition-colors ${tab === 'all' ? 'border-[#047EA9] text-[#047EA9]' : 'border-transparent text-slate-400'}`}
+            onClick={() => setTab('all')}
+          >
+            Outras conversas
+          </button>
+        </div>
+
+        {/* List */}
+        <div className="max-h-64 overflow-y-auto">
+          {loading ? (
+            <p className="text-xs text-slate-400 text-center py-8">Carregando…</p>
+          ) : listed.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">
+              {tab === 'linked' ? 'Nenhuma conversa vinculada' : 'Nenhuma outra conversa disponível'}
+            </p>
+          ) : (
+            listed.map(s => (
+              <div key={s.session_id} className="chat-link-session-row">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-slate-700 truncate">{s.title || 'Sem título'}</p>
+                  <p className="text-[10px] text-slate-400">{s.message_count} mensagens</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <a
+                    href={`/chat?session=${s.session_id}`}
+                    className="text-[10px] text-[#047EA9] hover:underline"
+                    onClick={onClose}
+                  >
+                    Abrir
+                  </a>
+                  {tab === 'linked' ? (
+                    <button
+                      onClick={() => unlinkSession(s.session_id)}
+                      disabled={linking === s.session_id}
+                      className="text-[10px] px-2 py-0.5 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                    >
+                      {linking === s.session_id ? '…' : 'Desvincular'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => linkSession(s.session_id)}
+                      disabled={linking === s.session_id}
+                      className="text-[10px] px-2 py-0.5 rounded border border-[#047EA9]/30 text-[#047EA9] hover:bg-[#047EA9]/05 transition-colors disabled:opacity-40"
+                    >
+                      {linking === s.session_id ? '…' : 'Vincular'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+          <button
+            onClick={newLinkedChat}
+            className="btn btn-primary w-full text-xs py-2"
+          >
+            + Iniciar nova conversa sobre este edital
+          </button>
         </div>
       </div>
     </div>
@@ -230,30 +392,30 @@ function QuickNote({ editalId, onSaved }: { editalId: string; onSaved: () => voi
       <button
         title="Adicionar nota rápida"
         onClick={() => setOpen(o => !o)}
-        className="text-white/20 hover:text-cyan-400 transition-colors p-0.5"
+        className="text-slate-400 hover:text-[#047EA9] transition-colors p-0.5"
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
         </svg>
       </button>
       {open && (
-        <div className="absolute bottom-6 left-0 z-[100] w-56 rounded-xl shadow-2xl p-3 space-y-2"
-          style={{ background: '#0d131f', border: '1px solid rgba(255,255,255,0.10)' }}>
-          <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Nota rápida</p>
+        <div className="absolute bottom-6 left-0 z-[100] w-56 rounded-xl shadow-xl p-3 space-y-2"
+          style={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.10)' }}>
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Nota rápida</p>
           <textarea
             autoFocus
             maxLength={200}
             rows={3}
-            className="w-full text-xs bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-white/80 resize-none outline-none focus:border-cyan-500/50 placeholder-white/20"
+            className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-slate-800 resize-none outline-none focus:border-[#047EA9]/50 placeholder-slate-300"
             placeholder="Adicionar anotação…"
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && e.metaKey) save(); }}
           />
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-white/15">{text.length}/200</span>
+            <span className="text-[10px] text-slate-300">{text.length}/200</span>
             <div className="flex gap-1.5">
-              <button onClick={() => setOpen(false)} className="text-[11px] text-white/30 hover:text-white/60 px-2 py-0.5 rounded">Cancelar</button>
+              <button onClick={() => setOpen(false)} className="text-[11px] text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded">Cancelar</button>
               <button
                 disabled={!text.trim() || saving}
                 onClick={save}
@@ -274,7 +436,7 @@ function QuickNote({ editalId, onSaved }: { editalId: string; onSaved: () => voi
 function KanbanColumn({
   stage, cards, idx, prevStage, nextStage,
   allStageSelected, selected, removingIds, moving, deleting,
-  onSelectAll, onToggle, onMoveTo, onDelete, reload,
+  onSelectAll, onToggle, onMoveTo, onDelete, reload, onChatLink,
 }: {
   stage: { key: string; label: string; color: string };
   cards: Edital[];
@@ -291,6 +453,7 @@ function KanbanColumn({
   onMoveTo: (e: Edital, stage: string) => void;
   onDelete: (e: Edital) => void;
   reload: () => void;
+  onChatLink: (e: Edital) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.key });
 
@@ -316,7 +479,7 @@ function KanbanColumn({
               {allStageSelected ? '✕' : '☐'}
             </button>
           )}
-          <span className="bg-white/[0.08] text-slate-400 rounded-full px-2 py-0.5 text-[10px] font-mono">
+          <span className="bg-white text-slate-500 rounded-full px-2 py-0.5 text-[10px] font-mono border border-slate-200">
             {cards.length}
           </span>
         </div>
@@ -346,12 +509,12 @@ function KanbanColumn({
             </button>
 
             <Link href={`/edital/${e.edital_id}`} className="block mb-1.5 pl-6 pr-5">
-              <p className="text-[12px] font-semibold text-white leading-snug line-clamp-2 mb-0.5 group-hover:text-cyan-400 transition-colors">
+                <p className="text-[12px] font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5 group-hover:text-[#047EA9] transition-colors">
                 {e.orgao || '—'}
               </p>
-              <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
+              <p className="text-[11px] text-slate-400 truncate">{e.objeto || 'sem objeto'}</p>
               {e.numero_pregao && (
-                <p className="text-[10px] mt-0.5 font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>{e.numero_pregao}</p>
+                <p className="text-[10px] mt-0.5 font-mono text-slate-300">{e.numero_pregao}</p>
               )}
             </Link>
             <div className="flex items-center gap-1 flex-wrap pl-6">
@@ -360,7 +523,7 @@ function KanbanColumn({
               <PriBadge pri={e.prioridade} />
             </div>
             {/* Move buttons + comment count */}
-            <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-white/[0.06] items-center">
+            <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-slate-100 items-center">
               {prevStage && (
                 <button
                   onClick={() => onMoveTo(e, prevStage)}
@@ -380,13 +543,13 @@ function KanbanColumn({
                 </button>
               )}
             </div>
-            {/* Comment count + quick note */}
+            {/* Comment count + quick note + chat link */}
             <div className="flex items-center gap-2 mt-1.5 pl-6">
               {(e.comentarios_count ?? 0) > 0 && (
                 <Link
                   href={`/edital/${e.edital_id}#comentarios`}
                   onClick={(ev) => ev.stopPropagation()}
-                  className="flex items-center gap-1 text-[10px] text-white/30 hover:text-cyan-400 transition-colors"
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#047EA9] transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
@@ -398,13 +561,24 @@ function KanbanColumn({
                 editalId={e.edital_id}
                 onSaved={reload}
               />
+              {/* Chat link button */}
+              <button
+                type="button"
+                title="Vincular conversa do Chat"
+                onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); onChatLink(e); }}
+                className="chat-link-btn"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                </svg>
+              </button>
             </div>
           </div>
         );
       })}
 
       {cards.length === 0 && (
-        <div className="text-[11px] text-slate-600 text-center py-6 border border-dashed border-white/[0.08] rounded-xl bg-white/[0.01]">
+        <div className="text-[11px] text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
           Nenhum processo
         </div>
       )}
@@ -421,6 +595,7 @@ export default function PipelinePage() {
   const [confirm, setConfirm] = useState<{ ids: string[]; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [chatLinkTarget, setChatLinkTarget] = useState<Edital | null>(null);
   const { toasts, push: toast, remove: closeToast } = useToasts();
 
   // ── Search & filter state ──────────────────────────────────────────────────
@@ -604,7 +779,7 @@ export default function PipelinePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm gap-3">
+      <div className="flex items-center justify-center h-64 text-slate-500 text-sm gap-3">
         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -638,7 +813,7 @@ export default function PipelinePage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
-              <kbd className="hidden sm:inline text-[10px] text-white/25 border border-white/[0.12] rounded px-1 py-0.5">⌘K</kbd>
+              <kbd className="hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1 py-0.5">⌘K</kbd>
             </button>
             <button
               type="button"
@@ -662,15 +837,15 @@ export default function PipelinePage() {
             <span className="stat-card-value">{activeCount}</span>
             <span className="stat-card-label">Em andamento</span>
           </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(192,255,125,0.2)' }}>
-            <span className="stat-card-value" style={{ color: 'var(--x-green)' }}>{aptoCount}</span>
+          <div className="stat-card" style={{ borderColor: 'rgba(22,163,74,0.25)' }}>
+            <span className="stat-card-value" style={{ color: '#16A34A' }}>{aptoCount}</span>
             <span className="stat-card-label">Aptos ≥ 70%</span>
           </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(245,158,11,0.2)' }}>
-            <span className="stat-card-value" style={{ color: '#F59E0B' }}>{waitingCount}</span>
+          <div className="stat-card" style={{ borderColor: 'rgba(217,119,6,0.25)' }}>
+            <span className="stat-card-value" style={{ color: '#D97706' }}>{waitingCount}</span>
             <span className="stat-card-label">Aguardando análise</span>
           </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(239,68,68,0.2)' }}>
+          <div className="stat-card" style={{ borderColor: 'rgba(225,72,73,0.25)' }}>
             <span className="stat-card-value" style={{ color: '#E14849' }}>
               {byStage('at_declinados').length}
             </span>
@@ -696,7 +871,7 @@ export default function PipelinePage() {
         {/* Filter chips */}
         {showSearch && (
           <div className="flex flex-wrap items-center gap-2 fade-up delay-100">
-            <span className="text-[11px] uppercase tracking-wider text-white/25 font-medium">Filtrar:</span>
+            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Filtrar:</span>
 
             {ufList.slice(0, 6).map((uf) => (
               <button
@@ -778,6 +953,7 @@ export default function PipelinePage() {
                   onMoveTo={moveTo}
                   onDelete={askDeleteOne}
                   reload={load}
+                  onChatLink={(e) => setChatLinkTarget(e)}
                 />
               );
             })}
@@ -813,6 +989,9 @@ export default function PipelinePage() {
 
       {/* Command Palette */}
       {cmdOpen && <CommandPalette editais={editais} onClose={() => setCmdOpen(false)} />}
+
+      {/* Chat Link Modal */}
+      {chatLinkTarget && <ChatLinkModal edital={chatLinkTarget} onClose={() => setChatLinkTarget(null)} />}
 
       {/* Terminal / Encerrados */}
       {terminal.length > 0 && (

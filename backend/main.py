@@ -35,7 +35,7 @@ from backend.tools.pg_tools import (
     add_comentario, list_comentarios,
     seed_gates, list_gates, set_gate,
     STAGES_ORDER, ESTADOS_TERMINAIS,
-    get_engine,
+    get_engine, _serialize_row,
     # Fase 7 — jobs persistentes
     create_job, get_job, touch_job, find_job_by_sha256, list_jobs,
     mark_orphan_jobs_failed,
@@ -1640,4 +1640,63 @@ async def send_session_message(
             await asyncio.to_thread(_cs_retitle, session_id, short_title)
 
     return {"reply": reply, "message_id": str(msg_row.get("message_id", ""))}
+
+
+# ────────────────────── Chat ↔ Edital Link ────────────────────────────────────
+
+class _LinkEditalBody(BaseModel):
+    edital_id: str | None = None  # None = unlink
+
+
+@app.patch("/chat/sessions/{session_id}/link-edital")
+async def link_session_to_edital(session_id: str, body: _LinkEditalBody) -> dict:
+    """Vincula (ou desvincula) uma sessão de chat a um edital específico."""
+    from sqlalchemy import text as _sqlt
+    engine = get_engine()
+
+    # Validate session exists
+    sess = await asyncio.to_thread(_cs_get_plain, session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="sessão não encontrada")
+
+    # Validate edital if provided
+    if body.edital_id:
+        edital = await asyncio.to_thread(get_edital, body.edital_id)
+        if not edital:
+            raise HTTPException(status_code=404, detail="edital não encontrado")
+
+    def _update():
+        with engine.connect() as conn:
+            conn.execute(
+                _sqlt("UPDATE chat_sessions SET edital_id = :eid, updated_at = NOW() WHERE session_id = :sid"),
+                {"eid": body.edital_id, "sid": session_id},
+            )
+            conn.commit()
+
+    await asyncio.to_thread(_update)
+    return {"session_id": session_id, "edital_id": body.edital_id, "linked": body.edital_id is not None}
+
+
+@app.get("/editais/{edital_id}/chat-sessions")
+async def list_edital_chat_sessions(edital_id: str) -> list[dict]:
+    """Lista sessões de chat vinculadas a um edital."""
+    from sqlalchemy import text as _sqlt
+    engine = get_engine()
+
+    def _fetch():
+        with engine.connect() as conn:
+            rows = conn.execute(
+                _sqlt(
+                    "SELECT session_id::text, title, created_at, updated_at, "
+                    "(SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.session_id) AS message_count "
+                    "FROM chat_sessions s "
+                    "WHERE s.edital_id = :eid "
+                    "ORDER BY s.updated_at DESC LIMIT 20"
+                ),
+                {"eid": edital_id},
+            ).fetchall()
+        return [_serialize_row(dict(r._mapping)) for r in rows]
+
+    return await asyncio.to_thread(_fetch)
+
 

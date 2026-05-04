@@ -22,8 +22,8 @@ export default function NavLinks() {
             href={href}
             className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 relative ${
               isActive
-                ? 'text-white nav-active'
-                : 'text-white/45 hover:text-white hover:bg-white/[0.06]'
+                ? 'text-[#047EA9] nav-active'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
             }`}
           >
             {label}
