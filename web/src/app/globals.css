@@ -12,14 +12,14 @@
   --font-body:       'Roboto',  sans-serif;
 
   /* ── Deep dark bg (brandbook) ────────────────────────── */
-  --bg-deep:         #03070d;
-  --bg-surface:      rgba(13,19,31,0.4);
+  --bg-deep:         #050e1f;
+  --bg-surface:      rgba(8,18,42,0.45);
   --glass-border:    rgba(255,255,255,0.08);
   --glass-highlight: rgba(255,255,255,0.10);
 
   /* ── Legacy navy tokens (kept for compatibility) ─────── */
-  --navy:         #14263D;
-  --navy-dark:    #0A1320;
+  --navy:         #0d1e3d;
+  --navy-dark:    #050e1f;
   --surface:      rgba(255,255,255,0.025);
   --surface-2:    rgba(255,255,255,0.05);
   --border:       rgba(255,255,255,0.07);
@@ -73,7 +73,7 @@
   --glass-input-bd:      rgba(255,255,255,0.10);
 
   /* ── Dropdown ────────────────────────────────────────── */
-  --dropdown-bg:         #111827;
+  --dropdown-bg:         #0a1628;
   --dropdown-row-hover:  rgba(255,255,255,0.06);
 }
 
@@ -119,9 +119,9 @@ body {
   filter: blur(140px); opacity: 0.15;
   animation: drift 20s infinite alternate ease-in-out;
 }
-.orb-cyan  { width:50vw; height:50vw; background:var(--x-cyan);  top:-20%;    left:-10%; }
-.orb-pink  { width:45vw; height:45vw; background:var(--x-pink);  bottom:-10%; right:-10%; animation-delay:-5s;  animation-direction:alternate-reverse; }
-.orb-green { width:35vw; height:35vw; background:var(--x-green); top:30%;     left:40%;   animation-delay:-10s; opacity:0.08; }
+.orb-cyan  { width:55vw; height:55vw; background:var(--x-cyan);  top:-25%;    left:-15%; opacity:0.12; }
+.orb-pink  { width:50vw; height:50vw; background:#1d4ed8;         bottom:-15%; right:-15%; animation-delay:-5s; animation-direction:alternate-reverse; opacity:0.18; }
+.orb-green { width:40vw; height:40vw; background:#0ea5e9;         top:25%;     left:35%;   animation-delay:-10s; opacity:0.06; }
 
 .noise-overlay {
   position: fixed; inset: 0; z-index: 999; pointer-events: none;

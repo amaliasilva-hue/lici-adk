@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="noise-overlay" aria-hidden="true" />
         {/* ── Premium Header ── */}
         <header className="sticky top-0 z-50 header-border"
-            style={{ background: 'rgba(3,7,13,0.88)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
+            style={{ background: 'rgba(5,14,31,0.90)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
           <div className="max-w-screen-2xl mx-auto px-8 flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-3 shrink-0 group">
