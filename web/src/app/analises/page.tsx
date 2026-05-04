@@ -147,7 +147,7 @@ function AnalisesPageInner() {
   const hasSelection = selected.size > 0;
 
   return (
-    <div className={`space-y-5 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
+    <div className={`space-y-5 animate-fade-in p-6 ${hasSelection ? 'has-selection' : ''}`}>
       <div className="card">
         <h1 className="text-xl font-bold mb-3">Histórico de análises</h1>
         <form
