@@ -462,11 +462,11 @@ function KanbanColumn({
       ref={setNodeRef}
       className="stage-col"
       data-drop-target={isOver ? 'true' : undefined}
+      style={{ '--stage-color': stage.color } as React.CSSProperties}
     >
       <div className="stage-col-title">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage.color }} />
-          <span>{stage.label}</span>
+        <div className="flex items-center gap-2">
+          <span style={{ color: stage.color }}>{stage.label}</span>
         </div>
         <div className="flex items-center gap-1.5">
           {cards.length > 0 && (
@@ -479,7 +479,7 @@ function KanbanColumn({
               {allStageSelected ? '✕' : '☐'}
             </button>
           )}
-          <span className="bg-white text-slate-500 rounded-full px-2 py-0.5 text-[10px] font-mono border border-slate-200">
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: `${stage.color}18`, color: stage.color }}>
             {cards.length}
           </span>
         </div>
@@ -512,9 +512,9 @@ function KanbanColumn({
                 <p className="text-[12px] font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5 group-hover:text-[#047EA9] transition-colors">
                 {e.orgao || '—'}
               </p>
-              <p className="text-[11px] text-slate-400 truncate">{e.objeto || 'sem objeto'}</p>
+              <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
               {e.numero_pregao && (
-                <p className="text-[10px] mt-0.5 font-mono text-slate-300">{e.numero_pregao}</p>
+                <p className="text-[10px] mt-0.5 font-mono text-slate-400">{e.numero_pregao}</p>
               )}
             </Link>
             <div className="flex items-center gap-1 flex-wrap pl-6">
@@ -819,7 +819,7 @@ export default function PipelinePage() {
               type="button"
               onClick={() => setShowSearch((v) => !v)}
               title="Filtrar"
-              className={`btn btn-ghost px-3 py-2 ${showSearch || filterPri != null || filterUF ? 'bg-white/[0.06]' : ''}`}
+              className={`btn btn-ghost px-3 py-2 ${showSearch || filterPri != null || filterUF ? 'bg-slate-100' : ''}`}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h4" />
@@ -880,8 +880,8 @@ export default function PipelinePage() {
                 onClick={() => setFilterUF(filterUF === uf ? null : uf)}
                 className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
                   filterUF === uf
-                    ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-400'
-                    : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
+                    ? 'bg-[rgba(4,126,169,0.10)] border-[rgba(4,126,169,0.40)] text-[#047EA9] font-semibold'
+                    : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 bg-white'
                 }`}
               >
                 {uf}
@@ -895,8 +895,8 @@ export default function PipelinePage() {
                 onClick={() => setFilterPri(filterPri === p ? null : p)}
                 className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
                   filterPri === p
-                    ? 'bg-pink-500/15 border-pink-500/50 text-pink-400'
-                    : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
+                    ? 'bg-[rgba(217,70,239,0.10)] border-[rgba(217,70,239,0.40)] text-[#9D00C2] font-semibold'
+                    : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 bg-white'
                 }`}
               >
                 P{p}
@@ -907,7 +907,7 @@ export default function PipelinePage() {
               <button
                 type="button"
                 onClick={() => { setFilterPri(null); setFilterUF(null); setSearch(''); }}
-                className="text-xs px-2.5 py-0.5 rounded-full border border-white/[0.1] text-white/30 hover:text-red-400 hover:border-red-500/30 transition-all"
+                className="text-xs px-2.5 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:text-[#B91C1C] hover:border-[rgba(225,72,73,0.4)] hover:bg-[rgba(225,72,73,0.06)] transition-all bg-white"
               >
                 ✕ limpar
               </button>
