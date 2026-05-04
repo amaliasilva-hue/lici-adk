@@ -550,9 +550,16 @@ function KanbanColumn({
                   {e.numero_pregao}
                 </span>
               ) : <span />}
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <PriBadge pri={e.prioridade} />
-                <ScoreBadge score={e.score_comercial} />
+                {e.score_comercial != null && (
+                  <span className={`card-score-big ${
+                    e.score_comercial >= 70 ? 'score-green' :
+                    e.score_comercial >= 45 ? 'score-yellow' : 'score-red'
+                  }`}>
+                    {e.score_comercial}%
+                  </span>
+                )}
               </div>
             </div>
 
@@ -682,14 +689,19 @@ export default function PipelinePage() {
     return result;
   }, [editais, search, filterPri, filterUF]);
 
-  // Esc clears selection; ⌘K opens palette
+  // Esc clears selection; ⌘K opens palette; header search trigger
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !confirm && selected.size > 0) setSelected(new Set());
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
     };
+    const onOpen = () => setCmdOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('openCmdPalette', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('openCmdPalette', onOpen);
+    };
   }, [selected.size, confirm]);
 
   async function moveTo(edital: Edital, newStage: string) {
@@ -841,6 +853,7 @@ export default function PipelinePage() {
   const activeCount = editais.filter(e => !e.estado_terminal).length;
   const aptoCount   = editais.filter(e => e.score_comercial != null && e.score_comercial >= 70).length;
   const waitingCount = editais.filter(e => !e.estado_terminal && !e.score_comercial).length;
+  const totalValor  = editais.reduce((a, b) => a + (b.valor_estimado ?? 0), 0);
 
   return (
     <div
@@ -848,49 +861,77 @@ export default function PipelinePage() {
       style={{ height: 'calc(100vh - 64px)' }}
     >
       {/* ── Top controls bar ── */}
-      <div className="shrink-0 px-6 py-3 border-b border-slate-100 bg-app">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-3 mr-auto">
-            <h1 className="heading-xl">Pipeline de Editais</h1>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-              <span className="font-bold text-slate-700 tabular-nums">{activeCount}</span>
-              <span>em andamento</span>
-              <span className="text-slate-300">·</span>
-              <span className="font-bold tabular-nums" style={{ color: '#16A34A' }}>{aptoCount}</span>
-              <span>aptos</span>
-              <span className="text-slate-300">·</span>
-              <span className="font-bold tabular-nums" style={{ color: '#D97706' }}>{waitingCount}</span>
-              <span>na fila</span>
+      <div className="shrink-0 px-6 pt-4 pb-3 border-b border-slate-100 bg-app">
+        {/* Title + actions row */}
+        <div className="flex items-center gap-3 mb-3">
+          <h1 className="heading-xl mr-auto">Pipeline de Editais</h1>
+          <button
+            type="button"
+            onClick={() => setShowSearch((v) => !v)}
+            title="Filtrar por UF, prioridade…"
+            className={`btn btn-ghost btn-sm flex items-center gap-1 ${showSearch || filterPri != null || filterUF ? 'bg-slate-100 text-slate-700' : ''}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h4" />
+            </svg>
+            <span className="hidden sm:inline text-[11px]">Filtrar</span>
+          </button>
+          <Link href="/upload" className="btn btn-primary btn-sm shrink-0">
+            + Novo Edital
+          </Link>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="stat-card">
+            <div className="stat-card-icon" style={{ background: 'rgba(4,126,169,0.08)' }}>
+              <svg className="w-4 h-4" style={{ color: '#047EA9' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8 7v7M16 7v9M12 7v4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="stat-card-value">{activeCount}</span>
+              <span className="stat-card-label">em andamento</span>
             </div>
           </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setCmdOpen(true)}
-              title="Busca rápida (⌘K)"
-              className="btn btn-ghost btn-sm flex items-center gap-1.5"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          <div className="stat-card">
+            <div className="stat-card-icon" style={{ background: 'rgba(22,163,74,0.08)' }}>
+              <svg className="w-4 h-4" style={{ color: '#16A34A' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M9 12l2 2 4-4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="12" cy="12" r="10" strokeWidth="2"/>
               </svg>
-              <kbd className="hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1">⌘K</kbd>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSearch((v) => !v)}
-              title="Filtrar"
-              className={`btn btn-ghost btn-sm ${showSearch || filterPri != null || filterUF ? 'bg-slate-100' : ''}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h4" />
-              </svg>
-            </button>
-            <Link href="/upload" className="btn btn-primary btn-sm shrink-0">
-              + Novo
-            </Link>
+            </div>
+            <div className="flex flex-col">
+              <span className="stat-card-value" style={{ color: '#16A34A' }}>{aptoCount}</span>
+              <span className="stat-card-label">score ≥70%</span>
+            </div>
           </div>
+          <div className="stat-card">
+            <div className="stat-card-icon" style={{ background: 'rgba(217,119,6,0.08)' }}>
+              <svg className="w-4 h-4" style={{ color: '#D97706' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                <path d="M12 8v4M12 16h.01" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="stat-card-value" style={{ color: '#D97706' }}>{waitingCount}</span>
+              <span className="stat-card-label">aguardando IA</span>
+            </div>
+          </div>
+          {totalValor > 0 && (
+            <div className="stat-card">
+              <div className="stat-card-icon" style={{ background: 'rgba(124,58,237,0.08)' }}>
+                <svg className="w-4 h-4" style={{ color: '#7C3AED' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <span className="stat-card-value" style={{ color: '#7C3AED', fontSize: '1rem' }}>{(totalValor / 1_000_000).toFixed(0)}M</span>
+                <span className="stat-card-label">pipeline total</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Search bar (collapsible) */}
