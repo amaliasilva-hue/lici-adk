@@ -60,7 +60,7 @@ export default function ConfigPage() {
         <span className="text-xl mt-0.5">🔒</span>
         <div>
           <p className="font-semibold text-sm" style={{ color: 'var(--x-orange)' }}>Página interna em desenvolvimento</p>
-          <p className="text-xs text-white/40 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             As alterações são salvas localmente neste navegador. A integração com o backend (POST /config/prompts) ainda não está disponível.
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function ConfigPage() {
 
       {SECTIONS.map((s) => (
         <div key={s.key} className="card space-y-2">
-          <label className="font-semibold text-white/80 text-sm">{s.label}</label>
+          <label className="font-semibold text-slate-700 text-sm">{s.label}</label>
           <textarea
             rows={4}
             className="input resize-y"
@@ -92,7 +92,7 @@ export default function ConfigPage() {
         {saved && <span className="text-green-accent text-sm">Salvo!</span>}
       </div>
 
-      <div className="card border-white/5 text-white/30 text-xs space-y-1">
+      <div className="card border-slate-100 text-slate-400 text-xs space-y-1">
         <p>⚠️ As configurações são salvas localmente neste navegador (localStorage) até a integração com o backend estar disponível.</p>
         <p>Endpoint previsto: POST /config/prompts · autenticado por OIDC Xertica.</p>
       </div>

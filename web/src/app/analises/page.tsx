@@ -220,7 +220,7 @@ function AnalisesPageInner() {
               return (
                 <tr
                   key={r.analysis_id}
-                  className={`group border-b border-slate-100 last:border-0 transition-all ${isSelected ? 'is-selected bg-white/[0.03]' : 'hover:bg-slate-50'} ${isRemoving ? 'opacity-30' : ''}`}
+                  className={`group border-b border-slate-100 last:border-0 transition-all ${isSelected ? 'is-selected bg-slate-50' : 'hover:bg-slate-50'} ${isRemoving ? 'opacity-30' : ''}`}
                 >
                   <td className="py-2 pr-2">
                     <SelectDot checked={isSelected} onChange={() => toggleSelected(r.analysis_id)} />
@@ -242,7 +242,7 @@ function AnalisesPageInner() {
                       disabled={deleting}
                       title="Apagar análise"
                       aria-label="Apagar análise"
-                      className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                      className="text-slate-500 hover:text-[#B91C1C] opacity-0 group-hover:opacity-100 transition-opacity p-1"
                     >
                       <TrashIcon />
                     </button>

@@ -28,18 +28,18 @@ function StatusRow({
              : status === 'error'    ? 'Falha'
              : 'Verificando…';
 
-  const textColor = status === 'ok'       ? 'text-green-400'
+  const textColor = status === 'ok'       ? 'text-[#16A34A]'
                   : status === 'degraded' ? 'text-yellow-400'
-                  : status === 'error'    ? 'text-red-400'
-                  : 'text-white/30';
+                  : status === 'error'    ? 'text-[#B91C1C]'
+                  : 'text-slate-400';
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0 gap-4">
+    <div className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0 gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot(status)}`} />
         <div>
           <p className="text-sm text-white font-medium">{label}</p>
-          {detail && <p className="text-xs text-white/30 mt-0.5">{detail}</p>}
+          {detail && <p className="text-xs text-slate-400 mt-0.5">{detail}</p>}
         </div>
       </div>
       <span className={`text-sm font-semibold flex-shrink-0 ${textColor}`}>{text}</span>
@@ -104,15 +104,15 @@ export default function StatusPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 py-2">
       {/* Breadcrumb */}
-      <div className="text-sm text-white/30">
-        <Link href="/" className="hover:text-white/60 transition-colors">Pipeline</Link>
+      <div className="text-sm text-slate-400">
+        <Link href="/" className="hover:text-slate-600 transition-colors">Pipeline</Link>
         <span className="mx-2">/</span>
-        <span className="text-white/50">Status</span>
+        <span className="text-slate-500">Status</span>
       </div>
 
       <div className="fade-up">
         <h1 className="heading-lg mb-1">Status dos Sistemas</h1>
-        <p className="text-sm text-white/35">Saúde dos componentes de infraestrutura.</p>
+        <p className="text-sm text-slate-400">Saúde dos componentes de infraestrutura.</p>
       </div>
 
       {/* Overall banner */}
@@ -127,7 +127,7 @@ export default function StatusPage() {
         <div className="flex-1">
           <p className="font-semibold text-white">{overallLabel}</p>
           {lastChecked && (
-            <p className="text-xs text-white/30 mt-0.5">
+            <p className="text-xs text-slate-400 mt-0.5">
               Última verificação: {lastChecked.toLocaleTimeString('pt-BR')}
             </p>
           )}
@@ -142,7 +142,7 @@ export default function StatusPage() {
 
       {/* Services */}
       <div className="card">
-        <p className="text-xs text-white/30 uppercase tracking-widest font-semibold mb-2 px-1">Serviços</p>
+        <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2 px-1">Serviços</p>
         <StatusRow
           label="API Backend"
           status={fetchError ? 'error' : health ? 'ok' : 'checking'}
@@ -174,12 +174,12 @@ export default function StatusPage() {
       {jobs !== null && (
         <div className="card grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Jobs recentes (50)</p>
+            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Jobs recentes (50)</p>
             <p className="text-3xl font-bold font-poppins text-white">{jobs.count}</p>
           </div>
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Em execução / fila</p>
-            <p className={`text-3xl font-bold font-poppins ${jobs.running > 0 ? 'text-cyan-400' : 'text-white/40'}`}>
+            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Em execução / fila</p>
+            <p className={`text-3xl font-bold font-poppins ${jobs.running > 0 ? 'text-[#047EA9]' : 'text-slate-500'}`}>
               {jobs.running}
             </p>
           </div>
@@ -188,10 +188,10 @@ export default function StatusPage() {
 
       {/* Backend version/uptime */}
       {health && (health.version || health.uptime_s != null) && (
-        <div className="flex gap-6 text-xs text-white/25">
-          {health.version && <span>Versão: <span className="font-mono text-white/40">{health.version}</span></span>}
+        <div className="flex gap-6 text-xs text-slate-400">
+          {health.version && <span>Versão: <span className="font-mono text-slate-500">{health.version}</span></span>}
           {health.uptime_s != null && (
-            <span>Uptime: <span className="text-white/40">{Math.floor(health.uptime_s / 60)}m</span></span>
+            <span>Uptime: <span className="text-slate-500">{Math.floor(health.uptime_s / 60)}m</span></span>
           )}
         </div>
       )}

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xertica B2G - Plataforma de Licitações</title>
+  
+  <!-- Carregando React, ReactDOM, Babel e Tailwind CSS via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <!-- Container onde o React será injetado -->
+  <div id="root"></div>
+
+  <!-- Script principal usando Babel para compilar JSX direto no navegador -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } = React;
+
+    // ============================================================================
+    // 1. DESIGN TOKENS E CSS GLOBAL
+    // ============================================================================
+    const globalCss = `
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+      :root {
+        --x-primary-100: #047EA9; --x-primary-80:  #038CBC; --x-primary-50:  #00BEFF;
+        --x-primary-20:  #5CD5FF; --x-primary-05:  #D6F5FF; --x-green-100:   #7FA856;
+        --x-green-50:    #C0FF7D; --x-pink-100:    #A85CA9; --x-pink-50:     #FF89FF;
+        --x-red-100:     #943335; --x-red-50:      #E14849; --bg-app:        #F8FAFC;
+        --bg-surface:    #FFFFFF; --bg-sidebar:    #0F172A; --text-heading:  #0F172A;
+        --text-body:     #334155; --text-muted:    #64748B; --border-light:  #E2E8F0;
+
+        --shadow-sm:     0 1px 2px 0 rgba(4, 126, 169, 0.05);
+        --shadow-md:     0 4px 6px -1px rgba(4, 126, 169, 0.08), 0 2px 4px -1px rgba(4, 126, 169, 0.04);
+        --shadow-lg:     0 10px 15px -3px rgba(4, 126, 169, 0.1), 0 4px 6px -2px rgba(4, 126, 169, 0.05);
+
+        --font-heading:  'Poppins', sans-serif;
+        --font-body:     'Roboto', sans-serif;
+        --font-mono:     'JetBrains Mono', monospace;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background-color: var(--bg-app); color: var(--text-body); font-family: var(--font-body); overflow: hidden; }
+      h1, h2, h3, h4, h5, h6, .font-heading { font-family: var(--font-heading); color: var(--text-heading); }
+      .font-mono { font-family: var(--font-mono); }
+
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+      ::-webkit-scrollbar-thumb:hover { background-color: var(--x-primary-80); }
+
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; }
+
+      .kanban-board { display: flex; gap: 16px; padding: 24px 32px; overflow-x: auto; overflow-y: hidden; height: 100%; align-items: flex-start; }
+      .kanban-col { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; max-height: 100%; border-radius: 16px; background: rgba(241, 245, 249, 0.6); border: 1px solid var(--border-light); transition: all 0.2s ease; }
+      .kanban-col.drag-over { background: var(--x-primary-05); border: 1px dashed var(--x-primary-100); }
+      .kanban-card { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 12px; padding: 16px; cursor: grab; transition: all 0.2s; box-shadow: var(--shadow-sm); user-select: none; }
+      .kanban-card:hover { border-color: var(--x-primary-50); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+      .kanban-card:active { cursor: grabbing; transform: scale(0.98); }
+      .kanban-card.is-dragging { opacity: 0.5; border: 2px dashed var(--x-primary-100); transform: scale(1.02) rotate(2deg); z-index: 50; }
+
+      @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      @keyframes slideInLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+      .animate-slide-right { animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      .animate-slide-left { animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      .animate-fade { animation: fadeIn 0.2s ease-out forwards; }
+      .animate-scale { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+      .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+      .data-table th { background: #F8FAFC; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border-light); position: sticky; top: 0; z-index: 10; }
+      .data-table td { padding: 16px; border-bottom: 1px solid var(--border-light); font-size: 13px; color: var(--text-body); transition: background 0.2s; }
+      .data-table tr:hover td { background: #F1F5F9; }
+    `;
+
+    // ============================================================================
+    // 2. ÍCONES (SVG nativos baseados em Lucide)
+    // ============================================================================
+    const Icons = {
+      Search: (p) => <svg width={p.size||18} height={p.size||18} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>,
+      Bell: (p) => <svg width={p.size||18} height={p.size||18} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>,
+      Command: (p) => <svg width={p.size||14} height={p.size||14} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M18 3a3 3 0 00-3 3v12a3 3 0 003 3 3 3 0 003-3 3 3 0 00-3-3H6a3 3 0 00-3 3 3 3 0 003 3 3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3 3 3 0 003 3h12a3 3 0 003-3 3 3 0 00-3-3z"/></svg>,
+      FileText: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>,
+      Brain: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M9.5 2A2.5 2.5 0 007 4.5v15A2.5 2.5 0 009.5 22h5a2.5 2.5 0 002.5-2.5v-15A2.5 2.5 0 0014.5 2h-5z"/><path d="M7 4.5v15M17 4.5v15"/></svg>,
+      Message: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"/></svg>,
+      X: (p) => <svg width={p.size||20} height={p.size||20} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M18 6L6 18M6 6l12 12"/></svg>,
+      CheckCircle: (p) => <svg width={p.size||18} height={p.size||18} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>,
+      AlertTriangle: (p) => <svg width={p.size||18} height={p.size||18} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></svg>,
+      Filter: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+      LayoutDashboard: (p) => <svg width={p.size||20} height={p.size||20} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
+      KanbanSquare: (p) => <svg width={p.size||20} height={p.size||20} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M8 7v7M16 7v9M12 7v4"/></svg>,
+      List: (p) => <svg width={p.size||20} height={p.size||20} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+      ChevronDown: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M6 9l6 6 6-6"/></svg>,
+      ChevronUp: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M18 15l-6-6-6 6"/></svg>,
+      ExternalLink: (p) => <svg width={p.size||14} height={p.size||14} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>,
+      Clock: (p) => <svg width={p.size||14} height={p.size||14} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
+      Bot: (p) => <svg width={p.size||20} height={p.size||20} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>,
+      Sparkles: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></svg>,
+      TrendingUp: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+      Calendar: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+      Users: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+      Download: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+      ArrowRight: (p) => <svg width={p.size||16} height={p.size||16} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    };
+
+    // ============================================================================
+    // 3. DADOS DE MOCK
+    // ============================================================================
+    const STAGES =[
+      { key: 'identificacao', label: 'Identificação', color: '#94A3B8', bg: 'rgba(148, 163, 184, 0.1)' },
+      { key: 'analise',       label: 'Análise de IA', color: '#047EA9', bg: 'rgba(4, 126, 169, 0.1)' },
+      { key: 'pre_disputa',   label: 'Pré-disputa',   color: '#A85CA9', bg: 'rgba(168, 92, 169, 0.1)' },
+      { key: 'proposta',      label: 'Proposta',      color: '#00BEFF', bg: 'rgba(0, 190, 255, 0.1)' },
+      { key: 'disputa',       label: 'Disputa',       color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.1)' },
+      { key: 'habilitacao',   label: 'Habilitação',   color: '#7FA856', bg: 'rgba(127, 168, 86, 0.1)' },
+    ];
+
+    function generateMockEditais(count) {
+      const orgaos =["Ministério da Saúde", "Tribunal de Justiça de SP", "Secretaria de Educação do PR", "Petrobras S.A.", "Banco do Brasil", "Polícia Federal"];
+      const objetos =[
+        "Contratação de solução de Inteligência Artificial Generativa para análise documental.",
+        "Aquisição de licenças Microsoft 365 Enterprise e Google Workspace.",
+        "Modernização do parque tecnológico contemplando Servidores e Storage NVMe.",
+        "Serviço de Nuvem (Cloud Computing) sob demanda por 36 meses."
+      ];
+      
+      const data =[];
+      const now = new Date();
+      
+      for (let i = 0; i < count; i++) {
+        const score = Math.floor(Math.random() * 60) + 40; 
+        const pubDate = new Date(now);
+        pubDate.setDate(pubDate.getDate() - Math.floor(Math.random() * 45));
+        
+        data.push({
+          edital_id: `EDT-${2026000 + i}`,
+          orgao: orgaos[Math.floor(Math.random() * orgaos.length)],
+          uf:['SP', 'RJ', 'MG', 'PR', 'DF'][Math.floor(Math.random() * 5)],
+          objeto: objetos[Math.floor(Math.random() * objetos.length)],
+          fase_atual: STAGES[Math.floor(Math.random() * STAGES.length)].key,
+          score_comercial: score,
+          prioridade: Math.floor(Math.random() * 3) + 1,
+          numero_pregao: `PE ${Math.floor(Math.random() * 250) + 1}/2026`,
+          valor_estimado: Math.floor(Math.random() * 50000000) + 1000000,
+          comentarios_count: Math.floor(Math.random() * 15),
+          data_abertura: pubDate.toISOString(),
+          responsavel:['Ana Silva', 'Carlos Ruiz', 'Mariana Costa'][Math.floor(Math.random() * 3)],
+          parecer: {
+            estrategia: `A licitação exige altíssima capacidade tecnológica. A Xertica possui vantagem competitiva devido à nossa recente certificação ISO 27001.\n\n**Ação Imediata:** Recomendamos focar na apresentação de atestados técnicos de projetos similares.`,
+            alertas:["Prazo de impugnação se encerra em 48 horas.", "Exigência de balanço patrimonial com índice > 1.5."],
+            requisitos_cascata:[
+              { requisito: "Experiência em Cloud", minimo_exigido: 1000, unidade: "VMs", status: score > 75 ? "Atende" : "Risco", evidencias: [{ doc: "Atestado Banco do Brasil", valor: 1250 }], progresso: score > 75 ? 100 : 45 },
+              { requisito: "Faturamento mínimo", minimo_exigido: 10000000, unidade: "BRL", status: "Atende", evidencias:[{ doc: "Balanço Patrimonial", valor: 45000000 }], progresso: 100 }
+            ],
+            financeiro: { margem_bruta: Math.floor(Math.random() * 20) + 15, capex: 250000, opex_mensal: 35000 },
+            trechos_edital:[{ clausula: "Item 9.4.1", texto: "A licitante deverá comprovar possuir certificação ISO/IEC 27001 válida." }],
+            historico:[{ data: pubDate.toISOString(), acao: "Edital publicado no Diário Oficial", ator: "Sistema" }]
+          }
+        });
+      }
+      return data.sort((a,b) => new Date(b.data_abertura) - new Date(a.data_abertura));
+    }
+
+    const formatBRL = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+    const formatDate = (iso) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // ============================================================================
+    // 4. COMPONENTES UI ATÔMICOS
+    // ============================================================================
+    const Badge = ({ children, variant = 'neutral', className = '', style }) => {
+      const variants = {
+        neutral: 'bg-slate-100 text-slate-600 border-slate-200',
+        primary: 'bg-[#E6F7FF] text-[#047EA9] border-[#BAE6FD]', 
+      };
+      return <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider ${variants[variant]||variants.neutral} ${className}`} style={style}>{children}</span>;
+    };
+
+    const ScoreIndicator = ({ score, showLabel = false }) => {
+      if (score == null) return null;
+      let variant = score >= 75 ? 'success' : score >= 55 ? 'warning' : 'danger';
+      const colors = {
+        success: 'bg-[#F2FCE3] border-[#D9F99D] text-[#5A7A3A]',
+        warning: 'bg-[#FEF9C3] border-[#FDE047] text-[#B45309]',
+        danger: 'bg-[#FCF0F0] border-[#FECACA] text-[#943335]'
+      };
+      return (
+        <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-mono font-bold shadow-sm ${colors[variant]}`}>
+          <Icons.Brain size={12} /> {score}%
+          {showLabel && <span className="ml-1 text-[10px] uppercase">{variant === 'success' ? 'Apto' : variant === 'warning' ? 'Atenção' : 'Risco'}</span>}
+        </div>
+      );
+    };
+
+    const Avatar = ({ name, size = 28 }) => {
+      const initials = name.split(' ').map(n => n[0]).join('').substring(0,2);
+      return (
+        <div className="rounded-full bg-gradient-to-br from-[#047EA9] to-[#00BEFF] flex items-center justify-center text-white font-bold shadow-sm" style={{ width: size, height: size, fontSize: size * 0.4 }}>
+          {initials}
+        </div>
+      );
+    };
+
+    const ProgressBar = ({ progress, colorClass = 'bg-[#047EA9]' }) => (
+      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full ${colorClass} transition-all duration-1000`} style={{ width: `${progress}%` }}></div>
+      </div>
+    );
+
+    const Button = ({ children, variant = 'primary', icon, onClick, className = '' }) => {
+      const base = "inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-heading font-semibold rounded-lg transition-all";
+      const variants = {
+        primary: "bg-[#047EA9] text-white hover:bg-[#038CBC]",
+        secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
+        ghost: "bg-transparent text-slate-600 hover:bg-slate-100",
+      };
+      return <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>{icon}{children}</button>;
+    }
+
+    // ============================================================================
+    // 5. TOAST NOTIFICATION
+    // ============================================================================
+    const ToastContext = createContext();
+    const ToastProvider = ({ children }) => {
+      const[toasts, setToasts] = useState([]);
+      const addToast = useCallback((message, type = 'info') => {
+        const id = Date.now();
+        setToasts(p => [...p, { id, message, type }]);
+        setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3000);
+      },[]);
+
+      return (
+        <ToastContext.Provider value={addToast}>
+          {children}
+          <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3">
+            {toasts.map(t => (
+              <div key={t.id} className="animate-slide-up flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border bg-white border-[#00BEFF]">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#E6F7FF] text-[#047EA9]"><Icons.CheckCircle size={16}/></div>
+                <p className="text-sm font-medium">{t.message}</p>
+              </div>
+            ))}
+          </div>
+        </ToastContext.Provider>
+      );
+    };
+
+    // ============================================================================
+    // 6. CHARTS & DASHBOARDS
+    // ============================================================================
+    const SVGDoughnut = ({ data, size = 160 }) => {
+      const radius = size * 0.4;
+      const circ = radius * 2 * Math.PI;
+      let offset = 0;
+      const total = data.reduce((a, b) => a + b.value, 0);
+
+      return (
+        <div className="relative" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="transform -rotate-90">
+            {data.map((item, i) => {
+              const dash = `${(item.value / total) * circ} ${circ}`;
+              const off = -offset;
+              offset += (item.value / total) * circ;
+              return <circle key={i} cx={size/2} cy={size/2} r={radius} fill="none" stroke={item.color} strokeWidth="20" strokeDasharray={dash} strokeDashoffset={off} />
+            })}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">Total</span>
+            <span className="text-xl font-heading font-black text-slate-800">{total}</span>
+          </div>
+        </div>
+      );
+    };
+
+    const MiniBarChart = ({ data, height = 60 }) => {
+      const max = Math.max(...data.map(d => d.value), 1);
+      return (
+        <div className="flex items-end gap-1 w-full" style={{ height }}>
+          {data.map((d, i) => (
+            <div key={i} className="flex-1 bg-[#E6F7FF] rounded-t-sm group hover:bg-[#00BEFF] transition-colors relative" style={{ height: `${(d.value/max)*100}%` }}>
+              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 z-10">{d.value}</div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    // ============================================================================
+    // 7. VIEWS: LIST, KANBAN, DASHBOARD
+    // ============================================================================
+    const ListView = ({ editais, onRowClick }) => (
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full m-6 animate-fade">
+        <div className="overflow-auto flex-1 custom-scrollbar">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Pregão</th><th>Órgão / Cliente</th><th>Fase</th><th>Score IA</th><th>V. Estimado</th><th>Abertura</th>
+              </tr>
+            </thead>
+            <tbody>
+              {editais.map(e => {
+                const stage = STAGES.find(s => s.key === e.fase_atual);
+                return (
+                  <tr key={e.edital_id} onClick={() => onRowClick(e)} className="cursor-pointer group">
+                    <td className="font-mono font-medium text-[#047EA9]">{e.numero_pregao}</td>
+                    <td><div className="font-heading font-semibold group-hover:text-[#047EA9]">{e.orgao}</div><div className="text-xs text-slate-500 truncate max-w-sm">{e.objeto}</div></td>
+                    <td><Badge style={{ backgroundColor: stage?.bg, color: stage?.color, borderColor: stage?.color }}>{stage?.label}</Badge></td>
+                    <td><ScoreIndicator score={e.score_comercial} /></td>
+                    <td className="font-mono">{formatBRL(e.valor_estimado)}</td>
+                    <td className="text-sm text-slate-500">{formatDate(e.data_abertura)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+
+    const KanbanCard = ({ edital, onDragStart, onClick }) => (
+      <div className="kanban-card group" draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', edital.edital_id); e.currentTarget.classList.add('is-dragging'); if(onDragStart) onDragStart(); }} onDragEnd={(e) => e.currentTarget.classList.remove('is-dragging')} onClick={() => onClick(edital)}>
+        <div className="flex justify-between mb-3">
+          <span className="text-[10px] font-mono font-bold text-[#047EA9] bg-[#E6F7FF] px-2 py-1 rounded border border-[#BAE6FD]">{edital.numero_pregao}</span>
+          <ScoreIndicator score={edital.score_comercial} />
+        </div>
+        <h4 className="font-heading font-semibold text-sm leading-snug mb-2 group-hover:text-[#047EA9] line-clamp-2">{edital.orgao}</h4>
+        <p className="text-xs text-slate-500 line-clamp-2 mb-4">{edital.objeto}</p>
+        <div className="flex justify-between pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{edital.uf}</span>
+            <span className="text-xs font-mono font-semibold text-slate-600">{formatBRL(edital.valor_estimado / 1000000)}M</span>
+          </div>
+          <Avatar name={edital.responsavel} size={22} />
+        </div>
+      </div>
+    );
+
+    const KanbanView = ({ editais, handleDrop, setSelectedEdital }) => (
+      <div className="kanban-board custom-scrollbar animate-fade">
+        {STAGES.map(stage => {
+          const items = editais.filter(e => e.fase_atual === stage.key);
+          return (
+            <div key={stage.key} className="kanban-col" onDragOver={e => {e.preventDefault(); e.currentTarget.classList.add('drag-over')}} onDragLeave={e => e.currentTarget.classList.remove('drag-over')} onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); const id = e.dataTransfer.getData('text/plain'); if(id) handleDrop(id, stage.key); }}>
+              <div className="p-4 border-b border-slate-200 bg-slate-50/80 rounded-t-2xl sticky top-0 z-10 backdrop-blur-md">
+                <div className="flex justify-between mb-2">
+                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{backgroundColor: stage.color}}/><h3 className="font-heading font-semibold text-sm">{stage.label}</h3></div>
+                  <span className="bg-white text-slate-600 text-xs font-mono font-bold px-2 py-0.5 rounded border border-slate-200">{items.length}</span>
+                </div>
+              </div>
+              <div className="p-3 flex-1 overflow-y-auto space-y-3 custom-scrollbar">
+                {items.map(edital => <KanbanCard key={edital.edital_id} edital={edital} onClick={setSelectedEdital} />)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+
+    const DashboardView = ({ editais }) => {
+      const total = editais.reduce((a,b)=>a+b.valor_estimado,0);
+      const stageData = STAGES.map(s => ({ label: s.label, value: editais.filter(e=>e.fase_atual===s.key).reduce((a,b)=>a+b.valor_estimado,0), color: s.color })).filter(d=>d.value>0);
+      const ufData = Object.entries(editais.reduce((acc,e)=>{acc[e.uf]=(acc[e.uf]||0)+1; return acc;},{})).map(([k,v])=>({label:k, value:v})).sort((a,b)=>b.value-a.value);
+
+      return (
+        <div className="p-8 overflow-y-auto h-full custom-scrollbar animate-fade">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <div className="grid grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200"><span className="text-xs font-bold text-slate-400 uppercase">Volume Total</span><div className="text-3xl font-heading font-black mt-2">{formatBRL(total)}</div></div>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200"><span className="text-xs font-bold text-slate-400 uppercase">Aptos (IA > 75%)</span><div className="text-3xl font-heading font-black text-[#7FA856] mt-2">{editais.filter(e=>e.score_comercial>=75).length}</div></div>
+              <div className="bg-gradient-to-br from-[#047EA9] to-[#00BEFF] p-6 rounded-2xl shadow-md text-white"><span className="text-xs font-bold text-white/70 uppercase">Aviso da IA</span><p className="text-sm font-medium mt-2">3 editais exigem análise do balanço em 48h.</p></div>
+            </div>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white p-8 rounded-2xl border shadow-sm flex flex-col items-center"><h3 className="text-sm font-bold w-full border-b pb-4 mb-8">Pipeline por Fase</h3><SVGDoughnut data={stageData} /></div>
+              <div className="bg-white p-8 rounded-2xl border shadow-sm flex flex-col"><h3 className="text-sm font-bold w-full border-b pb-4 mb-auto">Top Regiões (UFs)</h3><div className="mt-12 px-4 w-full"><MiniBarChart data={ufData} height={150}/></div></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================================
+    // 8. PARECER DETALHADO (MODAL SLIDE-OVER)
+    // ============================================================================
+    const ParecerSlideOver = ({ isOpen, onClose, edital }) => {
+      const [activeTab, setActiveTab] = useState('resumo');
+      const toast = useContext(ToastContext);
+
+      if (!isOpen || !edital) return null;
+
+      return (
+        <>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] animate-fade" onClick={onClose} />
+          <div className="fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-2xl z-[110] flex flex-col animate-slide-right">
+            
+            <div className="relative px-8 pt-8 pb-6 bg-slate-900 overflow-hidden shrink-0">
+              <div className="relative z-10">
+                <div className="flex justify-between mb-4">
+                  <div className="flex gap-3">
+                    <span className="px-2 py-1 bg-white/10 text-white rounded border border-white/20 text-xs font-mono font-bold">{edital.numero_pregao}</span>
+                    <span className="text-xs text-slate-400 flex items-center gap-1 font-mono"><Icons.Calendar size={12} /> {formatDate(edital.data_abertura)}</span>
+                  </div>
+                  <button onClick={onClose} className="text-slate-300 hover:text-white"><Icons.X /></button>
+                </div>
+                <h2 className="text-3xl font-heading font-bold text-white mb-2">{edital.orgao}</h2>
+                <p className="text-slate-300 text-sm line-clamp-2">{edital.objeto}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 border-b border-slate-200 bg-white shrink-0">
+              <div className="p-4 border-r border-slate-100"><span className="text-[10px] text-slate-400 font-bold block mb-1">SCORE IA</span><span className="text-2xl font-heading font-black text-[#7FA856]">{edital.score_comercial}%</span></div>
+              <div className="p-4 border-r border-slate-100"><span className="text-[10px] text-slate-400 font-bold block mb-1">VALOR ESTIMADO</span><span className="text-xl font-heading font-black text-[#047EA9]">{formatBRL(edital.valor_estimado)}</span></div>
+              <div className="p-4 border-r border-slate-100"><span className="text-[10px] text-slate-400 font-bold block mb-1">FASE ATUAL</span><span className="text-sm font-semibold uppercase">{STAGES.find(s=>s.key===edital.fase_atual)?.label}</span></div>
+              <div className="p-4 flex flex-col justify-center"><span className="text-[10px] text-slate-400 font-bold mb-1">RESPONSÁVEL</span><div className="flex items-center gap-2"><Avatar name={edital.responsavel} size={24}/><span className="text-sm font-medium">{edital.responsavel}</span></div></div>
+            </div>
+
+            <div className="px-8 border-b border-slate-200 flex gap-6 bg-slate-50 shrink-0 custom-scrollbar overflow-x-auto">
+              {[{id:'resumo', label:'Resumo IA'}, {id:'requisitos', label:'Requisitos'}, {id:'financeiro', label:'Financeiro'}].map(t => (
+                <button key={t.id} onClick={()=>setActiveTab(t.id)} className={`py-4 text-sm font-heading font-semibold border-b-2 ${activeTab===t.id ? 'border-[#047EA9] text-[#047EA9]' : 'border-transparent text-slate-500'}`}>{t.label}</button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
+              {activeTab === 'resumo' && (
+                <div className="space-y-6 max-w-4xl animate-fade">
+                  <div className="bg-white p-6 rounded-2xl border shadow-sm border-l-4 border-l-[#00BEFF]">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><Icons.Sparkles size={14} className="text-[#00BEFF]"/> Recomendação Estratégica</h3>
+                    <p className="text-slate-700 whitespace-pre-line text-[15px] leading-relaxed">{edital.parecer.estrategia}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase mb-4 flex gap-2"><Icons.AlertTriangle className="text-[#E14849]"/> Pontos de Atenção</h3>
+                      {edital.parecer.alertas.map((a,i) => <div key={i} className="mb-2 p-3 bg-[#FCF0F0] text-[#943335] text-sm rounded border border-[#FECACA]">{a}</div>)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'requisitos' && (
+                <div className="space-y-4 animate-fade">
+                  {edital.parecer.requisitos_cascata.map((r,i) => (
+                    <div key={i} className="bg-white border rounded-xl p-5 shadow-sm">
+                      <div className="flex justify-between mb-3"><h4 className="font-heading font-bold text-slate-800">{r.requisito}</h4><Badge variant={r.progresso>=100?'success':'warning'}>{r.status}</Badge></div>
+                      <ProgressBar progress={r.progresso} colorClass={r.progresso>=100?'bg-[#7FA856]':'bg-[#F59E0B]'}/>
+                      <div className="mt-4 bg-slate-50 p-3 rounded text-sm text-slate-600">
+                        <strong>Comprovação:</strong> {r.evidencias[0].doc} ({r.evidencias[0].valor} {r.unidade})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {activeTab === 'financeiro' && (
+                <div className="bg-white p-6 rounded-2xl border shadow-sm animate-fade">
+                  <h3 className="text-lg font-heading font-bold mb-6">Projeção Financeira</h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between border-b pb-2"><span>Margem Bruta Estimada</span><span className="font-bold text-[#7FA856]">{edital.parecer.financeiro.margem_bruta}%</span></div>
+                    <div className="flex justify-between border-b pb-2"><span>CAPEX</span><span className="font-mono font-bold">{formatBRL(edital.parecer.financeiro.capex)}</span></div>
+                    <div className="flex justify-between"><span>OPEX Mensal</span><span className="font-mono font-bold">{formatBRL(edital.parecer.financeiro.opex_mensal)}</span></div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-5 border-t bg-white flex justify-between shrink-0">
+              <Button variant="ghost" onClick={() => toast('Comentário adicionado.')}>Adicionar Comentário</Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={onClose}>Fechar</Button>
+                <Button onClick={() => toast('Proposta gerada com IA!', 'success')}><Icons.Bot size={16}/> Gerar Proposta (IA)</Button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    };
+
+    // ============================================================================
+    // 9. COMANDOS, SIDEBAR E APP MAIN
+    // ============================================================================
+    const App = () => {
+      const [editais, setEditais] = useState([]);
+      const [view, setView] = useState('kanban');
+      const [selected, setSelected] = useState(null);
+      const[aiOpen, setAiOpen] = useState(false);
+      
+      useEffect(() => { setEditais(generateMockEditais(60)); },[]);
+
+      const handleDrop = (id, stage) => setEditais(p => p.map(e => e.edital_id === id ? {...e, fase_atual: stage} : e));
+
+      return (
+        <ToastProvider>
+          <style>{globalCss}</style>
+          <div className="flex h-screen w-full font-body overflow-hidden">
+            
+            {/* SIDEBAR LATERAL */}
+            <aside className="w-16 lg:w-64 bg-[var(--bg-sidebar)] flex flex-col shrink-0 z-30 shadow-xl text-white">
+              <div className="h-16 flex items-center justify-center lg:justify-start lg:px-6 border-b border-slate-800">
+                <img src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/xertica.ai/Copy%20of%20Logo_XERTICA_white.png" alt="Xertica" className="h-5 hidden lg:block" />
+                <span className="font-bold text-xl block lg:hidden">X</span>
+              </div>
+              <nav className="flex-1 py-6 flex flex-col gap-2 px-3">
+                {[
+                  { id: 'dashboard', icon: <Icons.LayoutDashboard/>, label: 'Dashboard' },
+                  { id: 'kanban', icon: <Icons.KanbanSquare/>, label: 'Pipeline Board' },
+                  { id: 'list', icon: <Icons.List/>, label: 'Lista de Editais' }
+                ].map(item => (
+                  <div key={item.id} onClick={()=>setView(item.id)} className={`flex items-center gap-3 px-3 py-3 rounded-lg cursor-pointer transition-all ${view === item.id ? 'bg-gradient-to-r from-[#047EA9] to-[#038CBC] shadow-md' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
+                    {item.icon} <span className="hidden lg:block text-sm font-heading">{item.label}</span>
+                  </div>
+                ))}
+              </nav>
+              <div className="p-4 bg-slate-900/50 flex items-center gap-3">
+                <Avatar name="Lorena Zevallos" size={32} />
+                <div className="hidden lg:flex flex-col"><span className="text-sm font-medium">Lorena Zevallos</span><span className="text-[10px] text-slate-400">Diretora B2G</span></div>
+              </div>
+            </aside>
+
+            {/* ÁREA PRINCIPAL */}
+            <div className="flex flex-col flex-1 min-w-0 relative">
+              {/* Header */}
+              <header className="h-16 px-6 bg-white border-b flex items-center justify-between shrink-0 shadow-sm">
+                <h1 className="text-lg font-heading font-bold text-slate-800 hidden md:block">Inteligência de Vendas Governamentais</h1>
+                <div className="flex gap-4 items-center ml-auto">
+                  <button onClick={()=>setAiOpen(!aiOpen)} className="flex items-center gap-2 px-3 py-1.5 rounded bg-[#E6F7FF] text-[#047EA9] hover:bg-[#00BEFF] hover:text-white font-bold text-sm transition-colors border border-[#BAE6FD]"><Icons.Sparkles size={16}/> Co-pilot AI</button>
+                  <button className="text-slate-400 hover:text-[#047EA9]"><Icons.Bell size={20}/></button>
+                </div>
+              </header>
+
+              {/* View Content */}
+              <div className="flex-1 overflow-hidden flex bg-[#F8FAFC]">
+                <div className="flex-1 overflow-hidden">
+                  {view === 'kanban' && <KanbanView editais={editais} handleDrop={handleDrop} setSelectedEdital={setSelected} />}
+                  {view === 'list' && <ListView editais={editais} onRowClick={setSelected} />}
+                  {view === 'dashboard' && <DashboardView editais={editais} />}
+                </div>
+                
+                {/* AI Assistant Sidebar */}
+                {aiOpen && (
+                  <div className="w-80 bg-white border-l shadow-xl flex flex-col z-20 animate-slide-left">
+                    <div className="h-16 border-b flex items-center justify-between px-5"><div className="font-bold text-[#047EA9] flex gap-2 items-center"><Icons.Bot/> Xertica Co-pilot</div><button onClick={()=>setAiOpen(false)}><Icons.X size={18}/></button></div>
+                    <div className="flex-1 p-4 overflow-y-auto bg-slate-50 space-y-4">
+                      <div className="bg-white p-3 rounded-lg border shadow-sm text-sm text-slate-700">Olá! Notei novos editais de Nuvem hoje. Quer uma pré-análise?</div>
+                      <div className="bg-[#047EA9] text-white p-3 rounded-lg shadow-sm text-sm self-end ml-10">Sim, focar no Tribunal de Justiça.</div>
+                      <div className="bg-white p-3 rounded-lg border shadow-sm text-sm text-slate-700 border-l-2 border-[#7FA856]">Análise concluída. O score de aderência é de 82%.</div>
+                    </div>
+                    <div className="p-4 border-t bg-white"><input type="text" placeholder="Pergunte à IA..." className="w-full bg-slate-100 rounded-full py-2 px-4 text-sm outline-none" /></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <ParecerSlideOver isOpen={!!selected} edital={selected} onClose={() => setSelected(null)} />
+        </ToastProvider>
+      );
+    };
+
+    // Renderiza a aplicação
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

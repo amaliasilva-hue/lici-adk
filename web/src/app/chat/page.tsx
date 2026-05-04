@@ -101,43 +101,43 @@ function MdContent({ content }: { content: string }) {
   return (
     <ReactMarkdown components={{
       p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-      strong: ({ children }) => <strong className="font-semibold" style={{ color: '#E2E8F0' }}>{children}</strong>,
+      strong: ({ children }) => <strong className="font-semibold" style={{ color: '#0F172A' }}>{children}</strong>,
       a: ({ href, children }) => (
         <a href={href} target="_blank" rel="noreferrer"
           style={{ color: '#00BEFF' }} className="underline underline-offset-2 hover:opacity-80">{children}</a>
       ),
       ul: ({ children }) => <ul className="list-none space-y-1 my-2">{children}</ul>,
-      ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 my-2 text-slate-300">{children}</ol>,
+      ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 my-2 text-slate-700">{children}</ol>,
       li: ({ children }) => (
-        <li className="flex gap-2 items-start text-slate-300">
+        <li className="flex gap-2 items-start text-slate-700">
           <span style={{ color: '#00BEFF', flexShrink: 0 }} className="mt-0.5 text-[10px]">▸</span>
           <span>{children}</span>
         </li>
       ),
       h1: ({ children }) => (
-        <h1 className="font-poppins font-bold text-white text-base mt-4 mb-2 flex items-center gap-2">
+        <h1 className="font-poppins font-bold text-slate-800 text-base mt-4 mb-2 flex items-center gap-2">
           <span className="w-1 h-4 rounded-full inline-block shrink-0" style={{ background: '#00BEFF' }} />
           {children}
         </h1>
       ),
       h2: ({ children }) => <h2 className="font-poppins font-semibold text-sm mt-3 mb-1.5 uppercase tracking-wider" style={{ color: '#94A3B8' }}>{children}</h2>,
-      h3: ({ children }) => <h3 className="font-semibold text-white text-sm mt-2 mb-1">{children}</h3>,
+      h3: ({ children }) => <h3 className="font-semibold text-slate-800 text-sm mt-2 mb-1">{children}</h3>,
       blockquote: ({ children }) => (
-        <blockquote className="pl-3 italic my-2 text-slate-400" style={{ borderLeft: '2px solid rgba(0,190,255,0.4)' }}>{children}</blockquote>
+        <blockquote className="pl-3 italic my-2 text-slate-600" style={{ borderLeft: '2px solid rgba(0,190,255,0.4)' }}>{children}</blockquote>
       ),
       code: ({ children, className }) => (
         className?.includes('language-')
-          ? <pre className="rounded-xl p-4 text-xs font-mono overflow-x-auto my-3" style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.07)', color: '#C0FF7D' }}><code>{children}</code></pre>
+          ? <pre className="rounded-xl p-4 text-xs font-mono overflow-x-auto my-3" style={{ background: '#0F172A', border: '1px solid rgba(15,23,42,0.10)', color: '#C0FF7D' }}><code>{children}</code></pre>
           : <code className="rounded px-1.5 py-0.5 text-[11px] font-mono" style={{ background: 'rgba(0,190,255,0.1)', color: '#00BEFF' }}>{children}</code>
       ),
       table: ({ children }) => (
-        <div className="overflow-x-auto my-3 rounded-xl" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="overflow-x-auto my-3 rounded-xl" style={{ border: '1px solid rgba(15,23,42,0.10)' }}>
           <table className="w-full text-xs border-collapse">{children}</table>
         </div>
       ),
-      th: ({ children }) => <th className="text-left pb-2 pt-3 px-4 font-semibold text-[10px] uppercase tracking-wider" style={{ color: '#64748B', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>{children}</th>,
-      td: ({ children }) => <td className="py-2.5 px-4 text-slate-300" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{children}</td>,
-      hr: () => <hr className="my-4" style={{ borderColor: 'rgba(255,255,255,0.06)' }} />,
+      th: ({ children }) => <th className="text-left pb-2 pt-3 px-4 font-semibold text-[10px] uppercase tracking-wider" style={{ color: '#64748B', borderBottom: '1px solid rgba(15,23,42,0.10)' }}>{children}</th>,
+      td: ({ children }) => <td className="py-2.5 px-4 text-slate-700" style={{ borderBottom: '1px solid rgba(15,23,42,0.05)' }}>{children}</td>,
+      hr: () => <hr className="my-4" style={{ borderColor: 'rgba(15,23,42,0.08)' }} />,
     }}>
       {content}
     </ReactMarkdown>
@@ -156,7 +156,7 @@ function GlowCard({ onClick, color, icon, label, hint }: {
   return (
     <button onClick={onClick} onMouseMove={onMouseMove}
       className="group relative overflow-hidden text-left px-4 py-3.5 rounded-2xl transition-all duration-200"
-      style={{ '--mx': '50%', '--my': '50%', background: 'rgba(13,19,31,0.7)', border: '1px solid rgba(255,255,255,0.07)', cursor: 'pointer' } as React.CSSProperties}
+      style={{ '--mx': '50%', '--my': '50%', background: '#FFFFFF', border: '1px solid rgba(15,23,42,0.10)', cursor: 'pointer' } as React.CSSProperties}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement;
         el.style.borderColor = color + '35';
@@ -165,7 +165,7 @@ function GlowCard({ onClick, color, icon, label, hint }: {
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement;
-        el.style.borderColor = 'rgba(255,255,255,0.07)';
+        el.style.borderColor = 'rgba(15,23,42,0.10)';
         el.style.transform = '';
         el.style.boxShadow = '';
       }}>
@@ -211,7 +211,7 @@ function DocCard({ content }: { content: string }) {
         <div className="flex items-center gap-1.5">
           <button onClick={copy}
             className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-            style={{ color: copied ? '#C0FF7D' : '#64748B', background: copied ? 'rgba(192,255,125,0.08)' : 'transparent', border: '1px solid', borderColor: copied ? 'rgba(192,255,125,0.25)' : 'rgba(255,255,255,0.07)' }}>
+            style={{ color: copied ? '#C0FF7D' : '#64748B', background: copied ? 'rgba(192,255,125,0.08)' : 'transparent', border: '1px solid', borderColor: copied ? 'rgba(192,255,125,0.25)' : 'rgba(15,23,42,0.10)' }}>
             {copied ? '✓ Copiado' : 'Copiar'}
           </button>
           <button onClick={download}
@@ -291,9 +291,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
               color: 'rgba(255,255,255,0.95)',
               boxShadow: '0 4px 24px rgba(4,126,169,0.35)',
             } : {
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              color: '#CBD5E1',
+              background: '#FFFFFF',
+              border: '1px solid rgba(15,23,42,0.08)',
+              color: '#1E293B',
+              boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             }}>
             {msg.pending ? <ThinkingDots /> : (
               isUser
@@ -319,7 +320,7 @@ function SessionItem({ session, active, onClick, onDelete }: {
     <button onClick={onClick}
       className="w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 group relative"
       style={{ background: active ? 'rgba(0,190,255,0.06)' : 'transparent', border: active ? '1px solid rgba(0,190,255,0.18)' : '1px solid transparent' }}
-      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.04)'; }}
       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium line-clamp-1 flex-1 min-w-0" style={{ color: active ? '#E2E8F0' : '#94A3B8' }}>
@@ -399,7 +400,7 @@ function EditalWelcomeCard({ onAction }: { onAction: (text: string) => void }) {
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#00BEFF', boxShadow: '0 0 6px rgba(0,190,255,0.8)', animation: 'pulse 2s ease-in-out infinite' }} />
           <span className="text-xs font-medium" style={{ color: '#00BEFF' }}>Edital vinculado</span>
         </div>
-        <h2 className="font-poppins font-bold text-lg text-white mb-2">Como posso ajudar?</h2>
+        <h2 className="font-poppins font-bold text-lg text-slate-800 mb-2">Como posso ajudar?</h2>
         <p className="text-sm max-w-sm mx-auto" style={{ color: '#64748B' }}>
           Acesso completo ao banco de atestados, contratos e histórico. Escolha uma ação ou faça sua pergunta.
         </p>
@@ -438,7 +439,7 @@ function GeneralWelcome({ onSelect }: { onSelect: (q: string) => void }) {
         </div>
         <div className="absolute -inset-3" style={{ background: 'radial-gradient(circle,rgba(0,190,255,0.07),transparent 70%)', pointerEvents: 'none' }} />
       </div>
-      <h2 className="font-poppins font-bold text-xl text-white mb-2 text-center">Chat IA · Xertica Licitações</h2>
+      <h2 className="font-poppins font-bold text-xl text-slate-800 mb-2 text-center">Chat IA · Xertica Licitações</h2>
       <p className="text-sm text-center max-w-sm mb-8" style={{ color: '#475569' }}>
         Acesso em tempo real a atestados, contratos, certificações e histórico de análises. Pergunte ou anexe documentos.
       </p>
@@ -743,7 +744,7 @@ function ChatPageInner() {
         }
         .chat-scroller::-webkit-scrollbar { width:3px; }
         .chat-scroller::-webkit-scrollbar-track { background:transparent; }
-        .chat-scroller::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.06); border-radius:3px; }
+        .chat-scroller::-webkit-scrollbar-thumb { background:rgba(15,23,42,0.08); border-radius:3px; }
         .chat-scroller::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.12); }
         .chat-textarea::placeholder { color:rgba(100,116,139,0.55); }
       `}</style>
@@ -756,12 +757,12 @@ function ChatPageInner() {
         <aside className="shrink-0 flex flex-col transition-all duration-300 ease-in-out overflow-hidden"
           style={{
             width: sidebarOpen ? '260px' : '0',
-            background: 'rgba(3,7,13,0.78)',
-            borderRight: '1px solid rgba(255,255,255,0.05)',
+            background: 'rgba(255,255,255,0.95)',
+            borderRight: '1px solid rgba(15,23,42,0.07)',
             backdropFilter: 'blur(20px)',
           }}>
           <div className="flex flex-col h-full min-w-[260px]">
-            <div className="px-3 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="px-3 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(15,23,42,0.07)' }}>
               <button onClick={() => createSession()}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200"
                 style={{ background: 'linear-gradient(135deg,rgba(4,126,169,0.4),rgba(0,190,255,0.2))', border: '1px solid rgba(0,190,255,0.25)', boxShadow: '0 0 20px rgba(0,190,255,0.06)' }}
@@ -796,7 +797,7 @@ function ChatPageInner() {
               )}
             </div>
 
-            <div className="px-3 py-2.5 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="px-3 py-2.5 shrink-0" style={{ borderTop: '1px solid rgba(15,23,42,0.05)' }}>
               <p className="text-[10px] text-center" style={{ color: '#1E293B' }}>Powered by Gemini 2.5 Flash</p>
             </div>
           </div>
@@ -813,12 +814,12 @@ function ChatPageInner() {
 
           {/* Header */}
           <div className="shrink-0 relative z-10 flex items-center gap-3 px-4 py-3"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(10,19,32,0.65)', backdropFilter: 'blur(16px)' }}>
+            style={{ borderBottom: '1px solid rgba(15,23,42,0.07)', background: 'rgba(10,19,32,0.65)', backdropFilter: 'blur(16px)' }}>
 
             <button onClick={() => setSidebarOpen(v => !v)}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
               style={{ color: '#475569' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#94A3B8'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#94A3B8'; (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.05)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.background = ''; }}>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -828,7 +829,7 @@ function ChatPageInner() {
             <div className="flex-1 min-w-0">
               {editingTitle ? (
                 <input ref={titleInputRef} value={titleDraft}
-                  className="bg-transparent text-sm font-semibold text-white outline-none w-full pb-0.5"
+                  className="bg-transparent text-sm font-semibold text-slate-800 outline-none w-full pb-0.5"
                   style={{ borderBottom: '1px solid rgba(0,190,255,0.5)' }}
                   onChange={e => setTitleDraft(e.target.value)}
                   onBlur={() => {
@@ -842,7 +843,7 @@ function ChatPageInner() {
                   autoFocus />
               ) : (
                 <button onClick={() => { if (activeSession) { setTitleDraft(activeSession.title); setEditingTitle(true); } }}
-                  className="text-sm font-semibold text-white truncate max-w-sm text-left transition-opacity hover:opacity-70">
+                  className="text-sm font-semibold text-slate-800 truncate max-w-sm text-left transition-opacity hover:opacity-70">
                   {activeSession?.title ?? 'Chat IA'}
                 </button>
               )}
@@ -897,7 +898,7 @@ function ChatPageInner() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="font-poppins font-bold text-xl text-white mb-2">Bem-vindo ao Chat IA</h2>
+                  <h2 className="font-poppins font-bold text-xl text-slate-800 mb-2">Bem-vindo ao Chat IA</h2>
                   <p className="text-sm max-w-xs mx-auto" style={{ color: '#475569' }}>Crie uma nova conversa para começar.</p>
                 </div>
                 <button onClick={() => createSession()}
@@ -926,7 +927,7 @@ function ChatPageInner() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.07 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 <span className="flex-1">{error}</span>
-                <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400 text-base leading-none">×</button>
+                <button onClick={() => setError(null)} className="text-[#B91C1C]/60 hover:text-[#B91C1C] text-base leading-none">×</button>
               </div>
             )}
           </div>
@@ -934,7 +935,7 @@ function ChatPageInner() {
           {/* Input area */}
           <div className="shrink-0 relative z-10 px-4 pb-4 pt-3 transition-all duration-200"
             style={{
-              borderTop: isDragging ? '1px solid rgba(0,190,255,0.4)' : '1px solid rgba(255,255,255,0.05)',
+              borderTop: isDragging ? '1px solid rgba(0,190,255,0.4)' : '1px solid rgba(15,23,42,0.07)',
               background: isDragging ? 'rgba(0,190,255,0.04)' : 'rgba(10,19,32,0.72)',
               backdropFilter: 'blur(16px)',
             }}>
@@ -983,7 +984,7 @@ function ChatPageInner() {
                       )}
                       <span className="max-w-[120px] truncate" style={{ color: '#CBD5E1' }}>{pf.file.name}</span>
                       <span style={{ color: '#334155' }}>{fmtSize(pf.file.size)}</span>
-                      <button onClick={() => removeFile(pf.id)} className="text-slate-600 hover:text-red-400 transition-colors leading-none ml-0.5">×</button>
+                      <button onClick={() => removeFile(pf.id)} className="text-slate-600 hover:text-[#B91C1C] transition-colors leading-none ml-0.5">×</button>
                     </div>
                   ))}
                 </div>
@@ -994,9 +995,9 @@ function ChatPageInner() {
               <button onClick={() => fileInputRef.current?.click()} disabled={sending}
                 title="Anexar (imagem, PDF, texto)"
                 className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 disabled:opacity-30"
-                style={{ color: '#475569', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
+                style={{ color: '#475569', border: '1px solid rgba(15,23,42,0.08)', background: 'rgba(255,255,255,0.02)' }}
                 onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.color = '#00BEFF'; el.style.borderColor = 'rgba(0,190,255,0.3)'; el.style.background = 'rgba(0,190,255,0.05)'; }}
-                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.color = '#475569'; el.style.borderColor = 'rgba(255,255,255,0.06)'; el.style.background = 'rgba(255,255,255,0.02)'; }}>
+                onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.color = '#475569'; el.style.borderColor = 'rgba(15,23,42,0.08)'; el.style.background = 'rgba(255,255,255,0.02)'; }}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                 </svg>
@@ -1010,10 +1011,10 @@ function ChatPageInner() {
                   onKeyDown={handleKeyDown}
                   placeholder={activeSession ? 'Pergunte ou arraste um arquivo…' : 'Crie uma nova conversa para começar…'}
                   rows={1} disabled={sending || !activeSession}
-                  className="chat-textarea w-full resize-none rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all disabled:opacity-40"
+                  className="chat-textarea w-full resize-none rounded-xl px-4 py-2.5 text-sm text-slate-800 outline-none transition-all disabled:opacity-40"
                   style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${canSend ? 'rgba(0,190,255,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    background: 'rgba(15,23,42,0.05)',
+                    border: `1px solid ${canSend ? 'rgba(0,190,255,0.3)' : 'rgba(15,23,42,0.10)'}`,
                     maxHeight: '160px', lineHeight: '1.6',
                     boxShadow: canSend ? '0 0 0 3px rgba(0,190,255,0.06)' : undefined,
                   }}
@@ -1023,7 +1024,7 @@ function ChatPageInner() {
               <button onClick={() => sendMessage()} disabled={!canSend || !activeSession}
                 className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200"
                 style={{
-                  background: canSend && activeSession ? 'linear-gradient(135deg,#047EA9,#00BEFF)' : 'rgba(255,255,255,0.05)',
+                  background: canSend && activeSession ? 'linear-gradient(135deg,#047EA9,#00BEFF)' : 'rgba(15,23,42,0.07)',
                   boxShadow: canSend && activeSession ? '0 4px 20px rgba(0,190,255,0.3)' : undefined,
                   opacity: !activeSession ? 0.3 : 1,
                 }}

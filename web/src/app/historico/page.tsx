@@ -31,7 +31,7 @@ type Edital = {
 
 function SkeletonRow() {
   return (
-    <tr className="border-b border-white/[0.05]">
+    <tr className="border-b border-slate-100">
       {[160, 40, 220, 80, 70, 50, 70, 40].map((w, i) => (
         <td key={i} className="py-3 px-4">
           <div className="skeleton h-3 rounded-full" style={{ width: w }} />
@@ -42,7 +42,7 @@ function SkeletonRow() {
 }
 
 function ScoreBadge({ score }: { score?: number }) {
-  if (score == null) return <span className="text-white/25">—</span>;
+  if (score == null) return <span className="text-slate-400">—</span>;
   const cls = score >= 70 ? 'badge-green' : score >= 45 ? 'badge-blue' : 'badge-red';
   return <span className={`badge ${cls}`}>{score}%</span>;
 }
@@ -117,7 +117,7 @@ export default function HistoricoPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="heading-lg mb-1">Histórico de Editais</h1>
-          <p className="text-sm text-white/35">
+          <p className="text-sm text-slate-400">
             {loading ? (
               <span className="inline-block w-20 h-3 skeleton rounded-full" />
             ) : `${sorted.length} registros`}
@@ -138,39 +138,39 @@ export default function HistoricoPage() {
 
       {/* Filters */}
       <div className="card">
-        <p className="text-xs text-white/30 uppercase tracking-wider font-semibold mb-3">Filtros</p>
+        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-3">Filtros</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div>
-            <label className="text-xs text-white/40 mb-1 block">Órgão</label>
+            <label className="text-xs text-slate-500 mb-1 block">Órgão</label>
             <input type="text" value={orgaoFilter} onChange={e => setOrgaoFilter(e.target.value)} placeholder="Ex: PRODESP" className="input w-full" />
           </div>
           <div>
-            <label className="text-xs text-white/40 mb-1 block">UF</label>
+            <label className="text-xs text-slate-500 mb-1 block">UF</label>
             <select value={ufFilter} onChange={e => setUfFilter(e.target.value)} className="input w-full">
               {UF_LIST.map(u => <option key={u} value={u}>{u || '— todas —'}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/40 mb-1 block">Status</label>
+            <label className="text-xs text-slate-500 mb-1 block">Status</label>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="input w-full">
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || '— todos —'}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-white/40 mb-1 block">Score mín.</label>
+            <label className="text-xs text-slate-500 mb-1 block">Score mín.</label>
             <input type="number" min={0} max={100} value={scoreMin} onChange={e => setScoreMin(e.target.value)} placeholder="0" className="input w-full" />
           </div>
           <div>
-            <label className="text-xs text-white/40 mb-1 block">Vendedor</label>
+            <label className="text-xs text-slate-500 mb-1 block">Vendedor</label>
             <input type="text" value={vendedorFilter} onChange={e => setVendedorFilter(e.target.value)} placeholder="email@xertica.com" className="input w-full" />
           </div>
         </div>
         {(orgaoFilter || ufFilter || statusFilter || scoreMin || vendedorFilter) && !loading && (
           <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs text-white/30">{sorted.length} de {editais.length} exibidos</span>
+            <span className="text-xs text-slate-400">{sorted.length} de {editais.length} exibidos</span>
             <button
               onClick={() => { setOrgaoFilter(''); setUfFilter(''); setStatusFilter(''); setScoreMin(''); setVendedorFilter(''); }}
-              className="text-xs text-white/30 hover:text-red-400 transition-colors"
+              className="text-xs text-slate-400 hover:text-[#B91C1C] transition-colors"
             >
               Limpar filtros
             </button>
@@ -183,7 +183,7 @@ export default function HistoricoPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-white/25 border-b border-white/[0.06]">
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
                 <th className="py-3 px-4 font-normal">Órgão</th>
                 <th className="py-3 px-3 font-normal">UF</th>
                 <th className="py-3 px-3 font-normal hidden md:table-cell">Objeto</th>
@@ -198,23 +198,23 @@ export default function HistoricoPage() {
               {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
               {!loading && sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-white/20 text-sm">
+                  <td colSpan={8} className="py-12 text-center text-slate-300 text-sm">
                     Nenhum edital encontrado.
                   </td>
                 </tr>
               )}
               {!loading && sorted.map(e => (
-                <tr key={e.edital_id} className="border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors group">
+                <tr key={e.edital_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
                   <td className="py-3 px-4">
-                    <Link href={`/edital/${e.edital_id}`} className="text-white/70 group-hover:text-white transition-colors font-medium truncate block max-w-[160px]">
+                    <Link href={`/edital/${e.edital_id}`} className="text-slate-700 group-hover:text-slate-800 transition-colors font-medium truncate block max-w-[160px]">
                       {e.orgao || '—'}
                     </Link>
-                    {e.numero_pregao && <p className="text-[11px] text-white/25">{e.numero_pregao}</p>}
+                    {e.numero_pregao && <p className="text-[11px] text-slate-400">{e.numero_pregao}</p>}
                   </td>
-                  <td className="py-3 px-3 text-white/35">{e.uf}</td>
+                  <td className="py-3 px-3 text-slate-400">{e.uf}</td>
                   <td className="py-3 px-3 hidden md:table-cell">
-                    <p className="text-white/40 text-xs max-w-xs truncate">{e.objeto || '—'}</p>
-                    {e.portal && <p className="text-[11px] text-white/20">{e.portal}</p>}
+                    <p className="text-slate-500 text-xs max-w-xs truncate">{e.objeto || '—'}</p>
+                    {e.portal && <p className="text-[11px] text-slate-300">{e.portal}</p>}
                   </td>
                   <td className="py-3 px-3">
                     <span className="badge badge-gray text-[10px]">{STAGE_LABELS[e.fase_atual] ?? e.fase_atual}</span>
@@ -225,13 +225,13 @@ export default function HistoricoPage() {
                         {e.estado_terminal}
                       </span>
                     ) : (
-                      <span className="text-white/20 text-xs">—</span>
+                      <span className="text-slate-300 text-xs">—</span>
                     )}
                   </td>
                   <td className="py-3 px-3">
                     <ScoreBadge score={e.score_comercial} />
                   </td>
-                  <td className="py-3 px-3 hidden lg:table-cell text-white/25 text-xs">
+                  <td className="py-3 px-3 hidden lg:table-cell text-slate-400 text-xs">
                     {e.criado_em ? new Date(e.criado_em).toLocaleDateString('pt-BR') : '—'}
                   </td>
                   <td className="py-3 px-4">
