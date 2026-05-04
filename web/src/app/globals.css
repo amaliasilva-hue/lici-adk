@@ -185,16 +185,16 @@ body {
 select.input option { background: #FFFFFF; color: #1E293B; }
 
 .stage-col {
-  @apply flex-shrink-0 rounded-2xl flex flex-col gap-2;
-  width: 240px; padding: 12px 10px 10px;
+  @apply flex-shrink-0 rounded-lg flex flex-col gap-1.5;
+  width: 232px; padding: 8px;
   background: #FFFFFF;
   border: 1px solid rgba(15,23,42,0.06);
-  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
-  border-top: 3px solid var(--stage-color, #94A3B8);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.03);
+  border-top: 2px solid var(--stage-color, #94A3B8);
   min-height: 60px;
 }
 .stage-col-title {
-  @apply text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center justify-between px-1;
+  @apply text-[10px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between px-1;
   color: #475569;
 }
 .kanban-card {
@@ -332,14 +332,14 @@ tr.is-selected .sel-dot { opacity: 1; }
 .stage-col-select:hover { opacity: 1 !important; background: rgba(4,126,169,0.08); }
 
 .heading-xl {
-  font-family: var(--font-poppins); font-weight: 700;
-  font-size: clamp(1.875rem, 4vw, 3rem); letter-spacing: -0.025em;
-  color: #0F172A; line-height: 1.1;
+  font-family: var(--font-poppins); font-weight: 600;
+  font-size: 1.25rem; letter-spacing: -0.01em;
+  color: #0F172A; line-height: 1.2;
 }
 .heading-lg {
-  font-family: var(--font-poppins); font-weight: 700;
-  font-size: clamp(1.5rem, 3vw, 2.25rem); letter-spacing: -0.02em;
-  color: #0F172A; line-height: 1.2;
+  font-family: var(--font-poppins); font-weight: 600;
+  font-size: 1.05rem; letter-spacing: -0.01em;
+  color: #0F172A; line-height: 1.25;
 }
 
 .skeleton {
@@ -418,14 +418,14 @@ tr.is-selected .sel-dot { opacity: 1; }
 .cmd-kbd { @apply border rounded px-1 py-0.5; border-color: rgba(0,0,0,0.14); background: #F8FAFC; font-size: 10px; color: #64748B; font-family: var(--font-roboto); }
 
 .stat-card {
-  @apply rounded-xl px-4 py-3 flex flex-col gap-0.5;
+  @apply rounded-lg px-3 py-2 flex items-baseline gap-2;
   background: #FFFFFF; border: 1px solid rgba(15,23,42,0.07);
-  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.03);
   transition: all 0.18s ease;
 }
-.stat-card:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); transform: translateY(-1px); }
-.stat-card-value { font-family: var(--font-poppins); font-weight: 700; font-size: 1.75rem; line-height: 1; color: #0F172A; }
-.stat-card-label { font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
+.stat-card:hover { box-shadow: 0 2px 8px rgba(15,23,42,0.06); }
+.stat-card-value { font-family: var(--font-poppins); font-weight: 700; font-size: 1.125rem; line-height: 1; color: #0F172A; }
+.stat-card-label { font-size: 11px; color: #64748B; font-weight: 500; }
 
 .chat-link-btn { @apply flex items-center gap-1 transition-colors px-1 py-0.5 rounded; font-size: 10px; color: #94A3B8; }
 .chat-link-btn:hover { color: #047EA9; background: rgba(4,126,169,0.08); }
