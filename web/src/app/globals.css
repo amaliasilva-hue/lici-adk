@@ -328,25 +328,30 @@ select.input option { background: #1B3351; color: #E2E8F0; }
 
 /* ── Stage column (kanban) ───────────────────────────────── */
 .stage-col {
-  @apply flex-shrink-0 rounded-xl p-2 flex flex-col gap-1.5;
-  width: 172px;
-  background: rgba(0,0,0,0.12);
-  border: 1px solid rgba(255,255,255,0.05);
+  @apply flex-shrink-0 rounded-2xl flex flex-col gap-2;
+  width: 230px;
+  padding: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  min-height: 60px;
 }
 .stage-col-title {
-  @apply text-[10px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between;
+  @apply text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between px-1;
   color: #64748B;
 }
 .kanban-card {
-  @apply rounded-lg p-2 cursor-pointer transition-all duration-200;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.06);
+  @apply rounded-xl cursor-pointer transition-all duration-200;
+  padding: 10px 12px 10px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 2.5px solid var(--card-accent, rgba(255,255,255,0.12));
 }
 .kanban-card:hover {
-  border-color: rgba(0,190,255,0.4);
-  box-shadow: 0 0 0 1px rgba(4,126,169,0.15), 0 4px 16px rgba(0,190,255,0.08);
-  transform: translateY(-1px);
-  background: rgba(255,255,255,0.04);
+  border-color: rgba(0,190,255,0.35);
+  border-left-color: var(--card-accent, var(--x-cyan));
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,190,255,0.1);
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.05);
 }
 
 /* ── Tab bar ─────────────────────────────────────────────── */
@@ -759,5 +764,86 @@ tr.is-selected .sel-dot { opacity: 1; }
   background-image:
     linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px) !important;
+}
+
+/* ── Command Palette (⌘K) ───────────────────────────────── */
+.cmd-overlay {
+  @apply fixed inset-0 z-[200] flex items-start justify-center;
+  padding-top: 14vh;
+  background: rgba(2,8,20,0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: fadeIn 0.15s ease-out;
+}
+.cmd-modal {
+  @apply w-full mx-4 rounded-2xl overflow-hidden;
+  max-width: 540px;
+  background: #0a1628;
+  border: 1px solid rgba(255,255,255,0.13);
+  box-shadow:
+    0 40px 100px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(0,190,255,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  animation: modalIn 0.18s cubic-bezier(0.16,1,0.3,1);
+}
+.cmd-input-row {
+  @apply flex items-center gap-3 px-4;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.cmd-input {
+  @apply flex-1 bg-transparent text-sm text-white outline-none;
+  placeholder-color: rgba(255,255,255,0.25);
+}
+.cmd-input::placeholder { color: rgba(255,255,255,0.2); }
+.cmd-section-label {
+  @apply px-4 py-1.5 text-[10px] uppercase tracking-widest font-semibold;
+  color: rgba(255,255,255,0.2);
+}
+.cmd-item {
+  @apply flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors;
+  color: rgba(255,255,255,0.55);
+}
+.cmd-item:hover, .cmd-item-active {
+  background: rgba(0,190,255,0.07);
+  color: #fff;
+}
+.cmd-item-active {
+  background: rgba(0,190,255,0.10);
+}
+.cmd-footer {
+  @apply flex items-center gap-4 px-4 py-2;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.18);
+  font-size: 10px;
+}
+.cmd-kbd {
+  @apply border rounded px-1 py-0.5;
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.04);
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  font-family: var(--font-roboto);
+}
+
+/* ── Stat mini cards (pipeline hero) ──────────────────────── */
+.stat-card {
+  @apply rounded-xl px-4 py-3 flex flex-col gap-0.5;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.stat-card-value {
+  font-family: var(--font-poppins);
+  font-weight: 700;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #fff;
+}
+.stat-card-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
