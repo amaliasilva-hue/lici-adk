@@ -48,12 +48,45 @@ type Edital = {
   vendedor_email?: string;
   criado_em?: string;
   comentarios_count?: number;
+  valor_estimado?: number;
 };
 
 function ScoreBadge({ score }: { score?: number }) {
   if (score == null) return null;
-  const cls = score >= 70 ? 'badge-green' : score >= 45 ? 'badge-blue' : 'badge-red';
-  return <span className={`badge ${cls}`}>{score}%</span>;
+  const cls =
+    score >= 70
+      ? 'bg-[#F2FCE3] border-[#D9F99D] text-[#5A7A3A]'
+      : score >= 45
+      ? 'bg-[#FEF9C3] border-[#FDE047] text-[#B45309]'
+      : 'bg-[#FCF0F0] border-[#FECACA] text-[#943335]';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-mono font-bold shadow-sm ${cls}`}>
+      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M9.5 2A2.5 2.5 0 007 4.5v15A2.5 2.5 0 009.5 22h5a2.5 2.5 0 002.5-2.5v-15A2.5 2.5 0 0014.5 2h-5z"/>
+        <path d="M7 4.5v15M17 4.5v15"/>
+      </svg>
+      {score}%
+    </span>
+  );
+}
+
+function MiniAvatar({ email, name }: { email?: string; name?: string }) {
+  const src = email || name || '?';
+  const initials = src.includes('@')
+    ? src.split('@')[0].slice(0, 2).toUpperCase()
+    : src.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div
+      className="rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+      style={{
+        width: 22, height: 22, fontSize: 8,
+        background: 'linear-gradient(135deg, #047EA9, #00BEFF)',
+        boxShadow: '0 1px 4px rgba(4,126,169,0.35)',
+      }}
+    >
+      {initials}
+    </div>
+  );
 }
 
 function PriBadge({ pri }: { pri?: number }) {
@@ -531,12 +564,17 @@ function KanbanColumn({
               <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{e.objeto || 'sem objeto'}</p>
             </Link>
 
-            {/* Footer: UF + move/actions */}
+            {/* Footer: UF + value + move/actions + avatar */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 pl-5 pr-3">
               <div className="flex items-center gap-1.5">
                 {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
+                {e.valor_estimado != null && (
+                  <span className="text-[10px] font-mono font-semibold text-slate-500">
+                    {(e.valor_estimado / 1_000_000).toFixed(1)}M
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <div className="hidden group-hover:flex items-center gap-0.5 mr-0.5">
                   {prevStage && (
                     <button
@@ -569,10 +607,7 @@ function KanbanColumn({
                     {e.comentarios_count}
                   </Link>
                 )}
-                <QuickNote
-                  editalId={e.edital_id}
-                  onSaved={reload}
-                />
+                <QuickNote editalId={e.edital_id} onSaved={reload} />
                 <button
                   type="button"
                   title="Vincular conversa do Chat"
@@ -583,6 +618,7 @@ function KanbanColumn({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                   </svg>
                 </button>
+                <MiniAvatar email={e.vendedor_email} name={e.orgao} />
               </div>
             </div>
           </div>

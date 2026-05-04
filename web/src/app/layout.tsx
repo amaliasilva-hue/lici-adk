@@ -24,18 +24,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <aside className="sidebar-shell">
             {/* Logo */}
             <div className="sidebar-logo">
-              <Link href="/" className="flex items-center gap-2.5 min-w-0">
+              <Link href="/" className="flex items-center gap-0 min-w-0">
+                {/* Mobile collapsed: X symbol (red/white) */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/X%20-%20simbolo/Copy%20of%20X_symbol_variation4_Red_white.png"
-                  alt="X"
-                  className="h-7 w-7 object-contain flex-shrink-0"
+                  alt="Xertica"
+                  className="h-8 w-8 object-contain flex-shrink-0 lg:hidden"
                 />
+                {/* Desktop: full xertica.ai white wordmark */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/xertica.ai/Copy%20of%20Logo_XERTICA_white.png"
                   alt="Xertica"
-                  className="h-4 w-auto hidden lg:block opacity-90"
+                  className="h-5 w-auto hidden lg:block"
                 />
               </Link>
             </div>
