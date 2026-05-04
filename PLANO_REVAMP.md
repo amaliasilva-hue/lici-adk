@@ -38,13 +38,13 @@ Documento único de planejamento. Nada vai ao código antes de revisão e aprova
 | E4 | Banner WIP em `/config` (fundo laranja, ícone 🔒) |
 | §30 | Notificações in-app: tabela `notifications` no Postgres, `GET /notifications`, `POST /notifications/read`, `NotificationBell` no header (sino com badge, dropdown, auto-poll 30s) |
 | §29 | CI/CD GitHub Actions: `ci.yml` (backend pytest + frontend build + Docker) e `deploy.yml` (gcloud run deploy backend então frontend + Slack notify) |
+| §34 | `POST /webhooks/ingest` — entrada via n8n/Zapier; protegido por `X-Webhook-Secret`; aceita `pdf_url`, `drive_file_id` ou `pdf_base64` |
+| §35 | Notas rápidas inline no card kanban — `QuickNote` popover com textarea max 200 chars, `POST /editais/{id}/comentarios`, fecha ao clicar fora |
 
 ### 🔴 PENDENTE (próximas implementações)
 
 | Item | Descrição | Prioridade |
 |---|---|---|
-| §34 | `POST /webhooks/ingest` — entrada via n8n/Zapier | Média |
-| §35 | Notas rápidas inline no card kanban (popover comentário rápido) | Média |
 | §12.1 | Comparador de editais side-by-side | Baixa |
 | §12.2 | Similaridade automática com pgvector | Baixa |
 | §12.3 | Smart rank (score dinâmico por prazo/valor/histórico) | Baixa |
