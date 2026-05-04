@@ -765,7 +765,7 @@ function ChatPageInner() {
             <div className="px-3 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(15,23,42,0.07)' }}>
               <button onClick={() => createSession()}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200"
-                style={{ background: 'linear-gradient(135deg,rgba(4,126,169,0.4),rgba(0,190,255,0.2))', border: '1px solid rgba(0,190,255,0.25)', boxShadow: '0 0 20px rgba(0,190,255,0.06)' }}
+                style={{ background: 'linear-gradient(135deg,#047EA9,#00BEFF)', border: 'none', boxShadow: '0 2px 12px rgba(4,126,169,0.3)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 28px rgba(0,190,255,0.2)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 20px rgba(0,190,255,0.06)'; }}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: '#00BEFF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -814,7 +814,7 @@ function ChatPageInner() {
 
           {/* Header */}
           <div className="shrink-0 relative z-10 flex items-center gap-3 px-4 py-3"
-            style={{ borderBottom: '1px solid rgba(15,23,42,0.07)', background: 'rgba(10,19,32,0.65)', backdropFilter: 'blur(16px)' }}>
+            style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', background: '#FFFFFF' }}>
 
             <button onClick={() => setSidebarOpen(v => !v)}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
@@ -936,8 +936,7 @@ function ChatPageInner() {
           <div className="shrink-0 relative z-10 px-4 pb-4 pt-3 transition-all duration-200"
             style={{
               borderTop: isDragging ? '1px solid rgba(0,190,255,0.4)' : '1px solid rgba(15,23,42,0.07)',
-              background: isDragging ? 'rgba(0,190,255,0.04)' : 'rgba(10,19,32,0.72)',
-              backdropFilter: 'blur(16px)',
+              background: isDragging ? 'rgba(0,190,255,0.04)' : '#FFFFFF',
             }}>
 
             {isDragging && (
@@ -951,12 +950,12 @@ function ChatPageInner() {
               <div className="mb-3 space-y-2">
                 {hasPdfPending && (
                   <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                    style={{ background: 'rgba(192,255,125,0.04)', border: '1px solid rgba(192,255,125,0.2)' }}>
+                    style={{ background: 'rgba(4,126,169,0.06)', border: '1px solid rgba(4,126,169,0.2)' }}>
                     <svg className="w-4 h-4 shrink-0" style={{ color: '#C0FF7D' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                     </svg>
-                    <p className="flex-1 text-xs" style={{ color: '#64748B' }}>
-                      É um <strong style={{ color: '#C0FF7D' }}>edital?</strong> Análise completa: aptidão, atestados, gaps.
+                    <p className="flex-1 text-xs" style={{ color: '#047EA9' }}>
+                      É um <strong>edital?</strong> Análise completa: aptidão, atestados, gaps.
                     </p>
                     <button
                       onClick={() => {
@@ -964,9 +963,9 @@ function ChatPageInner() {
                         if (pf) { removeFile(pf.id); uploadEditalFile(pf.file); }
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
-                      style={{ background: 'rgba(192,255,125,0.15)', color: '#C0FF7D', border: '1px solid rgba(192,255,125,0.3)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,255,125,0.25)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,255,125,0.15)'; }}>
+                      style={{ background: 'linear-gradient(135deg,#047EA9,#00BEFF)', color: '#FFFFFF', border: 'none' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.9'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}>
                       Analisar edital ↗
                     </button>
                   </div>
@@ -982,7 +981,7 @@ function ChatPageInner() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       )}
-                      <span className="max-w-[120px] truncate" style={{ color: '#CBD5E1' }}>{pf.file.name}</span>
+                      <span className="max-w-[120px] truncate" style={{ color: '#334155' }}>{pf.file.name}</span>
                       <span style={{ color: '#334155' }}>{fmtSize(pf.file.size)}</span>
                       <button onClick={() => removeFile(pf.id)} className="text-slate-600 hover:text-[#B91C1C] transition-colors leading-none ml-0.5">×</button>
                     </div>
@@ -995,7 +994,7 @@ function ChatPageInner() {
               <button onClick={() => fileInputRef.current?.click()} disabled={sending}
                 title="Anexar (imagem, PDF, texto)"
                 className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 disabled:opacity-30"
-                style={{ color: '#475569', border: '1px solid rgba(15,23,42,0.08)', background: 'rgba(255,255,255,0.02)' }}
+                style={{ color: '#475569', border: '1px solid rgba(0,0,0,0.12)', background: '#F8FAFC' }}
                 onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.color = '#00BEFF'; el.style.borderColor = 'rgba(0,190,255,0.3)'; el.style.background = 'rgba(0,190,255,0.05)'; }}
                 onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.color = '#475569'; el.style.borderColor = 'rgba(15,23,42,0.08)'; el.style.background = 'rgba(255,255,255,0.02)'; }}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

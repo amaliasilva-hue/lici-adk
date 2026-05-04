@@ -441,7 +441,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
 
   return (
     <div className="space-y-6">
-      <h2 className="font-poppins font-bold text-lg text-white">Habilitação Técnica</h2>
+      <h2 className="font-poppins font-bold text-lg text-slate-900">Habilitação Técnica</h2>
 
       {/* TCU: Somatório analysis */}
       {atestadoAnalise && (
@@ -752,7 +752,7 @@ export default function EditalPage() {
         <div className="flex flex-col sm:flex-row sm:items-start gap-6">
           {/* Left: info */}
           <div className="flex-1 min-w-0">
-            <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white leading-tight mb-1">
+            <h1 className="font-poppins font-bold text-2xl md:text-3xl text-slate-900 leading-tight mb-1">
               {edital.orgao || '—'}
             </h1>
             <p className="text-slate-500 text-sm mb-3 leading-relaxed">
@@ -967,7 +967,7 @@ export default function EditalPage() {
       {/* ── Análise Comercial ───────────────────────────── */}
       {tab === 'comercial' && parecer && (
         <div className="space-y-4">
-          <h2 className="font-poppins font-bold text-lg text-white">Análise Comercial</h2>
+          <h2 className="font-poppins font-bold text-lg text-slate-900">Análise Comercial</h2>
 
           {/* Score breakdown card */}
           {score != null && (
@@ -1299,7 +1299,7 @@ export default function EditalPage() {
       {/* ── Histórico do órgão ──────────────────────────── */}
       {tab === 'resumo' && (
         <div className="card space-y-3" id="historico-orgao">
-          <h2 className="font-poppins font-bold text-base text-white flex items-center gap-2">
+          <h2 className="font-poppins font-bold text-base text-slate-900 flex items-center gap-2">
             {edital.orgao || 'Órgão'}
             <span className="text-xs font-normal text-slate-400">· participações anteriores</span>
           </h2>
