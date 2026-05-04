@@ -18,49 +18,73 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className="antialiased">
-        {/* ── Header ── */}
-        <header className="sticky top-0 z-50"
-            style={{ background: 'rgba(241,245,249,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(15,23,42,0.07)' }}>
-          <div className="max-w-screen-2xl mx-auto px-8 flex items-center justify-between h-14">
-            <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-3 shrink-0 group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/xertica.ai/logo_XERTICA_blue.png"
-                  alt="Xertica"
-                  className="h-6 w-auto opacity-90 group-hover:opacity-100 transition-opacity"
-                />
-                <div className="hidden sm:flex items-center gap-2">
-                  <span className="w-px h-4 bg-slate-200" />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
-                    Licitações
-                  </span>
-                </div>
-              </Link>
+        <div className="flex h-screen overflow-hidden">
 
-              <NavLinks />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="hidden md:inline text-[11px] text-slate-400 font-medium tracking-wide">
-                Xertica Enterprise
-              </span>
-              <NotificationBell />
-              <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-slate-200 shadow-sm hover:ring-slate-300 transition-all bg-slate-100">
+          {/* ── Sidebar ── */}
+          <aside className="sidebar-shell">
+            {/* Logo */}
+            <div className="sidebar-logo">
+              <Link href="/" className="flex items-center gap-2.5 min-w-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/X%20-%20simbolo/Copy%20of%20X_symbol_variation4_Red_white.png"
-                  alt="Xertica"
-                  className="w-full h-full object-contain p-0.5"
+                  alt="X"
+                  className="h-7 w-7 object-contain flex-shrink-0"
                 />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://storage.googleapis.com/etp-bucket/Logos%20Xertica.ai%20(.png)/xertica.ai/Copy%20of%20Logo_XERTICA_white.png"
+                  alt="Xertica"
+                  className="h-4 w-auto hidden lg:block opacity-90"
+                />
+              </Link>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 py-5 px-3 overflow-y-auto">
+              <NavLinks />
+            </nav>
+
+            {/* User profile */}
+            <div className="sidebar-user">
+              <div className="sidebar-avatar shrink-0">XE</div>
+              <div className="hidden lg:flex flex-col min-w-0">
+                <span className="text-sm font-medium text-white truncate">Xertica Enterprise</span>
+                <span className="text-[10px] text-slate-400">B2G Intelligence</span>
               </div>
             </div>
-          </div>
-        </header>
+          </aside>
 
-        <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6">
-          {children}
-        </main>
+          {/* ── Main Area ── */}
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+            {/* Inner header */}
+            <header className="app-header">
+              <h1 className="text-lg font-heading font-bold text-slate-800 hidden md:block truncate">
+                Inteligência de Vendas Governamentais
+              </h1>
+              <div className="flex items-center gap-3 ml-auto shrink-0">
+                <Link
+                  href="/chat"
+                  className="copilot-btn"
+                >
+                  {/* Sparkles */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
+                  </svg>
+                  Co-pilot AI
+                </Link>
+                <NotificationBell />
+              </div>
+            </header>
+
+            {/* Page content */}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden bg-app">
+              {children}
+            </main>
+          </div>
+
+        </div>
         <ChatWidget />
       </body>
     </html>

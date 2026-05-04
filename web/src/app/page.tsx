@@ -15,16 +15,16 @@ import {
   SelectDot, TrashIcon, ConfirmModal, BulkActionBar, ToastStack, useToasts,
 } from '@/components/bulk-actions';
 
-const STAGES: { key: string; label: string; color: string }[] = [
-  { key: 'identificacao',  label: 'Identificação',    color: '#64748B' },
-  { key: 'analise',        label: 'Análise',          color: '#00BEFF' },
-  { key: 'pre_disputa',    label: 'Pré-disputa',      color: '#818CF8' },
-  { key: 'proposta',       label: 'Proposta',         color: '#38BDF8' },
-  { key: 'disputa',        label: 'Disputa',          color: '#F59E0B' },
-  { key: 'habilitacao',    label: 'Habilitação',      color: '#A855F7' },
-  { key: 'at_declinados',  label: 'At. Declinados',   color: '#E14849' },
-  { key: 'recursos',       label: 'Recursos',         color: '#F97316' },
-  { key: 'homologado',     label: 'Homologado',       color: '#C0FF7D' },
+const STAGES: { key: string; label: string; color: string; bg: string }[] = [
+  { key: 'identificacao',  label: 'Identificação',    color: '#94A3B8', bg: 'rgba(148,163,184,0.1)' },
+  { key: 'analise',        label: 'Análise de IA',    color: '#047EA9', bg: 'rgba(4,126,169,0.1)' },
+  { key: 'pre_disputa',    label: 'Pré-disputa',      color: '#A85CA9', bg: 'rgba(168,92,169,0.1)' },
+  { key: 'proposta',       label: 'Proposta',         color: '#00BEFF', bg: 'rgba(0,190,255,0.1)' },
+  { key: 'disputa',        label: 'Disputa',          color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
+  { key: 'habilitacao',    label: 'Habilitação',      color: '#7FA856', bg: 'rgba(127,168,86,0.1)' },
+  { key: 'at_declinados',  label: 'At. Declinados',   color: '#E14849', bg: 'rgba(225,72,73,0.1)' },
+  { key: 'recursos',       label: 'Recursos',         color: '#F97316', bg: 'rgba(249,115,22,0.1)' },
+  { key: 'homologado',     label: 'Homologado',       color: '#7FA856', bg: 'rgba(127,168,86,0.1)' },
 ];
 
 const TERMINAL_COLORS: Record<string, string> = {
@@ -466,6 +466,7 @@ function KanbanColumn({
     >
       <div className="stage-col-title">
         <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stage.color }} />
           <span style={{ color: stage.color }}>{stage.label}</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -479,12 +480,13 @@ function KanbanColumn({
               {allStageSelected ? '✕' : '☐'}
             </button>
           )}
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: `${stage.color}18`, color: stage.color }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-mono font-bold tabular-nums bg-white border" style={{ color: stage.color, borderColor: `${stage.color}30` }}>
             {cards.length}
           </span>
         </div>
       </div>
 
+      <div className="stage-cards custom-scrollbar">
       {cards.map((e) => {
         const isSelected = selected.has(e.edital_id);
         const isRemoving = removingIds.has(e.edital_id);
@@ -508,80 +510,91 @@ function KanbanColumn({
               <TrashIcon />
             </button>
 
-            <Link href={`/edital/${e.edital_id}`} className="block mb-1.5 pl-6 pr-5">
-                <p className="text-[12px] font-semibold text-slate-800 leading-snug line-clamp-2 mb-0.5 group-hover:text-[#047EA9] transition-colors">
+            {/* Top row: pregão + score/priority */}
+            <div className="flex items-start justify-between gap-1 mb-2 pl-5 pr-5">
+              {e.numero_pregao ? (
+                <span className="text-[10px] font-mono font-bold bg-[#E6F7FF] text-[#047EA9] px-2 py-0.5 rounded border border-[#BAE6FD] truncate max-w-[120px]">
+                  {e.numero_pregao}
+                </span>
+              ) : <span />}
+              <div className="flex items-center gap-1 shrink-0">
+                <PriBadge pri={e.prioridade} />
+                <ScoreBadge score={e.score_comercial} />
+              </div>
+            </div>
+
+            {/* Body: org name + objeto */}
+            <Link href={`/edital/${e.edital_id}`} className="block pl-5 pr-4 mb-3">
+              <p className="text-[13px] font-heading font-semibold text-slate-800 leading-snug line-clamp-2 mb-1 group-hover:text-[#047EA9] transition-colors">
                 {e.orgao || '—'}
               </p>
-              <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
-              {e.numero_pregao && (
-                <p className="text-[10px] mt-0.5 font-mono text-slate-400">{e.numero_pregao}</p>
-              )}
+              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{e.objeto || 'sem objeto'}</p>
             </Link>
-            <div className="flex items-center gap-1 flex-wrap pl-6">
-              {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
-              <ScoreBadge score={e.score_comercial} />
-              <PriBadge pri={e.prioridade} />
-            </div>
-            {/* Move buttons + comment count */}
-            <div className="hidden group-hover:flex gap-1 mt-2 pt-2 border-t border-slate-100 items-center">
-              {prevStage && (
+
+            {/* Footer: UF + move/actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 pl-5 pr-3">
+              <div className="flex items-center gap-1.5">
+                {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="hidden group-hover:flex items-center gap-0.5 mr-0.5">
+                  {prevStage && (
+                    <button
+                      onClick={() => onMoveTo(e, prevStage)}
+                      disabled={moving === e.edital_id}
+                      className="text-[10px] btn btn-ghost px-1.5 py-0.5 opacity-70 hover:opacity-100"
+                    >
+                      ←
+                    </button>
+                  )}
+                  {nextStage && (
+                    <button
+                      onClick={() => onMoveTo(e, nextStage)}
+                      disabled={moving === e.edital_id}
+                      className="text-[10px] btn btn-primary px-1.5 py-0.5"
+                    >
+                      →
+                    </button>
+                  )}
+                </div>
+                {(e.comentarios_count ?? 0) > 0 && (
+                  <Link
+                    href={`/edital/${e.edital_id}#comentarios`}
+                    onClick={(ev) => ev.stopPropagation()}
+                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#047EA9] transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    {e.comentarios_count}
+                  </Link>
+                )}
+                <QuickNote
+                  editalId={e.edital_id}
+                  onSaved={reload}
+                />
                 <button
-                  onClick={() => onMoveTo(e, prevStage)}
-                  disabled={moving === e.edital_id}
-                  className="text-[10px] btn btn-ghost px-2 py-0.5 opacity-60 hover:opacity-100"
+                  type="button"
+                  title="Vincular conversa do Chat"
+                  onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); onChatLink(e); }}
+                  className="chat-link-btn"
                 >
-                  ← {STAGES[idx - 1].label}
-                </button>
-              )}
-              {nextStage && (
-                <button
-                  onClick={() => onMoveTo(e, nextStage)}
-                  disabled={moving === e.edital_id}
-                  className="text-[10px] btn btn-primary px-2 py-0.5 ml-auto"
-                >
-                  {STAGES[idx + 1].label} →
-                </button>
-              )}
-            </div>
-            {/* Comment count + quick note + chat link */}
-            <div className="flex items-center gap-2 mt-1.5 pl-6">
-              {(e.comentarios_count ?? 0) > 0 && (
-                <Link
-                  href={`/edital/${e.edital_id}#comentarios`}
-                  onClick={(ev) => ev.stopPropagation()}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#047EA9] transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                   </svg>
-                  {e.comentarios_count}
-                </Link>
-              )}
-              <QuickNote
-                editalId={e.edital_id}
-                onSaved={reload}
-              />
-              {/* Chat link button */}
-              <button
-                type="button"
-                title="Vincular conversa do Chat"
-                onClick={(ev) => { ev.stopPropagation(); ev.preventDefault(); onChatLink(e); }}
-                className="chat-link-btn"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                </svg>
-              </button>
+                </button>
+              </div>
             </div>
           </div>
         );
       })}
 
       {cards.length === 0 && (
-        <div className="text-[11px] text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-xl">
+        <div className="text-[11px] text-slate-400 text-center py-8 border border-dashed border-slate-200 rounded-xl">
           Nenhum processo
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -794,9 +807,12 @@ export default function PipelinePage() {
   const waitingCount = editais.filter(e => !e.estado_terminal && !e.score_comercial).length;
 
   return (
-    <div className={`space-y-3 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
-      {/* ── Hero ── */}
-      <div className="space-y-3">
+    <div
+      className={`flex flex-col overflow-hidden animate-fade-in ${hasSelection ? 'has-selection' : ''}`}
+      style={{ height: 'calc(100vh - 64px)' }}
+    >
+      {/* ── Top controls bar ── */}
+      <div className="shrink-0 px-6 py-3 border-b border-slate-100 bg-app">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3 mr-auto">
             <h1 className="heading-xl">Pipeline de Editais</h1>
@@ -843,7 +859,7 @@ export default function PipelinePage() {
 
         {/* Search bar (collapsible) */}
         {showSearch && (
-          <div className="fade-up">
+          <div className="fade-up mt-2">
             <input
               autoFocus
               type="search"
@@ -858,7 +874,7 @@ export default function PipelinePage() {
 
         {/* Filter chips */}
         {showSearch && (
-          <div className="flex flex-wrap items-center gap-2 fade-up delay-100">
+          <div className="flex flex-wrap items-center gap-2 fade-up delay-100 mt-2">
             <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Filtrar:</span>
 
             {ufList.slice(0, 6).map((uf) => (
@@ -902,21 +918,21 @@ export default function PipelinePage() {
             )}
           </div>
         )}
+
+        {/* Bulk action bar */}
+        <BulkActionBar
+          count={selected.size}
+          busy={deleting}
+          onClear={() => setSelected(new Set())}
+          onDelete={askDeleteSelected}
+          onBulkUpdate={performBulkUpdate}
+        />
       </div>
 
-      {/* Bulk action bar (sticky) */}
-      <BulkActionBar
-        count={selected.size}
-        busy={deleting}
-        onClear={() => setSelected(new Set())}
-        onDelete={askDeleteSelected}
-        onBulkUpdate={performBulkUpdate}
-      />
-
-      {/* Kanban (drag-and-drop) */}
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6">
-          <div className="flex gap-2 min-w-max">
+      {/* ── Kanban board (fills remaining height) ── */}
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden custom-scrollbar">
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex gap-3 px-6 pt-4 pb-4 h-full">
             {STAGES.map((stage, idx) => {
               const cards   = byStage(stage.key);
               const prevStage = idx > 0 ? STAGES[idx - 1].key : null;
@@ -946,51 +962,43 @@ export default function PipelinePage() {
               );
             })}
           </div>
-        </div>
 
-        {/* Drag overlay */}
-        <DragOverlay>          {activeCard ? (
-            <div
-              className="kanban-card shadow-2xl"
-              style={{
-                width: 172,
-                transform: 'rotate(3deg) scale(1.04)',
-                boxShadow: '0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px var(--x-cyan), 0 0 32px rgba(0,190,255,0.25)',
-                borderColor: 'var(--x-cyan)',
-                background: 'rgba(0,0,0,0.7)',
-                cursor: 'grabbing',
-              }}
-            >
-              <div className="px-2 py-1.5">
-                <p className="text-[12px] font-semibold text-white line-clamp-2 mb-0.5">{activeCard.orgao || '—'}</p>
-                <p className="text-[11px] text-slate-500 truncate">{activeCard.objeto || 'sem objeto'}</p>
-                <div className="flex items-center gap-1 mt-1.5">
-                  {activeCard.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{activeCard.uf}</span>}
-                  <ScoreBadge score={activeCard.score_comercial} />
-                  <PriBadge pri={activeCard.prioridade} />
+          {/* Drag overlay */}
+          <DragOverlay>          {activeCard ? (
+              <div
+                className="kanban-card shadow-2xl"
+                style={{
+                  width: 220,
+                  transform: 'rotate(3deg) scale(1.04)',
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 0 0 2px var(--x-cyan)',
+                  borderColor: 'var(--x-cyan)',
+                  cursor: 'grabbing',
+                }}
+              >
+                <div className="px-3 py-2">
+                  <p className="text-[12px] font-semibold text-slate-800 line-clamp-2 mb-0.5">{activeCard.orgao || '—'}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{activeCard.objeto || 'sem objeto'}</p>
+                  <div className="flex items-center gap-1 mt-1.5">
+                    {activeCard.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{activeCard.uf}</span>}
+                    <ScoreBadge score={activeCard.score_comercial} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
 
-      {/* Command Palette */}
-      {cmdOpen && <CommandPalette editais={editais} onClose={() => setCmdOpen(false)} />}
-
-      {/* Chat Link Modal */}
-      {chatLinkTarget && <ChatLinkModal edital={chatLinkTarget} onClose={() => setChatLinkTarget(null)} />}
-
-      {/* Terminal / Encerrados */}
+      {/* ── Terminal / Encerrados ── */}
       {terminal.length > 0 && (
-        <details className="accordion">
-          <summary>
+        <details className="accordion shrink-0" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+          <summary className="px-6">
             <span>Encerrados <span className="ml-1.5 text-slate-400 font-normal">({terminal.length})</span></span>
             <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
-          <div className="accordion-body overflow-x-auto">
+          <div className="accordion-body overflow-x-auto max-h-48 overflow-y-auto custom-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-slate-400 border-b border-slate-200">
@@ -1043,6 +1051,12 @@ export default function PipelinePage() {
           </div>
         </details>
       )}
+
+      {/* Command Palette */}
+      {cmdOpen && <CommandPalette editais={editais} onClose={() => setCmdOpen(false)} />}
+
+      {/* Chat Link Modal */}
+      {chatLinkTarget && <ChatLinkModal edital={chatLinkTarget} onClose={() => setChatLinkTarget(null)} />}
 
       {/* Confirm modal */}
       <ConfirmModal
