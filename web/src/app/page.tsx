@@ -16,14 +16,15 @@ import {
 } from '@/components/bulk-actions';
 
 const STAGES: { key: string; label: string; color: string }[] = [
-  { key: 'identificacao', label: 'Identificação', color: '#94A3B8' },
-  { key: 'analise',       label: 'Análise',       color: '#00BEFF' },
-  { key: 'pre_disputa',   label: 'Pré-disputa',   color: '#FF89FF' },
-  { key: 'proposta',      label: 'Proposta',       color: '#047EA9' },
-  { key: 'disputa',       label: 'Disputa',        color: '#F59E0B' },
-  { key: 'habilitacao',   label: 'Habilitação',    color: '#A85CA9' },
-  { key: 'recursos',      label: 'Recursos',       color: '#E14849' },
-  { key: 'homologado',    label: 'Homologado',     color: '#C0FF7D' },
+  { key: 'identificacao',  label: 'Identificação',    color: '#64748B' },
+  { key: 'analise',        label: 'Análise',          color: '#00BEFF' },
+  { key: 'pre_disputa',    label: 'Pré-disputa',      color: '#818CF8' },
+  { key: 'proposta',       label: 'Proposta',         color: '#38BDF8' },
+  { key: 'disputa',        label: 'Disputa',          color: '#F59E0B' },
+  { key: 'habilitacao',    label: 'Habilitação',      color: '#A855F7' },
+  { key: 'at_declinados',  label: 'At. Declinados',   color: '#E14849' },
+  { key: 'recursos',       label: 'Recursos',         color: '#F97316' },
+  { key: 'homologado',     label: 'Homologado',       color: '#C0FF7D' },
 ];
 
 const TERMINAL_COLORS: Record<string, string> = {
@@ -60,6 +61,134 @@ function PriBadge({ pri }: { pri?: number }) {
   const colors = ['', 'badge-red', 'badge-pink', 'badge-blue', 'badge-gray', 'badge-gray'];
   const labels = ['', 'P1', 'P2', 'P3', 'P4', 'P5'];
   return <span className={`badge ${colors[pri] ?? 'badge-gray'}`}>{labels[pri]}</span>;
+}
+
+// ── Command Palette (\u2318K) ──────────────────────────────────────────────────────
+const CMD_NAV = [
+  { icon: '◈', label: 'Pipeline',         href: '/' },
+  { icon: '+', label: 'Novo edital',       href: '/upload' },
+  { icon: '≡', label: 'Histórico',         href: '/historico' },
+  { icon: '◎', label: 'Chat IA',           href: '/chat' },
+  { icon: '⊙', label: 'Status do sistema', href: '/status' },
+  { icon: '?', label: 'Como funciona',     href: '/como-funciona' },
+];
+
+function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () => void }) {
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const editalHits = q.trim()
+    ? editais.filter(e =>
+        (e.orgao || '').toLowerCase().includes(q.toLowerCase()) ||
+        (e.objeto || '').toLowerCase().includes(q.toLowerCase()) ||
+        (e.numero_pregao || '').toLowerCase().includes(q.toLowerCase())
+      ).slice(0, 6)
+    : [];
+
+  const navHits = CMD_NAV.filter(n =>
+    !q.trim() || n.label.toLowerCase().includes(q.toLowerCase())
+  );
+
+  const all: Array<{ type: 'edital'; e: Edital } | { type: 'nav'; n: typeof CMD_NAV[number] }> = [
+    ...editalHits.map(e => ({ type: 'edital' as const, e })),
+    ...navHits.map(n => ({ type: 'nav' as const, n })),
+  ];
+
+  const clampedSel = Math.min(sel, Math.max(all.length - 1, 0));
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { setSel(0); }, [q]);
+
+  useEffect(() => {
+    function handle(ev: KeyboardEvent) {
+      if (ev.key === 'Escape') { onClose(); return; }
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); setSel(s => Math.min(s + 1, all.length - 1)); }
+      if (ev.key === 'ArrowUp')   { ev.preventDefault(); setSel(s => Math.max(s - 1, 0)); }
+      if (ev.key === 'Enter') {
+        const item = all[clampedSel];
+        if (!item) return;
+        if (item.type === 'nav') window.location.href = item.n.href;
+        else window.location.href = `/edital/${item.e.edital_id}`;
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [all, clampedSel, onClose]);
+
+  return (
+    <div className="cmd-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="cmd-modal">
+        <div className="cmd-input-row">
+          <svg className="w-4 h-4 text-white/25 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            ref={inputRef}
+            className="cmd-input"
+            placeholder="Buscar editais, páginas, ações…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+          />
+          <kbd className="cmd-kbd">ESC</kbd>
+        </div>
+
+        <div className="max-h-72 overflow-y-auto">
+          {all.length === 0 && (
+            <p className="text-center text-sm py-10" style={{ color: 'rgba(255,255,255,0.2)' }}>Nenhum resultado para "{q}"</p>
+          )}
+
+          {editalHits.length > 0 && (
+            <>
+              <p className="cmd-section-label">Editais</p>
+              {editalHits.map((e, i) => (
+                <a key={e.edital_id} href={`/edital/${e.edital_id}`}
+                  className={`cmd-item ${clampedSel === i ? 'cmd-item-active' : ''}`}
+                  onClick={onClose}
+                >
+                  <span className="text-[11px] font-mono shrink-0" style={{ color: 'var(--x-cyan)', opacity: 0.6 }}>⬡</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate text-white/80">{e.orgao}</p>
+                    <p className="text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.28)' }}>{e.objeto || 'sem objeto'}</p>
+                  </div>
+                  <ScoreBadge score={e.score_comercial} />
+                </a>
+              ))}
+            </>
+          )}
+
+          {navHits.length > 0 && (
+            <>
+              <p className="cmd-section-label" style={{ marginTop: editalHits.length ? 4 : 0 }}>Navegação</p>
+              {navHits.map((n, i) => {
+                const idx = editalHits.length + i;
+                return (
+                  <a key={n.href} href={n.href}
+                    className={`cmd-item ${clampedSel === idx ? 'cmd-item-active' : ''}`}
+                    onClick={onClose}
+                  >
+                    <span className="w-6 h-6 flex items-center justify-center text-xs rounded-lg font-mono shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>
+                      {n.icon}
+                    </span>
+                    <span className="text-sm">{n.label}</span>
+                  </a>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="cmd-footer">
+          <span><kbd className="cmd-kbd">↑↓</kbd> navegar</span>
+          <span><kbd className="cmd-kbd">↵</kbd> abrir</span>
+          <span><kbd className="cmd-kbd">ESC</kbd> fechar</span>
+          <span className="ml-auto opacity-60">⌘K</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Quick Note Popover ────────────────────────────────────────────────────────
@@ -200,6 +329,7 @@ function KanbanColumn({
           <div
             key={e.edital_id}
             className={`kanban-card group relative ${isSelected ? 'is-selected' : ''} ${isRemoving ? 'card-removing' : ''}`}
+            style={{ '--card-accent': stage.color } as React.CSSProperties}
           >
             <div className="absolute top-1.5 left-1.5">
               <SelectDot checked={isSelected} onChange={() => onToggle(e.edital_id)} />
@@ -220,6 +350,9 @@ function KanbanColumn({
                 {e.orgao || '—'}
               </p>
               <p className="text-[11px] text-slate-500 truncate">{e.objeto || 'sem objeto'}</p>
+              {e.numero_pregao && (
+                <p className="text-[10px] mt-0.5 font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>{e.numero_pregao}</p>
+              )}
             </Link>
             <div className="flex items-center gap-1 flex-wrap pl-6">
               {e.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{e.uf}</span>}
@@ -287,6 +420,7 @@ export default function PipelinePage() {
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<{ ids: string[]; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const { toasts, push: toast, remove: closeToast } = useToasts();
 
   // ── Search & filter state ──────────────────────────────────────────────────
@@ -324,10 +458,11 @@ export default function PipelinePage() {
     return result;
   }, [editais, search, filterPri, filterUF]);
 
-  // Esc clears selection
+  // Esc clears selection; ⌘K opens palette
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !confirm && selected.size > 0) setSelected(new Set());
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -486,33 +621,60 @@ export default function PipelinePage() {
   return (
     <div className={`space-y-4 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
       {/* ── Hero ── */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="fade-up">
             <h1 className="heading-xl">Pipeline de Editais</h1>
-            <p className="text-sm text-white/40 mt-1.5">
-              <span className="text-white/70 font-medium">{activeCount}</span> em andamento
-              {' · '}
-              <span style={{ color: 'var(--x-green)' }} className="font-medium">{aptoCount} APTO</span>
-              {waitingCount > 0 && <> · <span className="text-white/40">{waitingCount} aguardando análise</span></>}
-            </p>
           </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0 fade-up delay-100">
             <button
               type="button"
-              onClick={() => setShowSearch((v) => !v)}
-              title="Buscar"
-              className={`btn btn-ghost px-3 py-2 ${showSearch ? 'bg-white/[0.06]' : ''}`}
+              onClick={() => setCmdOpen(true)}
+              title="Busca rápida (⌘K)"
+              className="btn btn-ghost px-3 py-2 flex items-center gap-1.5"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+              <kbd className="hidden sm:inline text-[10px] text-white/25 border border-white/[0.12] rounded px-1 py-0.5">⌘K</kbd>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSearch((v) => !v)}
+              title="Filtrar"
+              className={`btn btn-ghost px-3 py-2 ${showSearch || filterPri != null || filterUF ? 'bg-white/[0.06]' : ''}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h4" />
               </svg>
             </button>
             <Link href="/upload" className="btn btn-primary shrink-0 text-sm">
               + Novo edital
             </Link>
+          </div>
+        </div>
+
+        {/* Stat mini cards */}
+        <div className="flex flex-wrap gap-3 fade-up delay-100">
+          <div className="stat-card">
+            <span className="stat-card-value">{activeCount}</span>
+            <span className="stat-card-label">Em andamento</span>
+          </div>
+          <div className="stat-card" style={{ borderColor: 'rgba(192,255,125,0.2)' }}>
+            <span className="stat-card-value" style={{ color: 'var(--x-green)' }}>{aptoCount}</span>
+            <span className="stat-card-label">Aptos ≥ 70%</span>
+          </div>
+          <div className="stat-card" style={{ borderColor: 'rgba(245,158,11,0.2)' }}>
+            <span className="stat-card-value" style={{ color: '#F59E0B' }}>{waitingCount}</span>
+            <span className="stat-card-label">Aguardando análise</span>
+          </div>
+          <div className="stat-card" style={{ borderColor: 'rgba(239,68,68,0.2)' }}>
+            <span className="stat-card-value" style={{ color: '#E14849' }}>
+              {byStage('at_declinados').length}
+            </span>
+            <span className="stat-card-label">At. Declinados</span>
           </div>
         </div>
 
@@ -532,52 +694,51 @@ export default function PipelinePage() {
         )}
 
         {/* Filter chips */}
-        <div className="flex flex-wrap items-center gap-2 fade-up delay-100">
-          <span className="text-[11px] uppercase tracking-wider text-white/25 font-medium">Filtrar:</span>
+        {showSearch && (
+          <div className="flex flex-wrap items-center gap-2 fade-up delay-100">
+            <span className="text-[11px] uppercase tracking-wider text-white/25 font-medium">Filtrar:</span>
 
-          {/* UF chips */}
-          {ufList.slice(0, 6).map((uf) => (
-            <button
-              key={uf}
-              type="button"
-              onClick={() => setFilterUF(filterUF === uf ? null : uf)}
-              className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
-                filterUF === uf
-                  ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-400'
-                  : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
-              }`}
-            >
-              {uf}
-            </button>
-          ))}
+            {ufList.slice(0, 6).map((uf) => (
+              <button
+                key={uf}
+                type="button"
+                onClick={() => setFilterUF(filterUF === uf ? null : uf)}
+                className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
+                  filterUF === uf
+                    ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-400'
+                    : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
+                }`}
+              >
+                {uf}
+              </button>
+            ))}
 
-          {/* Priority chips */}
-          {([1, 2, 3] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setFilterPri(filterPri === p ? null : p)}
-              className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
-                filterPri === p
-                  ? 'bg-pink-500/15 border-pink-500/50 text-pink-400'
-                  : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
-              }`}
-            >
-              P{p}
-            </button>
-          ))}
+            {([1, 2, 3] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setFilterPri(filterPri === p ? null : p)}
+                className={`text-xs px-2.5 py-0.5 rounded-full border transition-all duration-150 ${
+                  filterPri === p
+                    ? 'bg-pink-500/15 border-pink-500/50 text-pink-400'
+                    : 'border-white/[0.1] text-white/40 hover:border-white/25 hover:text-white/60'
+                }`}
+              >
+                P{p}
+              </button>
+            ))}
 
-          {/* Clear filters */}
-          {(filterPri != null || filterUF || search) && (
-            <button
-              type="button"
-              onClick={() => { setFilterPri(null); setFilterUF(null); setSearch(''); }}
-              className="text-xs px-2.5 py-0.5 rounded-full border border-white/[0.1] text-white/30 hover:text-red-400 hover:border-red-500/30 transition-all"
-            >
-              ✕ limpar
-            </button>
-          )}
-        </div>
+            {(filterPri != null || filterUF || search) && (
+              <button
+                type="button"
+                onClick={() => { setFilterPri(null); setFilterUF(null); setSearch(''); }}
+                className="text-xs px-2.5 py-0.5 rounded-full border border-white/[0.1] text-white/30 hover:text-red-400 hover:border-red-500/30 transition-all"
+              >
+                ✕ limpar
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bulk action bar (sticky) */}
@@ -624,8 +785,7 @@ export default function PipelinePage() {
         </div>
 
         {/* Drag overlay */}
-        <DragOverlay>
-          {activeCard ? (
+        <DragOverlay>          {activeCard ? (
             <div
               className="kanban-card shadow-2xl"
               style={{
@@ -650,6 +810,9 @@ export default function PipelinePage() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Command Palette */}
+      {cmdOpen && <CommandPalette editais={editais} onClose={() => setCmdOpen(false)} />}
 
       {/* Terminal / Encerrados */}
       {terminal.length > 0 && (

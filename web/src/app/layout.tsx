@@ -67,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
 
-        <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
+        <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6">
           {children}
         </main>
         <ChatWidget />
