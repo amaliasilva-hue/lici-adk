@@ -1007,7 +1007,7 @@ export default function PipelinePage() {
                 {terminal.map((e) => {
                   const isSelected = selected.has(e.edital_id);
                   return (
-                  <tr key={e.edital_id} className={`group border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSelected ? 'is-selected bg-white/[0.03]' : ''}`}>
+                  <tr key={e.edital_id} className={`group border-b border-slate-100 hover:bg-slate-50 transition-colors ${isSelected ? 'is-selected bg-slate-50' : ''}`}>
                     <td className="py-2.5 pr-2">
                       <SelectDot checked={isSelected} onChange={() => toggleSelected(e.edital_id)} />
                     </td>
@@ -1030,7 +1030,7 @@ export default function PipelinePage() {
                         onClick={() => askDeleteOne(e)}
                         disabled={deleting}
                         title="Apagar edital"
-                        className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                        className="text-slate-500 hover:text-[#B91C1C] opacity-0 group-hover:opacity-100 transition-opacity p-1"
                       >
                         <TrashIcon />
                       </button>

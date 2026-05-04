@@ -51,14 +51,14 @@ export default function ComoFuncionaPage() {
     <div className="min-h-screen">
       {/* ── Hero ── */}
       <section className="text-center py-20 px-4">
-        <p className="fade-up text-[11px] font-semibold uppercase tracking-[0.3em] text-white/30 mb-4">
+        <p className="fade-up text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400 mb-4">
           Tecnologia
         </p>
         <h1 className="heading-xl fade-up delay-100 mb-4">
           Como a IA da Xertica<br className="hidden sm:block" />
           <span style={{ color: 'var(--x-cyan)' }}> analisa seu edital</span>
         </h1>
-        <p className="fade-up delay-200 text-base text-white/50 max-w-xl mx-auto leading-relaxed">
+        <p className="fade-up delay-200 text-base text-slate-500 max-w-xl mx-auto leading-relaxed">
           4 agentes especializados trabalham em sequência, em ~35 segundos, para entregar uma análise
           tão precisa quanto a de um especialista com 10 anos de experiência em licitações governamentais.
         </p>
@@ -67,7 +67,7 @@ export default function ComoFuncionaPage() {
         <div className="fade-up delay-300 inline-flex items-center gap-3 mt-8 px-5 py-3 rounded-2xl"
           style={{ background: 'rgba(0,190,255,0.06)', border: '1px solid rgba(0,190,255,0.2)' }}>
           <span className="text-2xl font-poppins font-bold" style={{ color: 'var(--x-cyan)' }}>~35s</span>
-          <span className="text-sm text-white/50">análise comercial completa · inclui qualificação e parecer</span>
+          <span className="text-sm text-slate-500">análise comercial completa · inclui qualificação e parecer</span>
         </div>
       </section>
 
@@ -102,10 +102,10 @@ export default function ComoFuncionaPage() {
                     </span>
                   </div>
                   <h3 className="font-poppins font-bold text-lg text-white mb-2">{agent.name}</h3>
-                  <p className="text-sm text-white/50 leading-relaxed mb-3">{agent.desc}</p>
+                  <p className="text-sm text-slate-500 leading-relaxed mb-3">{agent.desc}</p>
                   <ul className="space-y-1">
                     {agent.outputs.map((out) => (
-                      <li key={out} className="flex items-center gap-2 text-xs text-white/40">
+                      <li key={out} className="flex items-center gap-2 text-xs text-slate-500">
                         <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: agent.color }} />
                         {out}
                       </li>
@@ -118,7 +118,7 @@ export default function ComoFuncionaPage() {
         </div>
 
         {/* Flow connector */}
-        <div className="flex items-center justify-center gap-2 py-8 text-white/20 text-xs">
+        <div className="flex items-center justify-center gap-2 py-8 text-slate-300 text-xs">
           <span className="w-8 h-px" style={{ background: 'var(--x-cyan)' }} />
           <span>sequencial · paralelo onde possível · resultado em ~35s</span>
           <span className="w-8 h-px" style={{ background: 'var(--x-pink)' }} />
@@ -135,7 +135,7 @@ export default function ComoFuncionaPage() {
             <div key={src.label} className="card text-center">
               <div className="text-3xl mb-3">{src.icon}</div>
               <div className="font-poppins font-semibold text-white text-sm mb-1">{src.label}</div>
-              <div className="text-xs text-white/40 leading-relaxed">{src.desc}</div>
+              <div className="text-xs text-slate-500 leading-relaxed">{src.desc}</div>
             </div>
           ))}
         </div>
@@ -150,7 +150,7 @@ export default function ComoFuncionaPage() {
               <h3 className="font-poppins font-semibold text-white mb-1">
                 Análise jurídica é sob demanda
               </h3>
-              <p className="text-sm text-white/50 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 A análise comercial (passos 1–3) é executada automaticamente ao carregar o edital.
                 A análise jurídica (passo 4) é mais demorada e cara — ela é solicitada separadamente
                 no detalhe do edital, para editais que avançaram ao estágio de decisão de participar.
@@ -165,7 +165,7 @@ export default function ComoFuncionaPage() {
         <h2 className="font-poppins font-bold text-2xl text-white mb-3">
           Pronto para analisar seu primeiro edital?
         </h2>
-        <p className="text-sm text-white/40 mb-6">
+        <p className="text-sm text-slate-500 mb-6">
           Carregue o PDF e tenha o resultado em menos de 1 minuto.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">

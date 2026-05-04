@@ -365,7 +365,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
           </span>
         </div>
         {c.niveis.map((n, i) => (
-          <div key={i} className="pl-3 border-l border-white/10 mb-2 last:mb-0">
+          <div key={i} className="pl-3 border-l border-slate-200 mb-2 last:mb-0">
             <div className="flex items-center gap-2 text-xs mb-1">
               {nivelIcon(n.status)}
               <span className="text-slate-300 capitalize">{n.nivel}</span>
@@ -975,7 +975,7 @@ export default function EditalPage() {
               {/* Score bar */}
               <div className="flex items-end gap-4">
                 <div>
-                  <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Score atual</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Score atual</p>
                   <p className={`text-5xl font-bold font-poppins leading-none ${scoreColor(score)}`}>{score}%</p>
                 </div>
                 {/* Max achievable — score + gaps count as achievable if solved */}
@@ -985,15 +985,15 @@ export default function EditalPage() {
                   const maxAchievable = Math.min(100, score + gapPenalty);
                   return maxAchievable > score ? (
                     <div className="mb-1">
-                      <p className="text-xs text-white/25 mb-1">Máximo alcançável</p>
-                      <p className="text-2xl font-semibold font-poppins text-white/40">{maxAchievable}%</p>
+                      <p className="text-xs text-slate-400 mb-1">Máximo alcançável</p>
+                      <p className="text-2xl font-semibold font-poppins text-slate-500">{maxAchievable}%</p>
                     </div>
                   ) : null;
                 })()}
               </div>
               {/* Visual bar */}
               <div className="space-y-2">
-                <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden relative">
+                <div className="h-3 bg-slate-100 rounded-full overflow-hidden relative">
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{
@@ -1002,10 +1002,10 @@ export default function EditalPage() {
                     }}
                   />
                 </div>
-                <div className="flex justify-between text-[10px] text-white/20">
+                <div className="flex justify-between text-[10px] text-slate-300">
                   <span>0%</span>
                   <span className="text-orange-400/70">45% (limiar)</span>
-                  <span className="text-green-400/70">70% (apto)</span>
+                  <span className="text-[#16A34A]/70">70% (apto)</span>
                   <span>100%</span>
                 </div>
               </div>
@@ -1022,12 +1022,12 @@ export default function EditalPage() {
 
               {/* Solicitar atestado CTA */}
               {(parecer.gaps?.length ?? 0) > 0 && (
-                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <p className="text-xs font-semibold text-white/50">
+                    <p className="text-xs font-semibold text-slate-500">
                       {parecer.gaps!.length} gap(s) de habilitação
                     </p>
-                    <p className="text-xs text-white/25 mt-0.5">
+                    <p className="text-xs text-slate-400 mt-0.5">
                       Solicite atestados para elevar o score
                     </p>
                   </div>
@@ -1301,23 +1301,23 @@ export default function EditalPage() {
         <div className="card space-y-3" id="historico-orgao">
           <h2 className="font-poppins font-bold text-base text-white flex items-center gap-2">
             {edital.orgao || 'Órgão'}
-            <span className="text-xs font-normal text-white/30">· participações anteriores</span>
+            <span className="text-xs font-normal text-slate-400">· participações anteriores</span>
           </h2>
           {historicoOrgao === null ? (
-            <p className="text-xs text-white/25 py-2">Carregando histórico…</p>
+            <p className="text-xs text-slate-400 py-2">Carregando histórico…</p>
           ) : historicoOrgao.rows.length === 0 ? (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0" />
-              <p className="text-xs text-cyan-400">Primeira participação com este órgão.</p>
+              <p className="text-xs text-[#047EA9]">Primeira participação com este órgão.</p>
             </div>
           ) : (
             <>
-              <div className="flex gap-6 text-xs text-white/40 pb-1 border-b border-white/[0.06]">
+              <div className="flex gap-6 text-xs text-slate-500 pb-1 border-b border-slate-100">
                 {historicoOrgao.win_rate != null && (
-                  <span>Win rate: <strong className="text-green-400">{historicoOrgao.win_rate}%</strong></span>
+                  <span>Win rate: <strong className="text-[#16A34A]">{historicoOrgao.win_rate}%</strong></span>
                 )}
                 {historicoOrgao.avg_score != null && (
-                  <span>Score médio: <strong className="text-cyan-400">{historicoOrgao.avg_score}%</strong></span>
+                  <span>Score médio: <strong className="text-[#047EA9]">{historicoOrgao.avg_score}%</strong></span>
                 )}
               </div>
               <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar">
@@ -1325,20 +1325,20 @@ export default function EditalPage() {
                   const isWon = ['ganho', 'homologado'].includes(r.estado_terminal ?? r.fase_atual ?? '');
                   const isLost = ['perdido', 'inabilitado', 'revogado'].includes(r.estado_terminal ?? '');
                   return (
-                    <div key={r.edital_id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-white/[0.04] last:border-0">
+                    <div key={r.edital_id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-slate-100 last:border-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${
-                          isWon ? 'bg-green-500/15 text-green-400' : isLost ? 'bg-red-500/15 text-red-400' : 'bg-white/[0.06] text-white/30'
+                          isWon ? 'bg-green-500/15 text-[#16A34A]' : isLost ? 'bg-red-500/15 text-[#B91C1C]' : 'bg-slate-100 text-slate-400'
                         }`}>
                           {isWon ? '✓' : isLost ? '✗' : '·'}
                         </span>
-                        <a href={`/edital/${r.edital_id}`} className="text-white/60 hover:text-cyan-400 truncate transition-colors">
+                        <a href={`/edital/${r.edital_id}`} className="text-slate-600 hover:text-[#047EA9] truncate transition-colors">
                           {r.numero_pregao || r.objeto || r.edital_id}
                         </a>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 text-white/35">
+                      <div className="flex items-center gap-3 shrink-0 text-slate-400">
                         {r.score_comercial != null && (
-                          <span className={r.score_comercial >= 70 ? 'text-green-400' : r.score_comercial >= 45 ? 'text-cyan-400' : 'text-red-400'}>
+                          <span className={r.score_comercial >= 70 ? 'text-[#16A34A]' : r.score_comercial >= 45 ? 'text-[#047EA9]' : 'text-[#B91C1C]'}>
                             {r.score_comercial}%
                           </span>
                         )}

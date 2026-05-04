@@ -43,7 +43,7 @@ function MdContent({ content }: { content: string }) {
         ),
         ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1.5">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 my-1.5">{children}</ol>,
-        li: ({ children }) => <li className="text-slate-300">{children}</li>,
+        li: ({ children }) => <li className="text-slate-700">{children}</li>,
         h1: ({ children }) => <h1 className="font-poppins font-bold text-white text-sm mt-2 mb-1">{children}</h1>,
         h2: ({ children }) => <h2 className="font-poppins font-semibold text-white text-xs uppercase tracking-wider mt-2 mb-1 opacity-75">{children}</h2>,
         h3: ({ children }) => <h3 className="font-semibold text-white text-xs mt-1.5 mb-0.5">{children}</h3>,
@@ -53,11 +53,11 @@ function MdContent({ content }: { content: string }) {
         code: ({ children, className }) => {
           const isBlock = className?.includes('language-');
           return isBlock ? (
-            <pre className="bg-black/40 rounded-lg p-3 text-xs font-mono text-slate-300 overflow-x-auto my-1.5 border border-white/10">
+            <pre className="bg-slate-100 rounded-lg p-3 text-xs font-mono text-slate-700 overflow-x-auto my-1.5 border border-slate-200">
               <code>{children}</code>
             </pre>
           ) : (
-            <code className="bg-black/30 text-primary-300 rounded px-1 py-0.5 text-[11px] font-mono">{children}</code>
+            <code className="bg-slate-100 text-primary-300 rounded px-1 py-0.5 text-[11px] font-mono">{children}</code>
           );
         },
         table: ({ children }) => (
@@ -67,12 +67,12 @@ function MdContent({ content }: { content: string }) {
         ),
         thead: ({ children }) => <thead>{children}</thead>,
         th: ({ children }) => (
-          <th className="text-left text-slate-400 border-b border-white/10 pb-1 pr-3 font-normal uppercase tracking-wider text-[10px]">{children}</th>
+          <th className="text-left text-slate-400 border-b border-slate-200 pb-1 pr-3 font-normal uppercase tracking-wider text-[10px]">{children}</th>
         ),
         td: ({ children }) => (
-          <td className="py-1 pr-3 border-b border-white/[0.04] text-slate-300">{children}</td>
+          <td className="py-1 pr-3 border-b border-slate-100 text-slate-700">{children}</td>
         ),
-        hr: () => <hr className="border-white/[0.08] my-2" />,
+        hr: () => <hr className="border-slate-200 my-2" />,
       }}
     >
       {content}
@@ -270,14 +270,14 @@ export default function ChatWidget() {
             width: 'min(380px, calc(100vw - 24px))',
             height: 'min(540px, calc(100vh - 120px))',
             maxHeight: '540px',
-            background: 'linear-gradient(180deg, rgba(14,26,42,0.97) 0%, rgba(10,19,32,0.98) 100%)',
+            background: '#FFFFFF',
             border: '1px solid rgba(0,190,255,0.2)',
             boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,190,255,0.08), inset 0 1px 0 rgba(255,255,255,0.05)',
             backdropFilter: 'blur(32px)',
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center"
@@ -295,7 +295,7 @@ export default function ChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-slate-600 border border-white/[0.08] rounded font-mono">
+              <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-slate-600 border border-slate-200 rounded font-mono">
                 Ctrl K
               </kbd>
               {messages.length > 0 && (
@@ -338,9 +338,9 @@ export default function ChatWidget() {
                     <button
                       key={i}
                       onClick={() => sendMessage(q)}
-                      className="w-full text-left text-xs text-slate-400 hover:text-white px-3 py-2.5 rounded-xl transition-all duration-200 group"
+                      className="w-full text-left text-xs text-slate-400 hover:text-slate-800 px-3 py-2.5 rounded-xl transition-all duration-200 group"
                       style={{
-                        background: 'rgba(255,255,255,0.025)',
+                        background: '#F8FAFC',
                         border: '1px solid rgba(255,255,255,0.06)',
                       }}
                       onMouseEnter={(e) => {
@@ -384,9 +384,9 @@ export default function ChatWidget() {
                               boxShadow: '0 4px 16px rgba(4,126,169,0.35)',
                             }
                           : {
-                              background: 'rgba(255,255,255,0.04)',
+                              background: '#F1F5F9',
                               border: '1px solid rgba(255,255,255,0.07)',
-                              color: '#CBD5E1',
+                              color: '#1E293B',
                               borderBottomLeftRadius: '4px',
                             }
                       }
@@ -410,7 +410,7 @@ export default function ChatWidget() {
                       </svg>
                     </div>
                     <div className="rounded-2xl rounded-bl-sm"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      style={{ background: '#F1F5F9', border: '1px solid rgba(255,255,255,0.07)' }}>
                       <ThinkingDots />
                     </div>
                   </div>
@@ -427,7 +427,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Input area */}
-          <div className="shrink-0 px-3 py-3 border-t border-white/[0.06]"
+          <div className="shrink-0 px-3 py-3 border-t border-slate-100"
             style={{ background: 'rgba(0,0,0,0.2)' }}>
             <div className="flex items-end gap-2">
               <textarea
@@ -440,7 +440,7 @@ export default function ChatWidget() {
                 disabled={loading}
                 className="flex-1 resize-none rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none transition-all custom-scrollbar disabled:opacity-50"
                 style={{
-                  background: 'rgba(255,255,255,0.04)',
+                  background: '#F1F5F9',
                   border: '1px solid rgba(255,255,255,0.09)',
                   maxHeight: '120px',
                   lineHeight: '1.5',

@@ -26,7 +26,7 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   if (hidden) return (
-    <button onClick={onHide} className="text-xs text-white/30 hover:text-white/50 transition-colors mb-3">
+    <button onClick={onHide} className="text-xs text-slate-400 hover:text-slate-500 transition-colors mb-3">
       Mostrar dica de compartilhamento
     </button>
   );
@@ -41,11 +41,11 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
           <span className="text-lg mt-0.5 flex-shrink-0">🛈</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white mb-1">Antes de importar do Google Drive</p>
-            <p className="text-xs text-white/50 mb-3 leading-relaxed">
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
               Compartilhe o arquivo (ou pasta) com a conta de serviço abaixo — basta acesso de leitura.
             </p>
             <div className="flex items-center gap-2 mb-3">
-              <code className="flex-1 text-xs font-mono text-cyan-400 bg-black/30 rounded-lg px-3 py-2 truncate border border-white/[0.06]">
+              <code className="flex-1 text-xs font-mono text-[#047EA9] bg-slate-100 rounded-lg px-3 py-2 truncate border border-slate-100">
                 {SA_EMAIL}
               </code>
               <button
@@ -70,24 +70,24 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="text-xs text-white/40 hover:text-white/60 transition-colors flex items-center gap-1"
+              className="text-xs text-slate-500 hover:text-slate-600 transition-colors flex items-center gap-1"
             >
               <span>{expanded ? '▾' : '▸'}</span>
               Como compartilhar (3 passos)
             </button>
 
             {expanded && (
-              <ol className="mt-2 space-y-1.5 text-xs text-white/50 leading-relaxed list-decimal list-inside">
+              <ol className="mt-2 space-y-1.5 text-xs text-slate-500 leading-relaxed list-decimal list-inside">
                 <li>Abra o arquivo ou pasta no Google Drive.</li>
-                <li>Clique em <strong className="text-white/70">Compartilhar</strong> (canto superior direito).</li>
-                <li>Cole o email acima e selecione <strong className="text-white/70">Leitor</strong>. Pronto.</li>
+                <li>Clique em <strong className="text-slate-700">Compartilhar</strong> (canto superior direito).</li>
+                <li>Cole o email acima e selecione <strong className="text-slate-700">Leitor</strong>. Pronto.</li>
               </ol>
             )}
           </div>
           <button
             type="button"
             onClick={onHide}
-            className="flex-shrink-0 text-xs text-white/25 hover:text-white/40 mt-0.5"
+            className="flex-shrink-0 text-xs text-slate-400 hover:text-slate-500 mt-0.5"
           >
             Ocultar
           </button>
@@ -115,7 +115,7 @@ function ProgressWidget({
             {stage === 'queued'    && 'Na fila — aguardando…'}
             {stage === 'running'   && (AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…')}
           </p>
-          {analysisId && <p className="text-white/30 text-xs font-mono mt-0.5">{analysisId}</p>}
+          {analysisId && <p className="text-slate-400 text-xs font-mono mt-0.5">{analysisId}</p>}
         </div>
       </div>
       <div className="flex gap-1.5">
@@ -128,9 +128,9 @@ function ProgressWidget({
           return (
             <div key={label} className="flex-1 space-y-1">
               <div className={`h-1.5 rounded-full transition-colors ${
-                isDone ? 'bg-green-500' : isActive ? 'bg-cyan-500' : 'bg-white/[0.08]'
+                isDone ? 'bg-green-500' : isActive ? 'bg-cyan-500' : 'bg-slate-100'
               }`} />
-              <p className={`text-[10px] text-center ${isActive ? 'text-cyan-400' : isDone ? 'text-green-400' : 'text-white/30'}`}>{label}</p>
+              <p className={`text-[10px] text-center ${isActive ? 'text-[#047EA9]' : isDone ? 'text-[#16A34A]' : 'text-slate-400'}`}>{label}</p>
             </div>
           );
         })}
@@ -209,9 +209,9 @@ function TabPDF() {
         {file ? (
           <div className="space-y-1">
             <p className="font-semibold text-lg" style={{ color: 'var(--x-green)' }}>{file.name}</p>
-            <p className="text-white/40 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p className="text-slate-500 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
             {stage === 'idle' && (
-              <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="text-xs text-white/30 hover:text-red-400 mt-2">
+              <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="text-xs text-slate-400 hover:text-[#B91C1C] mt-2">
                 remover
               </button>
             )}
@@ -222,8 +222,8 @@ function TabPDF() {
               style={{ background: 'rgba(0,190,255,0.06)', border: '1px solid rgba(0,190,255,0.15)' }}>
               📄
             </div>
-            <p className="text-white/50">Arraste o PDF aqui ou <span style={{ color: 'var(--x-cyan)' }}>clique para selecionar</span></p>
-            <p className="text-white/25 text-xs">Apenas PDF · máx. 30 MB</p>
+            <p className="text-slate-500">Arraste o PDF aqui ou <span style={{ color: 'var(--x-cyan)' }}>clique para selecionar</span></p>
+            <p className="text-slate-400 text-xs">Apenas PDF · máx. 30 MB</p>
           </div>
         )}
         <input ref={inputRef} type="file" accept=".pdf" className="hidden"
@@ -236,25 +236,25 @@ function TabPDF() {
           <button
             type="button"
             onClick={() => setShowMeta((v) => !v)}
-            className="text-xs text-white/35 hover:text-white/55 transition-colors flex items-center gap-1"
+            className="text-xs text-slate-400 hover:text-slate-500 transition-colors flex items-center gap-1"
           >
             <span>{showMeta ? '▾' : '▸'}</span> Avançado (órgão, UF, vendedor)
           </button>
           {showMeta && (
             <div className="mt-3 card grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-white/40 mb-1 block">Órgão</label>
+                <label className="text-xs text-slate-500 mb-1 block">Órgão</label>
                 <input type="text" value={orgao} onChange={(e) => setOrgao(e.target.value)} placeholder="Ex: PRODESP" className="input w-full" />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1 block">UF</label>
+                <label className="text-xs text-slate-500 mb-1 block">UF</label>
                 <select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-full">
                   <option value="">— selecione —</option>
                   {UF_LIST.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1 block">Vendedor (email)</label>
+                <label className="text-xs text-slate-500 mb-1 block">Vendedor (email)</label>
                 <input type="email" value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="vendedor@xertica.com" className="input w-full" />
               </div>
             </div>
@@ -353,7 +353,7 @@ function TabDrive() {
       <SACallout hidden={calloutHidden} onHide={() => setCalloutHidden((v) => !v)} />
 
       <div>
-        <label className="text-sm text-white/60 mb-2 block font-medium">URL ou File ID do Google Drive</label>
+        <label className="text-sm text-slate-600 mb-2 block font-medium">URL ou File ID do Google Drive</label>
         <input
           type="text"
           value={driveInput}
@@ -362,18 +362,18 @@ function TabDrive() {
           className="input w-full"
           disabled={stage !== 'idle'}
         />
-        <p className="text-xs text-white/25 mt-1">Cole a URL de compartilhamento ou o ID do arquivo.</p>
+        <p className="text-xs text-slate-400 mt-1">Cole a URL de compartilhamento ou o ID do arquivo.</p>
       </div>
 
       <div>
-        <button type="button" onClick={() => setShowMeta((v) => !v)} className="text-xs text-white/35 hover:text-white/55 transition-colors flex items-center gap-1">
+        <button type="button" onClick={() => setShowMeta((v) => !v)} className="text-xs text-slate-400 hover:text-slate-500 transition-colors flex items-center gap-1">
           <span>{showMeta ? '▾' : '▸'}</span> Avançado (órgão, UF, vendedor)
         </button>
         {showMeta && (
           <div className="mt-3 card grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-white/40 mb-1 block">Órgão</label><input type="text" value={orgao} onChange={(e) => setOrgao(e.target.value)} placeholder="PRODESP" className="input w-full" /></div>
-            <div><label className="text-xs text-white/40 mb-1 block">UF</label><select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-full"><option value="">— selecione —</option>{UF_LIST.map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
-            <div><label className="text-xs text-white/40 mb-1 block">Vendedor</label><input type="email" value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="vendedor@xertica.com" className="input w-full" /></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">Órgão</label><input type="text" value={orgao} onChange={(e) => setOrgao(e.target.value)} placeholder="PRODESP" className="input w-full" /></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">UF</label><select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-full"><option value="">— selecione —</option>{UF_LIST.map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">Vendedor</label><input type="email" value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="vendedor@xertica.com" className="input w-full" /></div>
           </div>
         )}
       </div>
@@ -452,7 +452,7 @@ function TabFolder() {
       <SACallout hidden={calloutHidden} onHide={() => setCalloutHidden((v) => !v)} />
 
       <div>
-        <label className="text-sm text-white/60 mb-2 block font-medium">URL ou Folder ID do Google Drive</label>
+        <label className="text-sm text-slate-600 mb-2 block font-medium">URL ou Folder ID do Google Drive</label>
         <input
           type="text"
           value={folderInput}
@@ -464,7 +464,7 @@ function TabFolder() {
       </div>
 
       <div>
-        <label className="text-sm text-white/60 mb-2 block font-medium">
+        <label className="text-sm text-slate-600 mb-2 block font-medium">
           Máximo de arquivos: <span style={{ color: 'var(--x-cyan)' }}>{maxFiles}</span>
         </label>
         <input
@@ -473,18 +473,18 @@ function TabFolder() {
           className="w-full accent-cyan-500"
           disabled={loading || done}
         />
-        <div className="flex justify-between text-xs text-white/25 mt-1"><span>1</span><span>30</span></div>
+        <div className="flex justify-between text-xs text-slate-400 mt-1"><span>1</span><span>30</span></div>
       </div>
 
       <div>
-        <button type="button" onClick={() => setShowMeta((v) => !v)} className="text-xs text-white/35 hover:text-white/55 transition-colors flex items-center gap-1">
+        <button type="button" onClick={() => setShowMeta((v) => !v)} className="text-xs text-slate-400 hover:text-slate-500 transition-colors flex items-center gap-1">
           <span>{showMeta ? '▾' : '▸'}</span> Avançado (órgão, UF, vendedor)
         </button>
         {showMeta && (
           <div className="mt-3 card grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-white/40 mb-1 block">Órgão</label><input type="text" value={orgao} onChange={(e) => setOrgao(e.target.value)} placeholder="PRODESP" className="input w-full" /></div>
-            <div><label className="text-xs text-white/40 mb-1 block">UF</label><select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-full"><option value="">— selecione —</option>{UF_LIST.map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
-            <div><label className="text-xs text-white/40 mb-1 block">Vendedor</label><input type="email" value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="vendedor@xertica.com" className="input w-full" /></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">Órgão</label><input type="text" value={orgao} onChange={(e) => setOrgao(e.target.value)} placeholder="PRODESP" className="input w-full" /></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">UF</label><select value={uf} onChange={(e) => setUf(e.target.value)} className="input w-full"><option value="">— selecione —</option>{UF_LIST.map((u) => <option key={u} value={u}>{u}</option>)}</select></div>
+            <div><label className="text-xs text-slate-500 mb-1 block">Vendedor</label><input type="email" value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="vendedor@xertica.com" className="input w-full" /></div>
           </div>
         )}
       </div>
@@ -495,7 +495,7 @@ function TabFolder() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
           </svg>
-          <span className="text-sm text-white/60">Enfileirando PDFs da pasta…</span>
+          <span className="text-sm text-slate-600">Enfileirando PDFs da pasta…</span>
         </div>
       )}
 
@@ -506,9 +506,9 @@ function TabFolder() {
           </p>
           <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
             {jobs.map((j) => (
-              <div key={j.analysis_id} className="flex items-center justify-between gap-2 text-xs py-2 border-b border-white/[0.06] last:border-0">
-                <span className="text-white/60 truncate">{j.filename}</span>
-                <Link href={`/edital/${j.analysis_id}`} className="text-cyan-400 hover:text-cyan-300 shrink-0">
+              <div key={j.analysis_id} className="flex items-center justify-between gap-2 text-xs py-2 border-b border-slate-100 last:border-0">
+                <span className="text-slate-600 truncate">{j.filename}</span>
+                <Link href={`/edital/${j.analysis_id}`} className="text-[#047EA9] hover:text-cyan-300 shrink-0">
                   Acompanhar →
                 </Link>
               </div>
@@ -616,16 +616,16 @@ function TabURL() {
       {/* Portais suportados */}
       <div className="flex flex-wrap gap-2">
         {['Comprasnet', 'PNCP', 'BEC-SP', 'Licitações-e'].map((p) => (
-          <span key={p} className="text-[11px] px-2 py-0.5 rounded-full border border-white/[0.08] text-white/35">{p}</span>
+          <span key={p} className="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-400">{p}</span>
         ))}
-        <span className="text-[11px] text-white/20">+ qualquer URL pública de PDF</span>
+        <span className="text-[11px] text-slate-300">+ qualquer URL pública de PDF</span>
       </div>
 
       <div>
-        <label className="text-sm text-white/60 mb-2 block font-medium">URL do edital</label>
+        <label className="text-sm text-slate-600 mb-2 block font-medium">URL do edital</label>
         <div className="relative">
           {portal && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 rounded px-1.5 py-0.5 font-medium z-10 pointer-events-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs bg-cyan-500/15 text-[#047EA9] border border-cyan-500/25 rounded px-1.5 py-0.5 font-medium z-10 pointer-events-none">
               {portal}
             </span>
           )}
@@ -640,7 +640,7 @@ function TabURL() {
             onKeyDown={(e) => { if (e.key === 'Enter' && urlInput.trim()) submit(); }}
           />
         </div>
-        <p className="text-xs text-white/25 mt-1">
+        <p className="text-xs text-slate-400 mt-1">
           Cole a URL direta do PDF. Portais que exigem login (BEC-SP) podem não funcionar — use a aba PDF nesses casos.
         </p>
       </div>
@@ -674,7 +674,7 @@ function ResultWidget({
   router: ReturnType<typeof useRouter>;
 }) {
   if (stage === 'done') {
-    const scoreColor = score == null ? 'text-white/50' : score >= 70 ? '#C0FF7D' : score >= 45 ? '#00BEFF' : '#E14849';
+    const scoreColor = score == null ? 'text-slate-500' : score >= 70 ? '#C0FF7D' : score >= 45 ? '#00BEFF' : '#E14849';
     return (
       <div className="card space-y-4" style={{ borderColor: 'rgba(192,255,125,0.25)' }}>
         <div className="flex items-center gap-3">
@@ -685,13 +685,13 @@ function ResultWidget({
           <div className="flex gap-6 items-center">
             {score != null && (
               <div>
-                <p className="text-xs text-white/35 mb-0.5">Score</p>
+                <p className="text-xs text-slate-400 mb-0.5">Score</p>
                 <p className="text-4xl font-bold font-poppins" style={{ color: scoreColor }}>{score}%</p>
               </div>
             )}
             {resultStatus && (
               <div>
-                <p className="text-xs text-white/35 mb-0.5">Status</p>
+                <p className="text-xs text-slate-400 mb-0.5">Status</p>
                 <p className="text-white font-semibold">{resultStatus}</p>
               </div>
             )}
@@ -734,15 +734,15 @@ export default function UploadPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 py-2">
       {/* Breadcrumb */}
-      <div className="text-sm text-white/30">
-        <Link href="/" className="hover:text-white/60 transition-colors">Pipeline</Link>
+      <div className="text-sm text-slate-400">
+        <Link href="/" className="hover:text-slate-600 transition-colors">Pipeline</Link>
         <span className="mx-2">/</span>
-        <span className="text-white/50">Novo edital</span>
+        <span className="text-slate-500">Novo edital</span>
       </div>
 
       <div className="fade-up">
         <h1 className="heading-lg mb-1">Importar Edital</h1>
-        <p className="text-sm text-white/35">PDF local, Google Drive, pasta ou URL pública — tudo em uma análise.</p>
+        <p className="text-sm text-slate-400">PDF local, Google Drive, pasta ou URL pública — tudo em uma análise.</p>
       </div>
 
       {/* Tab switcher */}
