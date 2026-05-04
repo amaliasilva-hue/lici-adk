@@ -64,7 +64,7 @@
 }
 
 body {
-  background: #F8FAFC;
+  background: #F1F5F9;
   color: #1E293B;
   font-family: var(--font-roboto);
   min-height: 100vh;
@@ -186,27 +186,29 @@ select.input option { background: #FFFFFF; color: #1E293B; }
 
 .stage-col {
   @apply flex-shrink-0 rounded-2xl flex flex-col gap-2;
-  width: 230px; padding: 10px;
-  background: #EEF2F7;
-  border: 1px solid rgba(0,0,0,0.07);
+  width: 240px; padding: 12px 10px 10px;
+  background: #FFFFFF;
+  border: 1px solid rgba(15,23,42,0.06);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  border-top: 3px solid var(--stage-color, #94A3B8);
   min-height: 60px;
 }
 .stage-col-title {
-  @apply text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between px-1;
-  color: #64748B;
+  @apply text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center justify-between px-1;
+  color: #475569;
 }
 .kanban-card {
   @apply rounded-xl cursor-pointer transition-all duration-200;
   padding: 10px 12px 10px 10px;
   background: #FFFFFF;
-  border: 1px solid rgba(0,0,0,0.08);
-  border-left: 2.5px solid var(--card-accent, rgba(0,0,0,0.15));
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border: 1px solid rgba(15,23,42,0.08);
+  border-left: 3px solid var(--card-accent, rgba(15,23,42,0.18));
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
 }
 .kanban-card:hover {
-  border-color: rgba(0,0,0,0.14);
+  border-color: rgba(15,23,42,0.14);
   border-left-color: var(--card-accent, var(--x-cyan));
-  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.10), 0 2px 6px rgba(15,23,42,0.04);
   transform: translateY(-2px);
 }
 
@@ -380,8 +382,9 @@ tr.is-selected .sel-dot { opacity: 1; }
 }
 .kanban-card { cursor: grab; }
 .stage-col[data-drop-target="true"] {
-  background: rgba(4,126,169,0.06) !important;
-  outline: 1px dashed rgba(4,126,169,0.35); outline-offset: -4px;
+  background: rgba(4,126,169,0.04) !important;
+  outline: 2px dashed rgba(4,126,169,0.45); outline-offset: -4px;
+  border-top-color: var(--x-cyan) !important;
 }
 .kanban-card-ghost { opacity: 0.3; filter: grayscale(0.5); transform: scale(0.98); }
 
@@ -416,11 +419,13 @@ tr.is-selected .sel-dot { opacity: 1; }
 
 .stat-card {
   @apply rounded-xl px-4 py-3 flex flex-col gap-0.5;
-  background: #FFFFFF; border: 1px solid rgba(0,0,0,0.08);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  background: #FFFFFF; border: 1px solid rgba(15,23,42,0.07);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  transition: all 0.18s ease;
 }
+.stat-card:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); transform: translateY(-1px); }
 .stat-card-value { font-family: var(--font-poppins); font-weight: 700; font-size: 1.75rem; line-height: 1; color: #0F172A; }
-.stat-card-label { font-size: 11px; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.06em; }
+.stat-card-label { font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
 
 .chat-link-btn { @apply flex items-center gap-1 transition-colors px-1 py-0.5 rounded; font-size: 10px; color: #94A3B8; }
 .chat-link-btn:hover { color: #047EA9; background: rgba(4,126,169,0.08); }
