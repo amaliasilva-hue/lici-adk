@@ -794,62 +794,50 @@ export default function PipelinePage() {
   const waitingCount = editais.filter(e => !e.estado_terminal && !e.score_comercial).length;
 
   return (
-    <div className={`space-y-4 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
+    <div className={`space-y-3 animate-fade-in ${hasSelection ? 'has-selection' : ''}`}>
       {/* ── Hero ── */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="fade-up">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 mr-auto">
             <h1 className="heading-xl">Pipeline de Editais</h1>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <span className="font-bold text-slate-700 tabular-nums">{activeCount}</span>
+              <span>em andamento</span>
+              <span className="text-slate-300">·</span>
+              <span className="font-bold tabular-nums" style={{ color: '#16A34A' }}>{aptoCount}</span>
+              <span>aptos</span>
+              <span className="text-slate-300">·</span>
+              <span className="font-bold tabular-nums" style={{ color: '#D97706' }}>{waitingCount}</span>
+              <span>na fila</span>
+            </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 shrink-0 fade-up delay-100">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setCmdOpen(true)}
               title="Busca rápida (⌘K)"
-              className="btn btn-ghost px-3 py-2 flex items-center gap-1.5"
+              className="btn btn-ghost btn-sm flex items-center gap-1.5"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
-              <kbd className="hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1 py-0.5">⌘K</kbd>
+              <kbd className="hidden sm:inline text-[10px] text-slate-400 border border-slate-200 rounded px-1">⌘K</kbd>
             </button>
             <button
               type="button"
               onClick={() => setShowSearch((v) => !v)}
               title="Filtrar"
-              className={`btn btn-ghost px-3 py-2 ${showSearch || filterPri != null || filterUF ? 'bg-slate-100' : ''}`}
+              className={`btn btn-ghost btn-sm ${showSearch || filterPri != null || filterUF ? 'bg-slate-100' : ''}`}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h4" />
               </svg>
             </button>
-            <Link href="/upload" className="btn btn-primary shrink-0 text-sm">
-              + Novo edital
+            <Link href="/upload" className="btn btn-primary btn-sm shrink-0">
+              + Novo
             </Link>
-          </div>
-        </div>
-
-        {/* Stat mini cards */}
-        <div className="flex flex-wrap gap-3 fade-up delay-100">
-          <div className="stat-card">
-            <span className="stat-card-value">{activeCount}</span>
-            <span className="stat-card-label">Em andamento</span>
-          </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(22,163,74,0.25)' }}>
-            <span className="stat-card-value" style={{ color: '#16A34A' }}>{aptoCount}</span>
-            <span className="stat-card-label">Aptos ≥ 70%</span>
-          </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(217,119,6,0.25)' }}>
-            <span className="stat-card-value" style={{ color: '#D97706' }}>{waitingCount}</span>
-            <span className="stat-card-label">Aguardando análise</span>
-          </div>
-          <div className="stat-card" style={{ borderColor: 'rgba(225,72,73,0.25)' }}>
-            <span className="stat-card-value" style={{ color: '#E14849' }}>
-              {byStage('at_declinados').length}
-            </span>
-            <span className="stat-card-label">At. Declinados</span>
           </div>
         </div>
 
