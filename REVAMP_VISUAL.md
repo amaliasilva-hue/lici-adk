@@ -702,7 +702,7 @@ FASE 4 — Análises
  [x] F4-A1  Badges de status migradas → Badge component
  [x] F4-A2  Skeleton loading → skeleton rows
  [x] F4-A3  Empty state → EmptyState component
- [ ] F4-A4  Filtros pill chips
+ [x] F4-A4  Filtros pill chips → pills removíveis por filtro
 
 FASE 5 — Histórico
  [x] F5-H1  Badges migradas → Badge + ScoreIndicator
@@ -721,7 +721,7 @@ FASE 7 — Chat
 FASE 8 — Polish
  [x] F8-P1  Page transitions → anim-fade em todas as páginas
  [x] F8-P2  Focus rings → :focus-visible global
- [ ] F8-P3  Responsividade mobile
+ [x] F8-P3  Responsividade mobile → sidebar overlay + backdrop + hamburger
  [x] F8-P4  Notification bell badge → cor #E14849
 ```
 
