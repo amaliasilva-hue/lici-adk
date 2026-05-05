@@ -8,14 +8,32 @@ import Avatar from './ui/Avatar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const toggle = useCallback(() => setCollapsed((v) => !v), []);
+
+  // Close mobile sidebar on ESC
+  useState(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
 
   return (
     <div className="flex h-screen overflow-hidden">
 
+      {/* ── Mobile backdrop ──────────────────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <aside
-        className="sidebar-shell"
+        className={`sidebar-shell${mobileOpen ? ' sidebar-mobile-open' : ''}`}
         data-collapsed={collapsed ? 'true' : undefined}
       >
         {/* Logo + toggle */}
@@ -99,6 +117,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-3 ml-auto sm:ml-0 shrink-0">
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen((v) => !v)}
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+              aria-label="Abrir menu"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <Link href="/chat" className="lici-ai-btn">
               {/* Sparkles */}
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">

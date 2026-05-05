@@ -144,6 +144,20 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
+/* Mobile: sidebar hidden off-screen by default, opens as overlay */
+@media (max-width: 1023px) {
+  .sidebar-shell {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 256px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 50;
+  }
+  .sidebar-shell.sidebar-mobile-open {
+    transform: translateX(0);
+  }
+}
 @media (min-width: 1024px) {
   .sidebar-shell { width: 256px; }
   .sidebar-shell[data-collapsed] { width: 72px; }

@@ -179,6 +179,45 @@ function AnalisesPageInner() {
           <input name="uf" defaultValue={uf} placeholder="UF" maxLength={2} className="input w-20 uppercase" />
           <button className="btn btn-primary text-sm">Filtrar</button>
         </form>
+
+        {/* Active filter pills */}
+        {(orgao || status || uf) && (
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Filtros ativos:</span>
+            {orgao && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
+                style={{ background: 'rgba(4,126,169,0.06)', color: '#047EA9', borderColor: 'rgba(4,126,169,0.2)' }}>
+                Órgão: {orgao}
+                <button type="button" aria-label="Remover filtro órgão"
+                  onClick={() => router.push(`/analises?${new URLSearchParams({ ...(status && { status }), ...(uf && { uf }) }).toString()}`)}
+                  className="hover:opacity-70 transition-opacity leading-none">×</button>
+              </span>
+            )}
+            {status && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
+                style={{ background: 'rgba(4,126,169,0.06)', color: '#047EA9', borderColor: 'rgba(4,126,169,0.2)' }}>
+                {status}
+                <button type="button" aria-label="Remover filtro status"
+                  onClick={() => router.push(`/analises?${new URLSearchParams({ ...(orgao && { orgao }), ...(uf && { uf }) }).toString()}`)}
+                  className="hover:opacity-70 transition-opacity leading-none">×</button>
+              </span>
+            )}
+            {uf && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
+                style={{ background: 'rgba(4,126,169,0.06)', color: '#047EA9', borderColor: 'rgba(4,126,169,0.2)' }}>
+                UF: {uf}
+                <button type="button" aria-label="Remover filtro UF"
+                  onClick={() => router.push(`/analises?${new URLSearchParams({ ...(orgao && { orgao }), ...(status && { status }) }).toString()}`)}
+                  className="hover:opacity-70 transition-opacity leading-none">×</button>
+              </span>
+            )}
+            <button type="button"
+              onClick={() => router.push('/analises')}
+              className="text-[11px] text-slate-400 hover:text-red-500 transition-colors ml-1">
+              Limpar tudo
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bulk action bar */}
