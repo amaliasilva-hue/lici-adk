@@ -113,7 +113,11 @@ function ProgressWidget({
           <p className="text-white font-medium text-sm">
             {stage === 'uploading' && 'Enviando PDF…'}
             {stage === 'queued'    && 'Na fila — aguardando…'}
-            {stage === 'running'   && (AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…')}
+            {stage === 'running'   && (
+              <span className="font-mono" style={{ color: 'var(--x-cyan)' }}>
+                {AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…'}
+              </span>
+            )}
           </p>
           {analysisId && <p className="text-slate-400 text-xs font-mono mt-0.5">{analysisId}</p>}
         </div>
@@ -127,10 +131,12 @@ function ProgressWidget({
                            (i === 2 && currentAgent === 'analista');
           return (
             <div key={label} className="flex-1 space-y-1">
-              <div className={`h-1.5 rounded-full transition-colors ${
-                isDone ? 'bg-green-500' : isActive ? 'bg-cyan-500' : 'bg-slate-100'
+              <div className={`h-1.5 rounded-full transition-all duration-300 ${
+                isDone ? 'bg-[var(--color-success)]' : isActive ? 'bg-[var(--x-cyan)] anim-scale' : 'bg-slate-100'
               }`} />
-              <p className={`text-[10px] text-center ${isActive ? 'text-[#047EA9]' : isDone ? 'text-[#16A34A]' : 'text-slate-400'}`}>{label}</p>
+              <p className={`text-[10px] text-center font-medium ${
+                isActive ? 'text-[var(--x-cyan)]' : isDone ? 'text-[var(--color-success-text)]' : 'text-slate-400'
+              }`}>{label}</p>
             </div>
           );
         })}
@@ -732,7 +738,7 @@ export default function UploadPage() {
   const [tab, setTab] = useState<Tab>('pdf');
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 py-2">
+    <div className="max-w-2xl mx-auto space-y-6 py-2 anim-fade">
       {/* Breadcrumb */}
       <div className="text-sm text-slate-400">
         <Link href="/" className="hover:text-slate-600 transition-colors">Pipeline</Link>

@@ -8,7 +8,7 @@ const SECTIONS = [
     items: [
       {
         href: '/',
-        label: 'Pipeline B2G',
+        label: 'Pipeline Licitatório',
         icon: (
           <svg width={18} height={18} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -95,6 +95,7 @@ export default function NavLinks() {
                   key={href}
                   href={href}
                   title={label}
+                  data-label={label}
                   className={`sidebar-nav-item ${isActive ? 'sidebar-nav-item-active' : ''}`}
                 >
                   <span className="shrink-0">{icon}</span>
