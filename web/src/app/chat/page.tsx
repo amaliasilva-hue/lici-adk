@@ -777,12 +777,12 @@ function ChatPageInner() {
 
             <div className="flex-1 overflow-y-auto chat-scroller px-2 py-2">
               {sessions.length === 0 ? (
-                <p className="text-center py-8 text-xs" style={{ color: '#1E293B' }}>Nenhuma conversa ainda</p>
+                <p className="text-center py-8 text-xs" style={{ color: '#94A3B8' }}>Nenhuma conversa ainda</p>
               ) : (
                 <div className="space-y-3">
                   {groupByDate(sessions).map(group => (
                     <div key={group.label}>
-                      <p className="px-3 pb-1 text-[9px] font-bold uppercase tracking-widest" style={{ color: '#1E3251' }}>{group.label}</p>
+                      <p className="px-3 pb-1 mb-1 text-[9px] font-bold uppercase tracking-widest" style={{ color: '#94A3B8' }}>{group.label}</p>
                       <div className="space-y-0.5">
                         {group.items.map(s => (
                           <SessionItem key={s.session_id} session={s}
@@ -798,7 +798,7 @@ function ChatPageInner() {
             </div>
 
             <div className="px-3 py-2.5 shrink-0" style={{ borderTop: '1px solid rgba(15,23,42,0.05)' }}>
-              <p className="text-[10px] text-center" style={{ color: '#1E293B' }}>Powered by Gemini 2.5 Flash</p>
+              <p className="text-[10px] text-center" style={{ color: '#94A3B8' }}>Powered by Gemini 2.5 Flash</p>
             </div>
           </div>
         </aside>

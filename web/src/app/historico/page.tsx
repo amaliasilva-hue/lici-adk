@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import Badge from '@/components/ui/Badge';
+import ScoreIndicator from '@/components/ui/ScoreIndicator';
+import EmptyState from '@/components/ui/EmptyState';
 
 const UF_LIST = ['','AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
   'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
@@ -41,11 +44,7 @@ function SkeletonRow() {
   );
 }
 
-function ScoreBadge({ score }: { score?: number }) {
-  if (score == null) return <span className="text-slate-400">—</span>;
-  const cls = score >= 70 ? 'badge-green' : score >= 45 ? 'badge-blue' : 'badge-red';
-  return <span className={`badge ${cls}`}>{score}%</span>;
-}
+
 
 export default function HistoricoPage() {
   const [editais, setEditais] = useState<Edital[]>([]);
@@ -112,7 +111,7 @@ export default function HistoricoPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 anim-fade">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -181,7 +180,7 @@ export default function HistoricoPage() {
       {/* Table */}
       <div className="card p-0 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="data-table w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
                 <th className="py-3 px-4 font-normal">Órgão</th>
@@ -198,8 +197,12 @@ export default function HistoricoPage() {
               {loading && Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
               {!loading && sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-300 text-sm">
-                    Nenhum edital encontrado.
+                  <td colSpan={8} className="py-8">
+                    <EmptyState
+                      title="Nenhum edital encontrado"
+                      description="Ajuste os filtros ou importe um novo edital."
+                      compact
+                    />
                   </td>
                 </tr>
               )}
@@ -221,15 +224,17 @@ export default function HistoricoPage() {
                   </td>
                   <td className="py-3 px-3 hidden sm:table-cell">
                     {e.estado_terminal ? (
-                      <span className={`badge ${e.estado_terminal === 'ganho' ? 'badge-green' : 'badge-red'}`}>
+                      <Badge variant={e.estado_terminal === 'ganho' ? 'success' : 'danger'}>
                         {e.estado_terminal}
-                      </span>
+                      </Badge>
                     ) : (
                       <span className="text-slate-300 text-xs">—</span>
                     )}
                   </td>
                   <td className="py-3 px-3">
-                    <ScoreBadge score={e.score_comercial} />
+                    {e.score_comercial != null
+                      ? <ScoreIndicator score={e.score_comercial} size="sm" thresholds={{ good: 70, warning: 45 }} />
+                      : <span className="text-slate-300 text-xs">—</span>}
                   </td>
                   <td className="py-3 px-3 hidden lg:table-cell text-slate-400 text-xs">
                     {e.criado_em ? new Date(e.criado_em).toLocaleDateString('pt-BR') : '—'}

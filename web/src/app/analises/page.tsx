@@ -5,6 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   SelectDot, TrashIcon, ConfirmModal, BulkActionBar, ToastStack, useToasts,
 } from '@/components/bulk-actions';
+import Badge, { BadgeVariant } from '@/components/ui/Badge';
+import ScoreIndicator from '@/components/ui/ScoreIndicator';
+import EmptyState from '@/components/ui/EmptyState';
 
 type Row = {
   analysis_id: string;
@@ -19,10 +22,12 @@ type Row = {
   edital_filename: string | null;
 };
 
-function badge(s: string) {
-  if (s === 'APTO') return 'bg-green-100 text-green-800';
-  if (s === 'APTO COM RESSALVAS') return 'bg-amber-100 text-amber-800';
-  return 'bg-red-100 text-red-800';
+function statusToVariant(s: string): BadgeVariant {
+  if (s === 'APTO') return 'apto';
+  if (s === 'APTO COM RESSALVAS') return 'ressalvas';
+  if (s === 'INAPTO') return 'inapto';
+  if (s === 'NO-GO') return 'nogo';
+  return 'neutral';
 }
 
 export default function AnalisesPage() {
@@ -147,7 +152,7 @@ function AnalisesPageInner() {
   const hasSelection = selected.size > 0;
 
   return (
-    <div className={`space-y-5 animate-fade-in p-6 ${hasSelection ? 'has-selection' : ''}`}>
+    <div className={`space-y-5 anim-fade p-6 ${hasSelection ? 'has-selection' : ''}`}>
       <div className="card">
         <h1 className="text-xl font-bold mb-3">Histórico de análises</h1>
         <form
@@ -187,7 +192,7 @@ function AnalisesPageInner() {
       {error && <div className="alert-danger">Erro: {error}</div>}
 
       <div className="card overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="data-table min-w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-2 pr-2 w-8">
@@ -211,9 +216,15 @@ function AnalisesPageInner() {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td colSpan={10} className="py-6 text-center text-slate-400">Carregando…</td></tr>
-            )}
+            {loading && ["", "", "", "", ""].map((_, i) => (
+              <tr key={i} className="border-b border-slate-100">
+                {[...Array(10)].map((__, j) => (
+                  <td key={j} className="py-3 pr-3">
+                    <div className="skeleton h-4 rounded" style={{ width: j === 2 ? '120px' : j === 4 ? '80px' : '48px' }} />
+                  </td>
+                ))}
+              </tr>
+            ))}
             {!loading && rows.map((r) => {
               const isSelected = selected.has(r.analysis_id);
               const isRemoving = removingIds.has(r.analysis_id);
@@ -228,8 +239,12 @@ function AnalisesPageInner() {
                   <td className="py-2 pr-3 text-xs text-slate-500">{new Date(r.data_analise).toLocaleString('pt-BR')}</td>
                   <td className="py-2 pr-3">{r.orgao || '—'}</td>
                   <td className="py-2 pr-3">{r.uf || '—'}</td>
-                  <td className="py-2 pr-3"><span className={`badge ${badge(r.status)}`}>{r.status}</span></td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{r.score_aderencia ?? '—'}</td>
+                  <td className="py-2 pr-3"><Badge variant={statusToVariant(r.status)}>{r.status}</Badge></td>
+                  <td className="py-2 pr-3 text-right tabular-nums">
+                    {r.score_aderencia != null
+                      ? <ScoreIndicator score={r.score_aderencia} size="sm" />
+                      : <span className="text-slate-400">—</span>}
+                  </td>
                   <td className="py-2 pr-3 text-right tabular-nums">{r.evidencias_count ?? '—'}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{r.pipeline_ms ? `${Math.round(r.pipeline_ms / 1000)}s` : '—'}</td>
                   <td className="py-2 pr-2">
@@ -251,7 +266,13 @@ function AnalisesPageInner() {
               );
             })}
             {!loading && rows.length === 0 && !error && (
-              <tr><td colSpan={10} className="py-6 text-center text-slate-400">Nenhuma análise encontrada.</td></tr>
+              <tr><td colSpan={10} className="py-8">
+                <EmptyState
+                  title="Nenhuma análise encontrada"
+                  description="Ajuste os filtros ou envie um novo edital para análise."
+                  compact
+                />
+              </td></tr>
             )}
           </tbody>
         </table>

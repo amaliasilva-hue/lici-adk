@@ -91,7 +91,7 @@ export default function NotificationBell({ userEmail }: { userEmail?: string }) 
         </svg>
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-bold text-white px-0.5"
-            style={{ background: 'var(--x-pink)', boxShadow: '0 0 8px var(--x-pink-glow)' }}>
+            style={{ background: '#E14849', boxShadow: '0 0 8px rgba(225,72,73,0.35)' }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

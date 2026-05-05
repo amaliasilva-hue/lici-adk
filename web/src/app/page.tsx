@@ -14,6 +14,9 @@ import {
 import {
   SelectDot, TrashIcon, ConfirmModal, BulkActionBar, ToastStack, useToasts,
 } from '@/components/bulk-actions';
+import ScoreIndicator from '@/components/ui/ScoreIndicator';
+import Avatar from '@/components/ui/Avatar';
+import EmptyState from '@/components/ui/EmptyState';
 
 const STAGES: { key: string; label: string; color: string; bg: string }[] = [
   { key: 'identificacao',  label: 'Identificação',    color: '#94A3B8', bg: 'rgba(148,163,184,0.1)' },
@@ -50,44 +53,6 @@ type Edital = {
   comentarios_count?: number;
   valor_estimado?: number;
 };
-
-function ScoreBadge({ score }: { score?: number }) {
-  if (score == null) return null;
-  const cls =
-    score >= 70
-      ? 'bg-[#F2FCE3] border-[#D9F99D] text-[#5A7A3A]'
-      : score >= 45
-      ? 'bg-[#FEF9C3] border-[#FDE047] text-[#B45309]'
-      : 'bg-[#FCF0F0] border-[#FECACA] text-[#943335]';
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-mono font-bold shadow-sm ${cls}`}>
-      <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-        <path d="M9.5 2A2.5 2.5 0 007 4.5v15A2.5 2.5 0 009.5 22h5a2.5 2.5 0 002.5-2.5v-15A2.5 2.5 0 0014.5 2h-5z"/>
-        <path d="M7 4.5v15M17 4.5v15"/>
-      </svg>
-      {score}%
-    </span>
-  );
-}
-
-function MiniAvatar({ email, name }: { email?: string; name?: string }) {
-  const src = email || name || '?';
-  const initials = src.includes('@')
-    ? src.split('@')[0].slice(0, 2).toUpperCase()
-    : src.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
-  return (
-    <div
-      className="rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-      style={{
-        width: 22, height: 22, fontSize: 8,
-        background: 'linear-gradient(135deg, #047EA9, #00BEFF)',
-        boxShadow: '0 1px 4px rgba(4,126,169,0.35)',
-      }}
-    >
-      {initials}
-    </div>
-  );
-}
 
 function PriBadge({ pri }: { pri?: number }) {
   if (!pri) return null;
@@ -185,7 +150,7 @@ function CommandPalette({ editais, onClose }: { editais: Edital[]; onClose: () =
                     <p className="text-sm font-medium truncate text-slate-700">{e.orgao}</p>
                     <p className="text-[11px] truncate text-slate-400">{e.objeto || 'sem objeto'}</p>
                   </div>
-                  <ScoreBadge score={e.score_comercial} />
+                  <ScoreIndicator score={e.score_comercial} size="sm" thresholds={{ good: 70, warning: 45 }} />
                 </a>
               ))}
             </>
@@ -552,14 +517,7 @@ function KanbanColumn({
               ) : <span />}
               <div className="flex items-center gap-1.5 shrink-0">
                 <PriBadge pri={e.prioridade} />
-                {e.score_comercial != null && (
-                  <span className={`card-score-big ${
-                    e.score_comercial >= 70 ? 'score-green' :
-                    e.score_comercial >= 45 ? 'score-yellow' : 'score-red'
-                  }`}>
-                    {e.score_comercial}%
-                  </span>
-                )}
+                <ScoreIndicator score={e.score_comercial} size="sm" thresholds={{ good: 70, warning: 45 }} />
               </div>
             </div>
 
@@ -625,7 +583,7 @@ function KanbanColumn({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                   </svg>
                 </button>
-                <MiniAvatar email={e.vendedor_email} name={e.orgao} />
+                <Avatar email={e.vendedor_email} name={e.orgao} size={22} />
               </div>
             </div>
           </div>
@@ -633,9 +591,11 @@ function KanbanColumn({
       })}
 
       {cards.length === 0 && (
-        <div className="text-[11px] text-slate-400 text-center py-8 border border-dashed border-slate-200 rounded-xl">
-          Nenhum processo
-        </div>
+        <EmptyState
+          compact
+          title="Nenhum processo"
+          description="Arraste editais para cá ou mude o filtro."
+        />
       )}
       </div>
     </div>
@@ -1057,7 +1017,7 @@ export default function PipelinePage() {
                   <p className="text-[11px] text-slate-500 truncate">{activeCard.objeto || 'sem objeto'}</p>
                   <div className="flex items-center gap-1 mt-1.5">
                     {activeCard.uf && <span className="badge badge-gray text-[10px] px-1.5 py-0">{activeCard.uf}</span>}
-                    <ScoreBadge score={activeCard.score_comercial} />
+                    <ScoreIndicator score={activeCard.score_comercial} size="sm" thresholds={{ good: 70, warning: 45 }} />
                   </div>
                 </div>
               </div>
@@ -1108,7 +1068,7 @@ export default function PipelinePage() {
                         {e.estado_terminal}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-2"><ScoreBadge score={e.score_comercial} /></td>
+                    <td className="py-2.5 pr-2"><ScoreIndicator score={e.score_comercial} size="sm" thresholds={{ good: 70, warning: 45 }} /></td>
                     <td className="py-2.5 text-right">
                       <button
                         type="button"

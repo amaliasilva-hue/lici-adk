@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Badge, { BadgeVariant } from "@/components/ui/Badge";
 
 type Contribuinte = {
   fonte: "atestado" | "contrato" | "drive_pdf";
@@ -78,14 +79,19 @@ type Parecer = {
   edital_modalidade?: string | null;
 };
 
-function statusBadge(status: string) {
-  const map: Record<string, string> = {
-    APTO: "bg-green-100 text-green-800",
-    "APTO COM RESSALVAS": "bg-amber-100 text-amber-800",
-    INAPTO: "bg-red-100 text-red-800",
-    "NO-GO": "bg-red-200 text-red-900",
-  };
-  return map[status] || "bg-slate-100 text-slate-800";
+function statusToVariant(status: string): BadgeVariant {
+  if (status === "APTO") return "apto";
+  if (status === "APTO COM RESSALVAS") return "ressalvas";
+  if (status === "INAPTO") return "inapto";
+  if (status === "NO-GO") return "nogo";
+  return "neutral";
+}
+
+function peScoreVariant(score: number): BadgeVariant {
+  if (score >= 80) return "success";
+  if (score >= 50) return "warning";
+  if (score >= 20) return "warning";
+  return "danger";
 }
 
 function fmtValor(v: number | null | undefined, unidade?: string | null): string {
@@ -103,22 +109,17 @@ function nivelLabel(n: Nivel["nivel"]): string {
 
 function nivelStatusColor(s: Nivel["status"]): string {
   return s === "atende"
-    ? "border-green-400 bg-green-50"
+    ? "border-[var(--color-success-border)] bg-[var(--color-success-bg)]"
     : s === "parcial"
-    ? "border-amber-400 bg-amber-50"
-    : "border-red-300 bg-red-50";
+    ? "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]"
+    : "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]";
 }
 
 function nivelStatusIcon(s: Nivel["status"]): string {
   return s === "atende" ? "✓" : s === "parcial" ? "△" : "✕";
 }
 
-function peScoreColor(score: number): string {
-  if (score >= 80) return "bg-green-100 text-green-800 border-green-300";
-  if (score >= 50) return "bg-amber-100 text-amber-800 border-amber-300";
-  if (score >= 20) return "bg-orange-100 text-orange-800 border-orange-300";
-  return "bg-red-100 text-red-800 border-red-300";
-}
+
 
 function CascataBlock({
   req,
@@ -212,9 +213,9 @@ function CascataBlock({
         {req.equivalencia_pe && (
           <div className="px-4 py-3 bg-blue-50/40">
             <div className="flex items-start gap-2">
-              <span className={`badge border ${peScoreColor(req.equivalencia_pe.pe_score)} shrink-0`}>
+              <Badge variant={peScoreVariant(req.equivalencia_pe.pe_score)} className="shrink-0">
                 PE {req.equivalencia_pe.pe_score}%
-              </span>
+              </Badge>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium text-slate-700">Pedido de Esclarecimento sugerido</div>
                 <div className="text-xs text-slate-600 mt-0.5">{req.equivalencia_pe.motivo}</div>
@@ -276,7 +277,7 @@ export function ParecerView({ parecer }: { parecer: Parecer }) {
           </div>
           <div className="text-right shrink-0">
             <div className="text-5xl font-bold tabular-nums">{scoreExibido ?? "—"}</div>
-            <span className={`badge ${statusBadge(statusExibido)} mt-2`}>{statusExibido}</span>
+            <Badge variant={statusToVariant(statusExibido)} className="mt-2">{statusExibido}</Badge>
             {cascata.length > 0 && (
               <div className="text-xs text-slate-500 mt-2">
                 {atendidosLocal} de {cascata.length} requisitos atendidos
@@ -306,7 +307,7 @@ export function ParecerView({ parecer }: { parecer: Parecer }) {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-sm capitalize">{c.nome}</div>
-                    <span className={`badge ${statusBadge(c.status)}`}>{c.status}</span>
+                    <Badge variant={statusToVariant(c.status)}>{c.status}</Badge>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
                     <div className="text-3xl font-bold tabular-nums">{c.score_aderencia ?? "—"}</div>

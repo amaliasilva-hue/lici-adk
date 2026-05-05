@@ -4,6 +4,7 @@ import Link from 'next/link';
 import NavLinks from './nav-links';
 import NotificationBell from './notification-bell';
 import ChatWidget from './chat-widget';
+import Avatar from './ui/Avatar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -64,10 +65,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* User profile */}
         <div className="sidebar-user">
-          <div className="sidebar-avatar shrink-0">XE</div>
+          <Avatar name="Xertica Enterprise" size={34} className="shrink-0" />
           <div className="sidebar-user-info">
             <span className="text-sm font-semibold text-white truncate leading-tight block">Xertica Enterprise</span>
-            <span className="text-[10px] text-slate-400 font-mono">B2G Intelligence</span>
+            <span className="text-[10px] text-slate-400 font-mono">Inteligência Licitatória</span>
           </div>
         </div>
       </aside>
@@ -78,7 +79,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <header className="app-header">
           <h1 className="font-heading font-bold text-[17px] text-slate-800 hidden md:block truncate shrink-0 tracking-tight">
-            Sales Intelligence Hub
+            Central de Editais
           </h1>
 
           {/* Central search trigger (opens CMD+K palette) */}
@@ -87,7 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             className="header-search-trigger flex-1 max-w-lg mx-4 hidden sm:flex"
             onClick={() => document.dispatchEvent(new CustomEvent('openCmdPalette'))}
           >
-            <div className="flex items-center gap-3 w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 hover:border-[#047EA9] hover:bg-white transition-all duration-150 shadow-sm cursor-text">
+            <div className="flex items-center gap-3 w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 hover:border-[#047EA9] hover:bg-white focus-within:border-[#047EA9] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(4,126,169,0.10)] transition-all duration-150 shadow-sm cursor-text">
               <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
@@ -98,12 +99,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-3 ml-auto sm:ml-0 shrink-0">
-            <Link href="/chat" className="copilot-btn">
+            <Link href="/chat" className="lici-ai-btn">
               {/* Sparkles */}
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                 <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
               </svg>
-              Co-pilot AI
+              Lici IA
             </Link>
             <NotificationBell />
           </div>
