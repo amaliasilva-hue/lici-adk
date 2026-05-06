@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { splitPdf } from '@/lib/pdf-split';
+import { addJob } from '@/lib/analysis-store';
 
 const UF_LIST = [
   'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
@@ -270,49 +271,21 @@ function TabPDF() {
     if (!file) return;
     setStage('uploading'); setErrorMsg(null); setChunkInfo(null);
     try {
-      // Split if needed (> 25 MB)
       const CHUNK_SIZE = 25 * 1024 * 1024;
       const chunks = file.size > CHUNK_SIZE ? await splitPdf(file, CHUNK_SIZE) : [file];
-
-      if (chunks.length === 1) {
-        // Normal single-file flow
-        const id = await uploadChunk(chunks[0]);
-        setAnalysisId(id);
-        setStage('running');
-        const data = await poll(id);
-        const eid = data.pg_edital_id || data.edital_id || id;
-        setPgEditalId(eid);
-        setScore(data.score_comercial ?? data.result?.score_aderencia ?? null);
-        setResultStatus(data.result?.status ?? null);
-        setStage('done');
-      } else {
-        // Multi-chunk flow: upload sequentially to avoid overloading, then poll in parallel
-        setChunkInfo(`Dividindo em ${chunks.length} partes…`);
-        const ids: string[] = [];
-        for (let i = 0; i < chunks.length; i++) {
-          setChunkInfo(`Enviando parte ${i + 1} de ${chunks.length}…`);
-          ids.push(await uploadChunk(chunks[i]));
-        }
-        setStage('running');
-        setChunkInfo(`Analisando ${chunks.length} partes em paralelo…`);
-        // Poll all in parallel
-        const results = await Promise.all(ids.map(id => poll(id)));
-        // Merge: use first chunk for identifying info, lowest score (most conservative)
-        const scores = results.map(d => d.score_comercial ?? d.result?.score_aderencia ?? null).filter((s): s is number => s !== null);
-        const mergedScore = scores.length > 0 ? Math.min(...scores) : null;
-        // Navigate to the first chunk's edital page (it has the main identifying data)
-        const firstData = results[0];
-        const eid = firstData.pg_edital_id || firstData.edital_id || ids[0];
-        setPgEditalId(eid);
-        setScore(mergedScore);
-        // If any chunk is INAPTO, merged is INAPTO; else take "worst" status
-        const statusPriority: Record<string, number> = { 'NO-GO': 4, 'INAPTO': 3, 'APTO COM RESSALVAS': 2, 'APTO': 1 };
-        const statuses = results.map(d => d.result?.status).filter(Boolean) as string[];
-        const mergedStatus = statuses.sort((a, b) => (statusPriority[b] ?? 0) - (statusPriority[a] ?? 0))[0] ?? null;
-        setResultStatus(mergedStatus);
-        setChunkInfo(`${chunks.length} partes analisadas — resultado consolidado`);
-        setStage('done');
+      if (chunks.length > 1) setChunkInfo(`Dividindo em ${chunks.length} partes…`);
+      const ids: string[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) setChunkInfo(`Enviando parte ${i + 1} de ${chunks.length}…`);
+        ids.push(await uploadChunk(chunks[i]));
       }
+      ids.forEach((id, i) => addJob({
+        id,
+        fileName: chunks.length > 1 ? `${file!.name} (parte ${i + 1}/${chunks.length})` : file!.name,
+        startedAt: Date.now(),
+        status: 'running',
+      }));
+      router.push('/historico');
     } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
   }
 
@@ -460,14 +433,13 @@ function TabDrive() {
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         const detail = err.detail ?? `HTTP ${r.status}`;
-        if (r.status === 404) setCalloutHidden(false); // reopen callout on access error
+        if (r.status === 404) setCalloutHidden(false);
         throw new Error(detail);
       }
       const data = await r.json();
       if (data.status === 'already_exists') { router.push(`/edital/${data.analysis_id}`); return; }
-      setAnalysisId(data.analysis_id);
-      setStage('running');
-      await poll(data.analysis_id);
+      addJob({ id: data.analysis_id, fileName: `Drive: ${fileId.slice(0, 16)}…`, startedAt: Date.now(), status: 'running' });
+      router.push('/historico');
     } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
   }
 
@@ -728,9 +700,9 @@ function TabURL() {
       }
       const data = await r.json();
       if (data.status === 'already_exists') { router.push(`/edital/${data.analysis_id}`); return; }
-      setAnalysisId(data.analysis_id);
-      setStage('running');
-      await poll(data.analysis_id);
+      const label = url.length > 50 ? url.slice(0, 50) + '…' : url;
+      addJob({ id: data.analysis_id, fileName: label, startedAt: Date.now(), status: 'running' });
+      router.push('/historico');
     } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
   }
 
