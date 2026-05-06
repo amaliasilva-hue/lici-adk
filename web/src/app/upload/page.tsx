@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { splitPdf } from '@/lib/pdf-split';
 
 const UF_LIST = [
   'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
@@ -162,8 +163,9 @@ function TabPDF() {
   const [score, setScore] = useState<number | null>(null);
   const [resultStatus, setResultStatus] = useState<string | null>(null);
   const [showMeta, setShowMeta] = useState(false);
+  const [chunkInfo, setChunkInfo] = useState<string | null>(null);
 
-  const poll = useCallback(async (id: string) => {
+  const poll = useCallback(async (id: string): Promise<any> => {
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
@@ -172,33 +174,73 @@ function TabPDF() {
         const data = await r.json();
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
         if (data.status === 'queued') continue;
-        if (data.status === 'failed') { setStage('failed'); setErrorMsg(data.error ?? 'Falha no pipeline'); return; }
+        if (data.status === 'failed') throw new Error(data.error ?? 'Falha no pipeline');
+        return data;
+      } catch (e: any) { if (e.message !== 'Falha no pipeline') continue; throw e; }
+    }
+    throw new Error('Tempo limite excedido.');
+  }, []);
+
+  async function uploadChunk(chunk: File): Promise<string> {
+    const form = new FormData();
+    form.append('file', chunk);
+    const r = await fetch('/api/proxy/analyze', { method: 'POST', body: form });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail ?? `HTTP ${r.status}`);
+    }
+    const data = await r.json();
+    if (data.status === 'already_exists') return data.analysis_id;
+    return data.analysis_id;
+  }
+
+  async function submit() {
+    if (!file) return;
+    setStage('uploading'); setErrorMsg(null); setChunkInfo(null);
+    try {
+      // Split if needed (> 25 MB)
+      const CHUNK_SIZE = 25 * 1024 * 1024;
+      const chunks = file.size > CHUNK_SIZE ? await splitPdf(file, CHUNK_SIZE) : [file];
+
+      if (chunks.length === 1) {
+        // Normal single-file flow
+        const id = await uploadChunk(chunks[0]);
+        setAnalysisId(id);
+        setStage('running');
+        const data = await poll(id);
         const eid = data.pg_edital_id || data.edital_id || id;
         setPgEditalId(eid);
         setScore(data.score_comercial ?? data.result?.score_aderencia ?? null);
         setResultStatus(data.result?.status ?? null);
         setStage('done');
-        return;
-      } catch { continue; }
-    }
-    setStage('failed'); setErrorMsg('Tempo limite excedido.');
-  }, []);
-
-  async function submit() {
-    if (!file) return;
-    setStage('uploading'); setErrorMsg(null);
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      const r = await fetch('/api/proxy/analyze', { method: 'POST', body: form });
-      if (!r.ok) { const err = await r.json().catch(() => ({})); const msg = r.status === 413 ? (err.detail ?? 'PDF excede o limite de 30 MB') : (err.detail ?? `HTTP ${r.status}`); throw new Error(msg); }
-      const data = await r.json();
-      if (data.status === 'already_exists') {
-        router.push(`/edital/${data.analysis_id}`); return;
+      } else {
+        // Multi-chunk flow: upload sequentially to avoid overloading, then poll in parallel
+        setChunkInfo(`Dividindo em ${chunks.length} partes…`);
+        const ids: string[] = [];
+        for (let i = 0; i < chunks.length; i++) {
+          setChunkInfo(`Enviando parte ${i + 1} de ${chunks.length}…`);
+          ids.push(await uploadChunk(chunks[i]));
+        }
+        setStage('running');
+        setChunkInfo(`Analisando ${chunks.length} partes em paralelo…`);
+        // Poll all in parallel
+        const results = await Promise.all(ids.map(id => poll(id)));
+        // Merge: use first chunk for identifying info, lowest score (most conservative)
+        const scores = results.map(d => d.score_comercial ?? d.result?.score_aderencia ?? null).filter((s): s is number => s !== null);
+        const mergedScore = scores.length > 0 ? Math.min(...scores) : null;
+        // Navigate to the first chunk's edital page (it has the main identifying data)
+        const firstData = results[0];
+        const eid = firstData.pg_edital_id || firstData.edital_id || ids[0];
+        setPgEditalId(eid);
+        setScore(mergedScore);
+        // If any chunk is INAPTO, merged is INAPTO; else take "worst" status
+        const statusPriority: Record<string, number> = { 'NO-GO': 4, 'INAPTO': 3, 'APTO COM RESSALVAS': 2, 'APTO': 1 };
+        const statuses = results.map(d => d.result?.status).filter(Boolean) as string[];
+        const mergedStatus = statuses.sort((a, b) => (statusPriority[b] ?? 0) - (statusPriority[a] ?? 0))[0] ?? null;
+        setResultStatus(mergedStatus);
+        setChunkInfo(`${chunks.length} partes analisadas — resultado consolidado`);
+        setStage('done');
       }
-      setAnalysisId(data.analysis_id);
-      setStage('running');
-      await poll(data.analysis_id);
     } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
   }
 
@@ -229,7 +271,7 @@ function TabPDF() {
               📄
             </div>
             <p className="text-slate-500">Arraste o PDF aqui ou <span style={{ color: 'var(--x-cyan)' }}>clique para selecionar</span></p>
-            <p className="text-slate-400 text-xs">Apenas PDF · máx. 30 MB</p>
+            <p className="text-slate-400 text-xs">Apenas PDF · arquivos grandes são divididos automaticamente</p>
           </div>
         )}
         <input ref={inputRef} type="file" accept=".pdf" className="hidden"
@@ -269,8 +311,11 @@ function TabPDF() {
       )}
 
       <ProgressWidget stage={stage} currentAgent={currentAgent} analysisId={analysisId} />
+      {chunkInfo && (stage === 'uploading' || stage === 'running' || stage === 'done') && (
+        <p className="text-xs text-center" style={{ color: 'var(--x-cyan)' }}>{chunkInfo}</p>
+      )}
       <ResultWidget stage={stage} score={score} resultStatus={resultStatus} pgEditalId={pgEditalId}
-        onRetry={() => { setStage('idle'); setErrorMsg(null); }} errorMsg={errorMsg} router={router} />
+        onRetry={() => { setStage('idle'); setErrorMsg(null); setChunkInfo(null); }} errorMsg={errorMsg} router={router} />
 
       {stage === 'idle' && (
         <div className="flex justify-end gap-3">
