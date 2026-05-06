@@ -185,9 +185,25 @@ def _maybe_notify_analysis_done(analysis_id: str, edital_row: dict, parecer: obj
 
 
 def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = None) -> None:
+    # Maps ADK agent name → next current_agent label for the frontend
+    _NEXT_STAGE: dict[str, str] = {
+        "extrator":            "qualificador",
+        "qualificador":        "analista",
+        "somador":             "analista",
+        "analista_comercial":  "analista",   # keep label until done
+    }
+
+    def _on_agent_done(agent_name: str) -> None:
+        next_stage = _NEXT_STAGE.get(agent_name)
+        if next_stage:
+            _touch(analysis_id, current_agent=next_stage)
+
     try:
         _touch(analysis_id, status="running", current_agent="extrator")
-        pipeline_result = analisar_edital(pdf_bytes, trace_id=analysis_id, edital_filename=filename)
+        pipeline_result = analisar_edital(
+            pdf_bytes, trace_id=analysis_id, edital_filename=filename,
+            on_agent_done=_on_agent_done,
+        )
         _touch(
             analysis_id,
             status="done",
@@ -967,6 +983,19 @@ def _serialize_edital(row: dict) -> dict:
     return out
 
 
+def _get_edital_by_analysis_id(analysis_id: str) -> dict | None:
+    """Busca edital pelo campo analysis_id_comercial (fallback para lookup por UUID do job)."""
+    from backend.tools.pg_tools import get_engine
+    from sqlalchemy import text as _text
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            _text("SELECT * FROM editais WHERE analysis_id_comercial = :aid AND deleted_at IS NULL LIMIT 1"),
+            {"aid": analysis_id},
+        ).fetchone()
+    return dict(row._mapping) if row else None
+
+
 @app.post("/editais", status_code=201)
 async def criar_edital(body: _CriarEditalRequest) -> dict:
     """Cria um registro de edital no sistema de controle (sem PDF)."""
@@ -992,9 +1021,12 @@ async def listar_editais(
 
 @app.get("/editais/{edital_id_or_analysis_id}")
 async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
-    """Retorna edital + comentários + gates. Aceita tanto edital_id (UUID Postgres) quanto analysis_id (job em memória)."""
-    # Primeiro tenta como edital no Postgres
+    """Retorna edital + comentários + gates. Aceita tanto edital_id (UUID Postgres) quanto analysis_id_comercial."""
+    # Primeiro tenta como edital_id no Postgres
     row = await asyncio.to_thread(get_edital, edital_id_or_analysis_id)
+    # Fallback: tenta buscar por analysis_id_comercial
+    if not row:
+        row = await asyncio.to_thread(_get_edital_by_analysis_id, edital_id_or_analysis_id)
     if row:
         eid = str(row["edital_id"])
         comentarios = await asyncio.to_thread(list_comentarios, eid)
