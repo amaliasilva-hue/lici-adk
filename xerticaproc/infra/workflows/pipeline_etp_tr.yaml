@@ -1,0 +1,302 @@
+# GCP Workflows — Pipeline Completo ETP/TR
+# Orquestra os 9 agentes com retry, timeout e propagação de erros.
+# Invocado via Cloud Scheduler ou manualmente via API.
+#
+# Entrada:
+#   contratacao_id: string
+#   api_base_url: string
+#   id_token: string  (OIDC token para autenticar no Cloud Run)
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - contratacao_id: ${args.contratacao_id}
+          - api_base: ${args.api_base_url}
+          - token: ${args.id_token}
+          - headers:
+              Authorization: ${"Bearer " + token}
+              Content-Type: "application/json"
+
+    # ── Etapa 1: Demanda ─────────────────────────────────────────────────────
+    - etapa_demanda:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/demanda"}
+            headers: ${headers}
+            timeout: 120
+          result: resp_demanda
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 10
+            max_delay: 60
+            multiplier: 2
+
+    - aguardar_demanda:
+        call: aguardar_job
+        args:
+          job_id: ${resp_demanda.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 120
+        result: resultado_demanda
+
+    - verificar_demanda:
+        switch:
+          - condition: ${resultado_demanda.status != "done"}
+            raise: ${"Etapa demanda falhou: " + resultado_demanda.status}
+
+    # ── Etapa 2: Decomposição ────────────────────────────────────────────────
+    - etapa_decomposicao:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/decomposicao"}
+            headers: ${headers}
+            timeout: 90
+          result: resp_decomposicao
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 5
+            max_delay: 30
+            multiplier: 2
+
+    - aguardar_decomposicao:
+        call: aguardar_job
+        args:
+          job_id: ${resp_decomposicao.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 90
+        result: resultado_decomposicao
+
+    # ── Etapa 3: Mercado ─────────────────────────────────────────────────────
+    - etapa_mercado:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/mercado"}
+            headers: ${headers}
+            timeout: 180
+          result: resp_mercado
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 2
+          backoff:
+            initial_delay: 15
+            max_delay: 60
+            multiplier: 2
+
+    - aguardar_mercado:
+        call: aguardar_job
+        args:
+          job_id: ${resp_mercado.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 180
+        result: resultado_mercado
+
+    # ── Etapa 4: Preços (pipeline mais longo — 10 min timeout) ──────────────
+    - etapa_precos:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/precos"}
+            headers: ${headers}
+            timeout: 600
+          result: resp_precos
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 2
+          backoff:
+            initial_delay: 30
+            max_delay: 120
+            multiplier: 2
+
+    - aguardar_precos:
+        call: aguardar_job
+        args:
+          job_id: ${resp_precos.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 600
+        result: resultado_precos
+
+    # ── Etapas 5+6+7 em paralelo (técnico + jurídico + riscos usam bundle existente) ─
+    - etapas_paralelas:
+        parallel:
+          branches:
+            - tecnico_branch:
+                steps:
+                  - acionar_tecnico:
+                      call: http.post
+                      args:
+                        url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/tecnico"}
+                        headers: ${headers}
+                        timeout: 120
+                      result: resp_tecnico
+                  - aguardar_tecnico_step:
+                      call: aguardar_job
+                      args:
+                        job_id: ${resp_tecnico.body.job_id}
+                        api_base: ${api_base}
+                        headers: ${headers}
+                        timeout_s: 120
+                      result: resultado_tecnico
+
+            - mercado_analysis_branch:
+                steps:
+                  - acionar_juridico:
+                      call: http.post
+                      args:
+                        url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/juridico"}
+                        headers: ${headers}
+                        timeout: 150
+                      result: resp_juridico
+                  - aguardar_juridico_step:
+                      call: aguardar_job
+                      args:
+                        job_id: ${resp_juridico.body.job_id}
+                        api_base: ${api_base}
+                        headers: ${headers}
+                        timeout_s: 150
+                      result: resultado_juridico
+
+    # ── Etapa 7: Riscos (após técnico e jurídico) ─────────────────────────────
+    - etapa_riscos:
+        call: http.post
+        args:
+          url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/riscos"}
+          headers: ${headers}
+          timeout: 120
+        result: resp_riscos
+
+    - aguardar_riscos:
+        call: aguardar_job
+        args:
+          job_id: ${resp_riscos.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 120
+        result: resultado_riscos
+
+    # ── Etapa 8: ETP ─────────────────────────────────────────────────────────
+    - etapa_etp:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/etp"}
+            headers: ${headers}
+            timeout: 300
+          result: resp_etp
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 2
+          backoff:
+            initial_delay: 20
+            max_delay: 60
+            multiplier: 2
+
+    - aguardar_etp:
+        call: aguardar_job
+        args:
+          job_id: ${resp_etp.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 300
+        result: resultado_etp
+
+    # ── Etapa 9: TR ───────────────────────────────────────────────────────────
+    - etapa_tr:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/tr"}
+            headers: ${headers}
+            timeout: 300
+          result: resp_tr
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 2
+          backoff:
+            initial_delay: 20
+            max_delay: 60
+            multiplier: 2
+
+    - aguardar_tr:
+        call: aguardar_job
+        args:
+          job_id: ${resp_tr.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 300
+        result: resultado_tr
+
+    # ── Retorno final ─────────────────────────────────────────────────────────
+    - concluir:
+        return:
+          contratacao_id: ${contratacao_id}
+          etp_gerado: ${resultado_etp.status == "done"}
+          tr_gerado: ${resultado_tr.status == "done"}
+          status: "concluido"
+
+
+# ── Sub-rotina: polling de job com timeout ────────────────────────────────────
+aguardar_job:
+  params: [job_id, api_base, headers, timeout_s]
+  steps:
+    - init_poll:
+        assign:
+          - elapsed: 0
+          - poll_interval: 5
+
+    - poll_loop:
+        steps:
+          - verificar_timeout:
+              switch:
+                - condition: ${elapsed >= timeout_s}
+                  raise: ${"Timeout aguardando job " + job_id + " (" + string(timeout_s) + "s)"}
+
+          - consultar_status:
+              call: http.get
+              args:
+                url: ${api_base + "/proc/jobs/" + job_id}
+                headers: ${headers}
+                timeout: 10
+              result: job_resp
+
+          - checar_conclusao:
+              switch:
+                - condition: ${job_resp.body.status == "done"}
+                  return: ${job_resp.body}
+                - condition: ${job_resp.body.status == "failed"}
+                  raise: ${"Job " + job_id + " falhou: " + job_resp.body.erro}
+
+          - aguardar:
+              call: sys.sleep
+              args:
+                seconds: ${poll_interval}
+
+          - incrementar:
+              assign:
+                - elapsed: ${elapsed + poll_interval}
+
+          - voltar:
+              next: poll_loop
+
+
+# ── Predicado de retry ────────────────────────────────────────────────────────
+retry_predicate:
+  params: [e]
+  steps:
+    - checar_codigo:
+        switch:
+          - condition: ${e.code == 429 or e.code == 503 or e.code == 502}
+            return: true
+        return: false

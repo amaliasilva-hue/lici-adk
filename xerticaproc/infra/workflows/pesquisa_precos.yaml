@@ -1,0 +1,101 @@
+# GCP Workflows — Pesquisa de Preços (isolada)
+# Pode ser acionada independentemente do pipeline principal.
+# Útil para atualização periódica da base de preços via Cloud Scheduler.
+#
+# Entrada:
+#   contratacao_id: string (opcional — se ausente, faz atualização global)
+#   api_base_url: string
+#   id_token: string
+#   palavras_chave: list[string]
+#   data_inicio: string (YYYY-MM-DD)
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - api_base: ${args.api_base_url}
+          - token: ${args.id_token}
+          - headers:
+              Authorization: ${"Bearer " + token}
+              Content-Type: "application/json"
+          - contratacao_id: ${default(map.get(args, "contratacao_id"), "")}
+
+    - acionar_pesquisa:
+        try:
+          call: http.post
+          args:
+            url: ${api_base + "/proc/contratacoes/" + contratacao_id + "/etapa/precos"}
+            headers: ${headers}
+            body:
+              palavras_chave: ${default(map.get(args, "palavras_chave"), [])}
+              data_inicio: ${default(map.get(args, "data_inicio"), "")}
+            timeout: 600
+          result: resp
+        retry:
+          predicate: ${retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 30
+            max_delay: 120
+            multiplier: 2
+
+    - aguardar_conclusao:
+        call: aguardar_job
+        args:
+          job_id: ${resp.body.job_id}
+          api_base: ${api_base}
+          headers: ${headers}
+          timeout_s: 600
+        result: resultado
+
+    - retornar:
+        return:
+          status: ${resultado.status}
+          contratacao_id: ${contratacao_id}
+          total_fontes: ${default(map.get(resultado, "total_fontes_consultadas"), 0)}
+
+aguardar_job:
+  params: [job_id, api_base, headers, timeout_s]
+  steps:
+    - init_poll:
+        assign:
+          - elapsed: 0
+          - poll_interval: 10
+    - poll_loop:
+        steps:
+          - verificar_timeout:
+              switch:
+                - condition: ${elapsed >= timeout_s}
+                  raise: ${"Timeout aguardando pesquisa de preços (job=" + job_id + ")"}
+          - consultar:
+              call: http.get
+              args:
+                url: ${api_base + "/proc/jobs/" + job_id}
+                headers: ${headers}
+                timeout: 10
+              result: job_resp
+          - checar:
+              switch:
+                - condition: ${job_resp.body.status == "done"}
+                  return: ${job_resp.body}
+                - condition: ${job_resp.body.status == "failed"}
+                  raise: ${"Pesquisa de preços falhou: " + job_resp.body.erro}
+          - sleep:
+              call: sys.sleep
+              args:
+                seconds: ${poll_interval}
+          - incrementar:
+              assign:
+                - elapsed: ${elapsed + poll_interval}
+          - voltar:
+              next: poll_loop
+
+retry_predicate:
+  params: [e]
+  steps:
+    - checar:
+        switch:
+          - condition: ${e.code == 429 or e.code == 503}
+            return: true
+        return: false

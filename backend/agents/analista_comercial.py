@@ -392,6 +392,11 @@ def _normalize_enums(d: dict) -> dict:
             e["fonte_tabela"] = _pick(e["fonte_tabela"], _FONTE_TABELA_MAP, valid_tabela, "xertica_profile.yaml")
         if "tipo_evidencia" in e:
             e["tipo_evidencia"] = _pick(e["tipo_evidencia"], _FONTE_REQ_MAP, valid_fonte, "yaml")
+        # Gemini às vezes retorna null para campos de texto optional — normaliza para
+        # evitar ValidationError em campos str que ainda estejam non-Optional em versões antigas.
+        for str_field in ("trecho_literal", "texto_edital", "atestado_nome", "atestado_resumo", "fonte_id"):
+            if e.get(str_field) is None:
+                e.pop(str_field, None)  # remove a chave; pydantic usará o default (None)
 
     for g in d.get("gaps") or []:
         if "tipo" in g:

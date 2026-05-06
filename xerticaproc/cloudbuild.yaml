@@ -1,0 +1,140 @@
+# Cloud Build pipeline for xerticaproc
+# Triggers: push to main (see infra/terraform/modules/cloudbuild.tf)
+#
+# Steps:
+#   1. Lint / type-check web (optional, non-blocking for now)
+#   2. Build & push backend image
+#   3. Build & push web image  (parallel with 2)
+#   4. Deploy backend Cloud Run
+#   5. Deploy web Cloud Run
+#
+# Substitutions (set in trigger config or overridden on manual run):
+#   _PROJECT_ID     — GCP project (operaciones-br)
+#   _REGION         — Cloud Run region (us-central1)
+#   _BACKEND_SVC    — Cloud Run service name for API
+#   _WEB_SVC        — Cloud Run service name for web
+#   _REGISTRY       — Artifact Registry repo path
+#   _ENV            — prod | staging
+
+substitutions:
+  _PROJECT_ID: "operaciones-br"
+  _REGION: "us-central1"
+  _BACKEND_SVC: "xerticaproc-api"
+  _WEB_SVC: "xerticaproc-web"
+  _REGISTRY: "us-central1-docker.pkg.dev/operaciones-br/xerticaproc"
+  _ENV: "prod"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # ── 1. Build backend image ──────────────────────────────────────────────────
+  - id: build-backend
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - --cache-from
+      - "$_REGISTRY/api:latest"
+      - -t
+      - "$_REGISTRY/api:$COMMIT_SHA"
+      - -t
+      - "$_REGISTRY/api:latest"
+      - -f
+      - backend/Dockerfile
+      - .                          # contexto = xerticaproc/
+    dir: "xerticaproc"
+
+  # ── 2. Build web image ──────────────────────────────────────────────────────
+  - id: build-web
+    name: "gcr.io/cloud-builders/docker"
+    waitFor: ["-"]   # run in parallel with build-backend
+    args:
+      - build
+      - --cache-from
+      - "$_REGISTRY/web:latest"
+      - -t
+      - "$_REGISTRY/web:$COMMIT_SHA"
+      - -t
+      - "$_REGISTRY/web:latest"
+      - -f
+      - web/Dockerfile
+      - web
+    dir: "xerticaproc"
+
+  # ── 3. Push images ──────────────────────────────────────────────────────────
+  - id: push-backend
+    name: "gcr.io/cloud-builders/docker"
+    waitFor: [build-backend]
+    args: [push, "--all-tags", "$_REGISTRY/api"]
+
+  - id: push-web
+    name: "gcr.io/cloud-builders/docker"
+    waitFor: [build-web]
+    args: [push, "--all-tags", "$_REGISTRY/web"]
+
+  # ── 4. Deploy backend Cloud Run ─────────────────────────────────────────────
+  - id: deploy-backend
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    waitFor: [push-backend]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - "$_BACKEND_SVC"
+      - --image=$_REGISTRY/api:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --project=$_PROJECT_ID
+      - --no-traffic
+      - --tag=canary
+
+  - id: migrate-traffic-backend
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    waitFor: [deploy-backend]
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - "$_BACKEND_SVC"
+      - --region=$_REGION
+      - --project=$_PROJECT_ID
+      - --to-latest
+
+  # ── 5. Deploy web Cloud Run ──────────────────────────────────────────────────
+  - id: deploy-web
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    waitFor: [push-web]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - "$_WEB_SVC"
+      - --image=$_REGISTRY/web:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --project=$_PROJECT_ID
+      - --no-traffic
+      - --tag=canary
+
+  - id: migrate-traffic-web
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    waitFor: [deploy-web]
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - "$_WEB_SVC"
+      - --region=$_REGION
+      - --project=$_PROJECT_ID
+      - --to-latest
+
+images:
+  - "$_REGISTRY/api:$COMMIT_SHA"
+  - "$_REGISTRY/api:latest"
+  - "$_REGISTRY/web:$COMMIT_SHA"
+  - "$_REGISTRY/web:latest"
+
+timeout: "1800s"
