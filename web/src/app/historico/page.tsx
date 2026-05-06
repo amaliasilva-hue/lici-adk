@@ -119,8 +119,8 @@ export default function HistoricoPage() {
             updateJob(job.id, { status: 'failed', errorMsg: data.error ?? 'Falha no pipeline' });
             anyDone = true;
           } else {
-            updateJob(job.id, { status: 'done', pgEditalId: data.pg_edital_id || data.edital_id || job.id });
-            completedJob = { ...job, pgEditalId: data.pg_edital_id || data.edital_id || job.id };
+            updateJob(job.id, { status: 'done', pgEditalId: data.pg_edital_id || data.edital_id || null });
+            completedJob = { ...job, pgEditalId: data.pg_edital_id || data.edital_id || null;
             anyDone = true;
           }
         } catch {}

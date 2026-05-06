@@ -462,7 +462,11 @@ function TabDrive() {
         throw new Error(detail);
       }
       const data = await r.json();
-      if (data.status === 'already_exists') { router.push(`/edital/${data.analysis_id}`); return; }
+      if (data.status === 'already_exists') {
+        if (data.pg_edital_id) { router.push(`/edital/${data.pg_edital_id}`); }
+        else { router.push('/historico'); }
+        return;
+      }
       addJob({ id: data.analysis_id, fileName: `Drive: ${fileId.slice(0, 16)}…`, startedAt: Date.now(), status: 'running' });
       router.push('/historico');
     } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
@@ -724,7 +728,11 @@ function TabURL() {
         throw new Error(err.detail ?? `HTTP ${r.status}`);
       }
       const data = await r.json();
-      if (data.status === 'already_exists') { router.push(`/edital/${data.analysis_id}`); return; }
+      if (data.status === 'already_exists') {
+        if (data.pg_edital_id) { router.push(`/edital/${data.pg_edital_id}`); }
+        else { router.push('/historico'); }
+        return;
+      }
       const label = url.length > 50 ? url.slice(0, 50) + '…' : url;
       addJob({ id: data.analysis_id, fileName: label, startedAt: Date.now(), status: 'running' });
       router.push('/historico');

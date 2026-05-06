@@ -204,15 +204,9 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             pdf_bytes, trace_id=analysis_id, edital_filename=filename,
             on_agent_done=_on_agent_done,
         )
-        _touch(
-            analysis_id,
-            status="done",
-            current_agent=None,
-            result=pipeline_result.parecer,
-            edital_json=pipeline_result.edital.model_dump() if pipeline_result.edital else None,
-            somatorio_drive_json=pipeline_result.somatorio_drive,
-        )
-        # Fase 6 — persiste registro no Cloud SQL (best-effort, não falha o job)
+        # Fase 6 — persiste no Cloud SQL ANTES de marcar status="done"
+        # para evitar race condition (frontend receber done+pg_edital_id=null).
+        _eid: str | None = None
         try:
             edital = pipeline_result.edital
             score = pipeline_result.parecer.score_aderencia if pipeline_result.parecer else None
@@ -245,17 +239,28 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             if pipeline_result.edital:
                 data["edital_json_storage"] = json.dumps(pipeline_result.edital.model_dump(), ensure_ascii=False, default=str)
             row = create_edital(data)
-            eid = str(row["edital_id"])
-            _touch(analysis_id, pg_edital_id=eid)
-            seed_gates(eid, "identificacao")
-            log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": eid}})
-            # Notificação in-app (best-effort)
-            try:
-                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)
-            except Exception:
-                pass
+            _eid = str(row["edital_id"])
+            seed_gates(_eid, "identificacao")
+            log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": _eid}})
         except Exception as pg_exc:  # noqa: BLE001
             log.warning("pipeline.pg_persist_failed", extra={"error": str(pg_exc)})
+        # Marca done — pg_edital_id incluído na mesma chamada (None se persist falhou)
+        _touch_kw: dict = {
+            "status": "done",
+            "current_agent": None,
+            "result": pipeline_result.parecer,
+            "edital_json": pipeline_result.edital.model_dump() if pipeline_result.edital else None,
+            "somatorio_drive_json": pipeline_result.somatorio_drive,
+        }
+        if _eid:
+            _touch_kw["pg_edital_id"] = _eid
+        _touch(analysis_id, **_touch_kw)
+        # Notificação in-app (best-effort)
+        if _eid:
+            try:
+                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)  # type: ignore[possibly-undefined]
+            except Exception:
+                pass
     except Exception as exc:  # noqa: BLE001
         log.exception("pipeline.failed", extra={"lici_adk": {"trace_id": analysis_id}})
         _touch(analysis_id, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
