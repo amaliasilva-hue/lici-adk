@@ -4,6 +4,13 @@ import Link from 'next/link';
 import Badge from '@/components/ui/Badge';
 import ScoreIndicator from '@/components/ui/ScoreIndicator';
 import EmptyState from '@/components/ui/EmptyState';
+import { getJobs, updateJob, pruneOldJobs, removeJob, JOBS_KEY, type AnalysisJob } from '@/lib/analysis-store';
+
+const AGENT_LABELS: Record<string, string> = {
+  extrator:    'Extraindo dados do edital',
+  qualificador:'Qualificando no BigQuery',
+  analista:    'Analisando aderência',
+};
 
 const UF_LIST = ['','AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
   'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
@@ -49,6 +56,8 @@ function SkeletonRow() {
 export default function HistoricoPage() {
   const [editais, setEditais] = useState<Edital[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingJobs, setPendingJobs] = useState<AnalysisJob[]>([]);
+  const [tick, setTick] = useState(0);
 
   // Filters
   const [orgaoFilter, setOrgaoFilter]     = useState('');
@@ -71,6 +80,56 @@ export default function HistoricoPage() {
   }, [ufFilter, vendedorFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Tick every second for elapsed-time display
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Sync pending jobs from localStorage + poll them
+  useEffect(() => {
+    pruneOldJobs();
+    setPendingJobs(getJobs());
+
+    // Listen for cross-tab storage changes
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === JOBS_KEY) setPendingJobs(getJobs());
+    };
+    window.addEventListener('storage', onStorage);
+
+    const interval = setInterval(async () => {
+      const active = getJobs().filter(j => j.status !== 'done' && j.status !== 'failed');
+      if (active.length === 0) return;
+      let anyDone = false;
+      await Promise.allSettled(active.map(async (job) => {
+        try {
+          const r = await fetch(`/api/proxy/analyze/${job.id}`);
+          if (!r.ok) return;
+          const data = await r.json();
+          if (data.status === 'running') {
+            updateJob(job.id, { status: 'running', currentAgent: data.current_agent ?? null });
+          } else if (data.status === 'queued') {
+            updateJob(job.id, { status: 'queued', currentAgent: null });
+          } else if (data.status === 'failed') {
+            updateJob(job.id, { status: 'failed', errorMsg: data.error ?? 'Falha no pipeline' });
+            anyDone = true;
+          } else {
+            // completed
+            updateJob(job.id, { status: 'done', pgEditalId: data.pg_edital_id || data.edital_id || job.id });
+            anyDone = true;
+          }
+        } catch {}
+      }));
+      setPendingJobs(getJobs());
+      if (anyDone) load();
+    }, 3000);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      clearInterval(interval);
+    };
+  }, [load]);
 
   // Client-side filters
   const filtered = useMemo(() => editais.filter(e => {
@@ -134,6 +193,49 @@ export default function HistoricoPage() {
           <Link href="/upload" className="btn btn-primary shrink-0">+ Novo edital</Link>
         </div>
       </div>
+
+      {/* In-progress jobs panel */}
+      {pendingJobs.some(j => j.status !== 'done') && (
+        <div className="card space-y-2" style={{ borderColor: 'rgba(0,190,255,0.2)' }}>
+          <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Em andamento</p>
+          {pendingJobs.filter(j => j.status !== 'done').map(job => {
+            const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
+            const fmtTime = elapsed >= 60 ? `${Math.floor(elapsed/60)}min ${elapsed%60}s` : `${elapsed}s`;
+            const isFailed = job.status === 'failed';
+            return (
+              <div key={job.id + tick} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{
+                background: isFailed ? 'rgba(225,72,73,0.06)' : 'rgba(0,190,255,0.04)',
+                border: `1px solid ${isFailed ? 'rgba(225,72,73,0.2)' : 'rgba(0,190,255,0.15)'}`,
+              }}>
+                {isFailed ? (
+                  <span className="text-[#E14849] text-base flex-shrink-0">⚠️</span>
+                ) : (
+                  <svg className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--x-cyan)' }} fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-medium truncate">{job.fileName}</p>
+                  <p className="text-xs text-slate-500">
+                    {isFailed
+                      ? (job.errorMsg ?? 'Falha no pipeline')
+                      : `${AGENT_LABELS[job.currentAgent ?? ''] ?? 'Aguardando…'} · ${fmtTime}`}
+                  </p>
+                </div>
+                {isFailed && (
+                  <button
+                    onClick={() => { removeJob(job.id); setPendingJobs(getJobs()); }}
+                    className="text-xs text-slate-500 hover:text-[#E14849] transition-colors flex-shrink-0 px-2 py-1"
+                  >
+                    Dispensar
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="card">
