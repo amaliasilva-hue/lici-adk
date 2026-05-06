@@ -64,6 +64,7 @@ type ParecerComercial = {
   estrategia?: string;
   alertas?: string[];
   requisitos_cascata?: RequisitoCascata[];
+  campos_trello?: { titulo_card?: string; checklist?: string[] };
 };
 
 type AtestadoRecomendado = {
@@ -1082,6 +1083,24 @@ export default function EditalPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Card Trello sugerido */}
+          {parecer.campos_trello?.titulo_card && (
+            <div className="card">
+              <p className="section-title">Card Trello sugerido</p>
+              <div className="text-sm font-medium text-slate-800 mb-2">{parecer.campos_trello.titulo_card}</div>
+              {Array.isArray(parecer.campos_trello.checklist) && (
+                <ul className="space-y-1">
+                  {parecer.campos_trello.checklist.map((item: string, i: number) => (
+                    <li key={i} className="text-xs text-slate-600 flex gap-2">
+                      <span className="text-slate-300 shrink-0">□</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
