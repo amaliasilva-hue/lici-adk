@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { splitPdf } from '@/lib/pdf-split';
@@ -17,9 +17,15 @@ type AnalysisStage = 'idle' | 'uploading' | 'queued' | 'running' | 'done' | 'fai
 type Tab = 'pdf' | 'drive' | 'folder' | 'url';
 
 const AGENT_LABELS: Record<string, string> = {
-  extrator:    'Extraindo dados do edital…',
-  qualificador:'Qualificando evidências no BigQuery…',
-  analista:    'Analisando aderência comercial…',
+  extrator:    'Extraindo dados do edital',
+  qualificador:'Qualificando evidências no BigQuery',
+  analista:    'Analisando aderência comercial',
+};
+
+const AGENT_HINTS: Record<string, string> = {
+  extrator:    'A extração de PDFs longos costuma levar 1–3 min',
+  qualificador:'Consultando histórico de licitações no BigQuery…',
+  analista:    'Gerando parecer comercial…',
 };
 
 // SA Email callout (shown on Drive and Pasta tabs)
@@ -102,25 +108,91 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
 function ProgressWidget({
   stage, currentAgent, analysisId,
 }: { stage: AnalysisStage; currentAgent: string | null; analysisId: string | null }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [pingDot, setPingDot] = useState(false);
+  const startRef = useRef<number | null>(null);
+  const prevAgentRef = useRef<string | null>(null);
+  const [agentElapsed, setAgentElapsed] = useState(0);
+  const agentStartRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const active = ['uploading', 'queued', 'running'].includes(stage);
+    if (!active) {
+      startRef.current = null;
+      agentStartRef.current = null;
+      setElapsed(0);
+      setAgentElapsed(0);
+      return;
+    }
+    if (startRef.current === null) startRef.current = Date.now();
+    const t = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current!) / 1000));
+      setAgentElapsed(Math.floor((Date.now() - (agentStartRef.current ?? startRef.current!)) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [stage]);
+
+  // Reset agent timer when agent changes
+  useEffect(() => {
+    if (currentAgent !== prevAgentRef.current) {
+      agentStartRef.current = Date.now();
+      prevAgentRef.current = currentAgent;
+      setAgentElapsed(0);
+    }
+  }, [currentAgent]);
+
+  // Flash ping dot on each new poll result (agent change or elapsed tick)
+  useEffect(() => {
+    if (!['queued', 'running'].includes(stage)) return;
+    setPingDot(true);
+    const t = setTimeout(() => setPingDot(false), 600);
+    return () => clearTimeout(t);
+  }, [currentAgent, stage]);
+
   if (!['uploading', 'queued', 'running'].includes(stage)) return null;
+
+  const fmtTime = (s: number) => s >= 60 ? `${Math.floor(s/60)}min ${s%60}s` : `${s}s`;
+  const showSlowHint = agentElapsed >= 45 && stage === 'running';
+  const activeAgent = currentAgent ?? 'extrator';
+
   return (
     <div className="card space-y-4">
-      <div className="flex items-center gap-3">
-        <svg className="w-5 h-5 animate-spin flex-shrink-0" style={{ color: 'var(--x-cyan)' }} fill="none" viewBox="0 0 24 24">
+      <div className="flex items-start gap-3">
+        <svg className="w-5 h-5 animate-spin flex-shrink-0 mt-0.5" style={{ color: 'var(--x-cyan)' }} fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
         </svg>
-        <div>
-          <p className="text-white font-medium text-sm">
-            {stage === 'uploading' && 'Enviando PDF…'}
-            {stage === 'queued'    && 'Na fila — aguardando…'}
-            {stage === 'running'   && (
-              <span className="font-mono" style={{ color: 'var(--x-cyan)' }}>
-                {AGENT_LABELS[currentAgent ?? ''] ?? 'Analisando…'}
-              </span>
-            )}
-          </p>
-          {analysisId && <p className="text-slate-400 text-xs font-mono mt-0.5">{analysisId}</p>}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-white font-medium text-sm">
+              {stage === 'uploading' && 'Enviando PDF…'}
+              {stage === 'queued'    && 'Na fila — aguardando…'}
+              {stage === 'running'   && (
+                <span style={{ color: 'var(--x-cyan)' }}>
+                  {AGENT_LABELS[activeAgent] ?? 'Analisando'}…
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span
+                className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                style={{ background: pingDot ? 'var(--x-cyan)' : 'rgba(0,190,255,0.2)' }}
+              />
+              <span className="text-xs font-mono text-slate-500">{fmtTime(elapsed)}</span>
+            </div>
+          </div>
+          {analysisId && (
+            <p className="text-slate-500 text-xs font-mono mt-0.5 truncate">{analysisId}</p>
+          )}
+          {showSlowHint && (
+            <p className="text-xs mt-2 px-2 py-1.5 rounded-lg" style={{
+              background: 'rgba(251,191,36,0.08)',
+              border: '1px solid rgba(251,191,36,0.2)',
+              color: '#FBB824',
+            }}>
+              ⏳ {AGENT_HINTS[activeAgent] ?? 'Processando — pode levar alguns minutos'}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex gap-1.5">
@@ -133,10 +205,10 @@ function ProgressWidget({
           return (
             <div key={label} className="flex-1 space-y-1">
               <div className={`h-1.5 rounded-full transition-all duration-300 ${
-                isDone ? 'bg-[var(--color-success)]' : isActive ? 'bg-[var(--x-cyan)] anim-scale' : 'bg-slate-100'
+                isDone ? 'bg-[var(--color-success)]' : isActive ? 'bg-[var(--x-cyan)]' : 'bg-slate-800'
               }`} />
               <p className={`text-[10px] text-center font-medium ${
-                isActive ? 'text-[var(--x-cyan)]' : isDone ? 'text-[var(--color-success-text)]' : 'text-slate-400'
+                isActive ? 'text-[var(--x-cyan)]' : isDone ? 'text-[var(--color-success-text)]' : 'text-slate-600'
               }`}>{label}</p>
             </div>
           );
@@ -169,7 +241,7 @@ function TabPDF() {
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
-        const r = await fetch(`/api/proxy/editais/${id}`);
+        const r = await fetch(`/api/proxy/analyze/${id}`);
         if (!r.ok) continue;
         const data = await r.json();
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
@@ -358,7 +430,7 @@ function TabDrive() {
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
-        const r = await fetch(`/api/proxy/editais/${id}`);
+        const r = await fetch(`/api/proxy/analyze/${id}`);
         if (!r.ok) continue;
         const data = await r.json();
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
@@ -623,7 +695,7 @@ function TabURL() {
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
-        const r = await fetch(`/api/proxy/editais/${id}`);
+        const r = await fetch(`/api/proxy/analyze/${id}`);
         if (!r.ok) continue;
         const data = await r.json();
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
