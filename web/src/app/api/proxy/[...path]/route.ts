@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 async function requireSession() {
   if (process.env.REQUIRE_LOGIN !== '1') return null;
@@ -24,9 +25,10 @@ async function proxyMethod(req: NextRequest, params: { path: string[] }, method:
   if (guard) return guard;
   const { search } = new URL(req.url);
   const ct = req.headers.get('content-type') || '';
-  const buf = Buffer.from(await req.arrayBuffer());
-  const opts: any = { method, headers: { 'content-type': ct }, rawBody: buf };
-  if (buf.length === 0) delete opts.rawBody;
+  // Stream body directly to avoid buffering large files (prevents 413)
+  const hasBody = req.body !== null && method !== 'GET' && method !== 'HEAD';
+  const opts: any = { method, headers: { 'content-type': ct } };
+  if (hasBody) opts.rawBody = req.body;
   const r = await backendFetch(buildPath(params.path, search), opts);
   const resCt = r.headers.get('content-type') || '';
   // Pipe SSE responses directly without buffering
