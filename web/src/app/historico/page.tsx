@@ -58,6 +58,8 @@ export default function HistoricoPage() {
   const [loading, setLoading] = useState(true);
   const [pendingJobs, setPendingJobs] = useState<AnalysisJob[]>([]);
   const [tick, setTick] = useState(0);
+  const [checking, setChecking] = useState(false);
+  const [toast, setToast] = useState<{ fileName: string; pgEditalId: string | null } | null>(null);
 
   // Filters
   const [orgaoFilter, setOrgaoFilter]     = useState('');
@@ -101,7 +103,9 @@ export default function HistoricoPage() {
     const interval = setInterval(async () => {
       const active = getJobs().filter(j => j.status !== 'done' && j.status !== 'failed');
       if (active.length === 0) return;
+      setChecking(true);
       let anyDone = false;
+      let completedJob: AnalysisJob | null = null;
       await Promise.allSettled(active.map(async (job) => {
         try {
           const r = await fetch(`/api/proxy/analyze/${job.id}`);
@@ -115,13 +119,15 @@ export default function HistoricoPage() {
             updateJob(job.id, { status: 'failed', errorMsg: data.error ?? 'Falha no pipeline' });
             anyDone = true;
           } else {
-            // completed
             updateJob(job.id, { status: 'done', pgEditalId: data.pg_edital_id || data.edital_id || job.id });
+            completedJob = { ...job, pgEditalId: data.pg_edital_id || data.edital_id || job.id };
             anyDone = true;
           }
         } catch {}
       }));
+      setTimeout(() => setChecking(false), 700);
       setPendingJobs(getJobs());
+      if (completedJob) setToast({ fileName: (completedJob as AnalysisJob).fileName, pgEditalId: (completedJob as AnalysisJob).pgEditalId ?? null });
       if (anyDone) load();
     }, 3000);
 
@@ -171,6 +177,25 @@ export default function HistoricoPage() {
 
   return (
     <div className="space-y-6 anim-fade">
+      {/* Completion toast */}
+      {toast && (
+        <div
+          className="anim-toast fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg"
+          style={{ background: '#0F172A', border: '1px solid rgba(74,222,128,0.4)', minWidth: 260, maxWidth: 360 }}
+        >
+          <span className="text-green-400 text-lg">✓</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-semibold">Análise concluída</p>
+            <p className="text-slate-400 text-xs truncate">{toast.fileName}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {toast.pgEditalId && (
+              <Link href={`/edital/${toast.pgEditalId}`} className="text-xs text-[var(--x-cyan)] hover:underline">Ver →</Link>
+            )}
+            <button onClick={() => setToast(null)} className="text-slate-500 hover:text-white text-lg leading-none">×</button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -197,7 +222,16 @@ export default function HistoricoPage() {
       {/* In-progress jobs panel */}
       {pendingJobs.some(j => j.status !== 'done') && (
         <div className="card space-y-3" style={{ borderColor: 'rgba(0,190,255,0.2)' }}>
-          <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Em andamento</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Em andamento</p>
+            {checking && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{
+                background: 'rgba(0,190,255,0.08)',
+                color: 'var(--x-cyan)',
+                border: '1px solid rgba(0,190,255,0.2)',
+              }}>verificando…</span>
+            )}
+          </div>
           {pendingJobs.filter(j => j.status !== 'done').map(job => {
             const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
             const fmtTime = elapsed >= 60 ? `${Math.floor(elapsed/60)}min ${elapsed%60}s` : `${elapsed}s`;
@@ -227,7 +261,7 @@ export default function HistoricoPage() {
                     <p className="text-xs text-slate-500">
                       {isFailed
                         ? (job.errorMsg ?? 'Falha no pipeline')
-                        : `${AGENT_LABELS[agent ?? ''] ?? 'Aguardando…'} · ${fmtTime}`}
+                        : `${AGENT_LABELS[agent ?? ''] ?? 'Aguardando na fila'} · ${fmtTime}`}
                     </p>
                   </div>
                   {isFailed && (
@@ -247,7 +281,7 @@ export default function HistoricoPage() {
                       return (
                         <div key={label} className="flex-1 space-y-1">
                           <div className={`h-1 rounded-full transition-all duration-500 ${
-                            done ? 'bg-[var(--color-success,#4ADE80)]' : active ? 'bg-[var(--x-cyan)]' : 'bg-slate-800'
+                            done ? 'bg-green-500' : active ? 'bg-[var(--x-cyan)] anim-bar-pulse' : 'bg-slate-800'
                           }`} />
                           <p className={`text-[10px] text-center font-medium ${
                             active ? 'text-[var(--x-cyan)]' : done ? 'text-green-400' : 'text-slate-600'

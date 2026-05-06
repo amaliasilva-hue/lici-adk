@@ -107,8 +107,8 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
 
 // Shared progress widget
 function ProgressWidget({
-  stage, currentAgent, analysisId,
-}: { stage: AnalysisStage; currentAgent: string | null; analysisId: string | null }) {
+  stage, currentAgent, analysisId, uploadProgress,
+}: { stage: AnalysisStage; currentAgent: string | null; analysisId: string | null; uploadProgress?: number | null }) {
   const [elapsed, setElapsed] = useState(0);
   const [pingDot, setPingDot] = useState(false);
   const startRef = useRef<number | null>(null);
@@ -166,8 +166,12 @@ function ProgressWidget({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <p className="text-white font-medium text-sm">
-              {stage === 'uploading' && 'Enviando PDF…'}
-              {stage === 'queued'    && 'Na fila — aguardando…'}
+              {stage === 'uploading' && (
+                uploadProgress != null
+                  ? <span>Enviando PDF — <span style={{ color: 'var(--x-cyan)' }} className="font-mono">{uploadProgress}%</span></span>
+                  : 'Preparando envio…'
+              )}
+              {stage === 'queued'    && 'Na fila — aguardando processamento…'}
               {stage === 'running'   && (
                 <span style={{ color: 'var(--x-cyan)' }}>
                   {AGENT_LABELS[activeAgent] ?? 'Analisando'}…
@@ -179,10 +183,18 @@ function ProgressWidget({
                 className="w-1.5 h-1.5 rounded-full transition-all duration-300"
                 style={{ background: pingDot ? 'var(--x-cyan)' : 'rgba(0,190,255,0.2)' }}
               />
-              <span className="text-xs font-mono text-slate-500">{fmtTime(elapsed)}</span>
+              {stage !== 'uploading' && <span className="text-xs font-mono text-slate-500">{fmtTime(elapsed)}</span>}
             </div>
           </div>
-          {analysisId && (
+          {stage === 'uploading' && uploadProgress != null && (
+            <div className="mt-2 h-1 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%`, background: 'var(--x-cyan)' }}
+              />
+            </div>
+          )}
+          {analysisId && stage !== 'uploading' && (
             <p className="text-slate-500 text-xs font-mono mt-0.5 truncate">{analysisId}</p>
           )}
           {showSlowHint && (
@@ -206,11 +218,11 @@ function ProgressWidget({
           return (
             <div key={label} className="flex-1 space-y-1">
               <div className={`h-1.5 rounded-full transition-all duration-300 ${
-                isDone ? 'bg-[var(--color-success)]' : isActive ? 'bg-[var(--x-cyan)]' : 'bg-slate-800'
+                isDone ? 'bg-green-500' : isActive ? 'bg-[var(--x-cyan)] anim-bar-pulse' : 'bg-slate-800'
               }`} />
               <p className={`text-[10px] text-center font-medium ${
-                isActive ? 'text-[var(--x-cyan)]' : isDone ? 'text-[var(--color-success-text)]' : 'text-slate-600'
-              }`}>{label}</p>
+                isActive ? 'text-[var(--x-cyan)]' : isDone ? 'text-green-400' : 'text-slate-600'
+              }`}>{isDone ? '✓ ' : ''}{label}</p>
             </div>
           );
         })}
@@ -237,6 +249,7 @@ function TabPDF() {
   const [resultStatus, setResultStatus] = useState<string | null>(null);
   const [showMeta, setShowMeta] = useState(false);
   const [chunkInfo, setChunkInfo] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const poll = useCallback(async (id: string): Promise<any> => {
     for (let i = 0; i < 120; i++) {
@@ -254,22 +267,34 @@ function TabPDF() {
     throw new Error('Tempo limite excedido.');
   }, []);
 
-  async function uploadChunk(chunk: File): Promise<string> {
-    const form = new FormData();
-    form.append('file', chunk);
-    const r = await fetch('/api/proxy/analyze', { method: 'POST', body: form });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(err.detail ?? `HTTP ${r.status}`);
-    }
-    const data = await r.json();
-    if (data.status === 'already_exists') return data.analysis_id;
-    return data.analysis_id;
+  function uploadChunk(chunk: File, onProgress?: (pct: number) => void): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('file', chunk);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/proxy/analyze');
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText).analysis_id); }
+          catch { reject(new Error('Resposta inválida')); }
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).detail ?? `HTTP ${xhr.status}`)); }
+          catch { reject(new Error(`HTTP ${xhr.status}`)); }
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Erro de rede')));
+      xhr.send(form);
+    });
   }
 
   async function submit() {
     if (!file) return;
-    setStage('uploading'); setErrorMsg(null); setChunkInfo(null);
+    setStage('uploading'); setErrorMsg(null); setChunkInfo(null); setUploadProgress(0);
     try {
       const CHUNK_SIZE = 25 * 1024 * 1024;
       const chunks = file.size > CHUNK_SIZE ? await splitPdf(file, CHUNK_SIZE) : [file];
@@ -277,7 +302,7 @@ function TabPDF() {
       const ids: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
         if (chunks.length > 1) setChunkInfo(`Enviando parte ${i + 1} de ${chunks.length}…`);
-        ids.push(await uploadChunk(chunks[i]));
+        ids.push(await uploadChunk(chunks[i], (pct) => setUploadProgress(pct)));
       }
       ids.forEach((id, i) => addJob({
         id,
@@ -286,7 +311,7 @@ function TabPDF() {
         status: 'running',
       }));
       router.push('/historico');
-    } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); }
+    } catch (e: any) { setStage('failed'); setErrorMsg(e.message ?? 'Erro desconhecido'); setUploadProgress(null); }
   }
 
   return (
@@ -355,12 +380,12 @@ function TabPDF() {
         </div>
       )}
 
-      <ProgressWidget stage={stage} currentAgent={currentAgent} analysisId={analysisId} />
+      <ProgressWidget stage={stage} currentAgent={currentAgent} analysisId={analysisId} uploadProgress={uploadProgress} />
       {chunkInfo && (stage === 'uploading' || stage === 'running' || stage === 'done') && (
         <p className="text-xs text-center" style={{ color: 'var(--x-cyan)' }}>{chunkInfo}</p>
       )}
       <ResultWidget stage={stage} score={score} resultStatus={resultStatus} pgEditalId={pgEditalId}
-        onRetry={() => { setStage('idle'); setErrorMsg(null); setChunkInfo(null); }} errorMsg={errorMsg} router={router} />
+        onRetry={() => { setStage('idle'); setErrorMsg(null); setChunkInfo(null); setUploadProgress(null); }} errorMsg={errorMsg} router={router} />
 
       {stage === 'idle' && (
         <div className="flex justify-end gap-3">
