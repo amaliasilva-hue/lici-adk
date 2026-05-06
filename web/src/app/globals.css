@@ -790,6 +790,12 @@ tr.is-selected .sel-dot { opacity: 1; }
 .anim-fade        { animation: animFadeIn       0.2s ease-out forwards; }
 .anim-scale       { animation: animScaleIn      0.2s cubic-bezier(0.16,1,0.3,1) forwards; }
 
+@keyframes barShimmer { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
+.anim-bar-pulse { animation: barShimmer 1.4s ease-in-out infinite; }
+@keyframes uploadFill { from { width: 0%; } }
+@keyframes toastSlideIn { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+.anim-toast { animation: toastSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+
 /* ── Data table (F1-T3) ──────────────────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .data-table th {
