@@ -191,7 +191,7 @@ function TabPDF() {
     form.append('file', file);
     try {
       const r = await fetch('/api/proxy/analyze', { method: 'POST', body: form });
-      if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.detail ?? `HTTP ${r.status}`); }
+      if (!r.ok) { const err = await r.json().catch(() => ({})); const msg = r.status === 413 ? (err.detail ?? 'PDF excede o limite de 30 MB') : (err.detail ?? `HTTP ${r.status}`); throw new Error(msg); }
       const data = await r.json();
       if (data.status === 'already_exists') {
         router.push(`/edital/${data.analysis_id}`); return;
@@ -209,7 +209,7 @@ function TabPDF() {
         onClick={() => stage === 'idle' && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f?.name.toLowerCase().endsWith('.pdf')) setFile(f); }}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f?.name.toLowerCase().endsWith('.pdf')) { if (f.size > 30 * 1024 * 1024) { setStage('failed'); setErrorMsg('PDF excede 30 MB. Reduza o arquivo e tente novamente.'); } else setFile(f); } }}
         className={`dropzone p-10 text-center ${dragging ? 'dropzone-active' : ''} ${file ? 'border-green-500/30 bg-green-500/5' : ''} ${stage !== 'idle' ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
       >
         {file ? (
@@ -233,7 +233,7 @@ function TabPDF() {
           </div>
         )}
         <input ref={inputRef} type="file" accept=".pdf" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 30 * 1024 * 1024) { setStage('failed'); setErrorMsg('PDF excede 30 MB. Reduza o arquivo e tente novamente.'); } else setFile(f); } }} />
       </div>
 
       {/* Advanced metadata toggle */}
