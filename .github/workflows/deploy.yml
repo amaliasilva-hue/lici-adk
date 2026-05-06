@@ -8,7 +8,7 @@ on:
 env:
   PROJECT_ID: operaciones-br
   REGION: us-central1
-  BACKEND_SERVICE: x-lici-bff
+  BACKEND_SERVICE: lici-adk-backend
   FRONTEND_SERVICE: x-lici-web
 
 jobs:
