@@ -209,7 +209,7 @@ function TabPDF() {
         onClick={() => stage === 'idle' && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f?.name.toLowerCase().endsWith('.pdf')) { if (f.size > 30 * 1024 * 1024) { setStage('failed'); setErrorMsg('PDF excede 30 MB. Reduza o arquivo e tente novamente.'); } else setFile(f); } }}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f?.name.toLowerCase().endsWith('.pdf')) setFile(f); }}
         className={`dropzone p-10 text-center ${dragging ? 'dropzone-active' : ''} ${file ? 'border-green-500/30 bg-green-500/5' : ''} ${stage !== 'idle' ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}
       >
         {file ? (
@@ -233,7 +233,7 @@ function TabPDF() {
           </div>
         )}
         <input ref={inputRef} type="file" accept=".pdf" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 30 * 1024 * 1024) { setStage('failed'); setErrorMsg('PDF excede 30 MB. Reduza o arquivo e tente novamente.'); } else setFile(f); } }} />
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
       </div>
 
       {/* Advanced metadata toggle */}
