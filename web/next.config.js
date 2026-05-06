@@ -4,8 +4,8 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverComponentsExternalPackages: ['google-auth-library'],
-    // Increase body size limit for App Router route handlers (PDF uploads up to 30 MB)
-    serverActions: { bodySizeLimit: '30mb' },
+    // Allow large PDF uploads (up to 200 MB)
+    serverActions: { bodySizeLimit: '200mb' },
   },
 };
 module.exports = nextConfig;
