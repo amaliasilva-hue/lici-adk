@@ -198,7 +198,7 @@ class Evidencia(BaseModel):
         "atestados", "contratos", "closed_deals_won", "certificados_xertica", "xertica_profile.yaml"
     ]
     fonte_id: Optional[str] = None  # id do registro na tabela ou caminho no YAML
-    trecho_literal: str  # trecho do resumodoatestado/resumodocontrato que comprova
+    trecho_literal: Optional[str] = None  # trecho do resumodoatestado/resumodocontrato que comprova
     tipo_evidencia: Literal["atestado", "contrato", "deal_won", "certificado", "yaml"]
     confianca: float = Field(ge=0.0, le=1.0)  # 0-1 (self-reported pelo LLM)
     # Detalhes do documento de origem — preenchidos pelo Analista para o frontend
