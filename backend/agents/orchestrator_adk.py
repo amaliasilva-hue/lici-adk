@@ -23,7 +23,7 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import NamedTuple, override
 
 from google.adk.agents import BaseAgent, SequentialAgent
@@ -235,6 +235,7 @@ async def analisar_edital_async(
     *,
     trace_id: str | None = None,
     edital_filename: str | None = None,
+    on_agent_done: "Callable[[str], None] | None" = None,
 ) -> PipelineResult:
     """Pipeline ponta-a-ponta via ADK. Retorna PipelineResult (parecer + edital + somatório)."""
     trace_id = trace_id or str(uuid.uuid4())
@@ -253,12 +254,13 @@ async def analisar_edital_async(
         },
     )
 
-    async for _ in _runner.run_async(
+    async for event in _runner.run_async(
         user_id=user_id,
         session_id=session.id,
         new_message=types.Content(role="user", parts=[types.Part(text="analisar")]),
     ):
-        pass  # eventos tratados pelos sub-agentes
+        if on_agent_done and event.author:
+            on_agent_done(event.author)
 
     pipeline_ms = int((time.time() - t0) * 1000)
 
@@ -298,8 +300,9 @@ def analisar_edital(
     *,
     trace_id: str | None = None,
     edital_filename: str | None = None,
+    on_agent_done: "Callable[[str], None] | None" = None,
 ) -> PipelineResult:
     """Wrapper síncrono de `analisar_edital_async` — mantém compatibilidade com main.py."""
     return asyncio.run(
-        analisar_edital_async(pdf_bytes, trace_id=trace_id, edital_filename=edital_filename)
+        analisar_edital_async(pdf_bytes, trace_id=trace_id, edital_filename=edital_filename, on_agent_done=on_agent_done)
     )

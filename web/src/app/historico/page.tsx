@@ -196,40 +196,66 @@ export default function HistoricoPage() {
 
       {/* In-progress jobs panel */}
       {pendingJobs.some(j => j.status !== 'done') && (
-        <div className="card space-y-2" style={{ borderColor: 'rgba(0,190,255,0.2)' }}>
+        <div className="card space-y-3" style={{ borderColor: 'rgba(0,190,255,0.2)' }}>
           <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Em andamento</p>
           {pendingJobs.filter(j => j.status !== 'done').map(job => {
             const elapsed = Math.floor((Date.now() - job.startedAt) / 1000);
             const fmtTime = elapsed >= 60 ? `${Math.floor(elapsed/60)}min ${elapsed%60}s` : `${elapsed}s`;
             const isFailed = job.status === 'failed';
+            const agent = job.currentAgent ?? null;
+            const isDoneExt = !!agent && agent !== 'extrator';
+            const isDoneQual = agent === 'analista' || agent === 'persistor';
+            const isActiveExt = !agent || agent === 'extrator';
+            const isActiveQual = agent === 'qualificador';
+            const isActiveAna = agent === 'analista';
             return (
-              <div key={job.id + tick} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{
+              <div key={job.id} className="rounded-xl p-3 space-y-2.5" style={{
                 background: isFailed ? 'rgba(225,72,73,0.06)' : 'rgba(0,190,255,0.04)',
                 border: `1px solid ${isFailed ? 'rgba(225,72,73,0.2)' : 'rgba(0,190,255,0.15)'}`,
               }}>
-                {isFailed ? (
-                  <span className="text-[#E14849] text-base flex-shrink-0">⚠️</span>
-                ) : (
-                  <svg className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--x-cyan)' }} fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">{job.fileName}</p>
-                  <p className="text-xs text-slate-500">
-                    {isFailed
-                      ? (job.errorMsg ?? 'Falha no pipeline')
-                      : `${AGENT_LABELS[job.currentAgent ?? ''] ?? 'Aguardando…'} · ${fmtTime}`}
-                  </p>
+                <div className="flex items-center gap-3">
+                  {isFailed ? (
+                    <span className="text-[#E14849] text-base flex-shrink-0">⚠️</span>
+                  ) : (
+                    <svg className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--x-cyan)' }} fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium truncate">{job.fileName}</p>
+                    <p className="text-xs text-slate-500">
+                      {isFailed
+                        ? (job.errorMsg ?? 'Falha no pipeline')
+                        : `${AGENT_LABELS[agent ?? ''] ?? 'Aguardando…'} · ${fmtTime}`}
+                    </p>
+                  </div>
+                  {isFailed && (
+                    <button
+                      onClick={() => { removeJob(job.id); setPendingJobs(getJobs()); }}
+                      className="text-xs text-slate-500 hover:text-[#E14849] transition-colors flex-shrink-0 px-2 py-1"
+                    >
+                      Dispensar
+                    </button>
+                  )}
                 </div>
-                {isFailed && (
-                  <button
-                    onClick={() => { removeJob(job.id); setPendingJobs(getJobs()); }}
-                    className="text-xs text-slate-500 hover:text-[#E14849] transition-colors flex-shrink-0 px-2 py-1"
-                  >
-                    Dispensar
-                  </button>
+                {!isFailed && (
+                  <div className="flex gap-1.5">
+                    {(['Extração', 'Qualificação', 'Análise'] as const).map((label, i) => {
+                      const done = i === 0 ? isDoneExt : i === 1 ? isDoneQual : false;
+                      const active = i === 0 ? isActiveExt : i === 1 ? isActiveQual : isActiveAna;
+                      return (
+                        <div key={label} className="flex-1 space-y-1">
+                          <div className={`h-1 rounded-full transition-all duration-500 ${
+                            done ? 'bg-[var(--color-success,#4ADE80)]' : active ? 'bg-[var(--x-cyan)]' : 'bg-slate-800'
+                          }`} />
+                          <p className={`text-[10px] text-center font-medium ${
+                            active ? 'text-[var(--x-cyan)]' : done ? 'text-green-400' : 'text-slate-600'
+                          }`}>{label}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             );
