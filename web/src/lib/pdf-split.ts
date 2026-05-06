@@ -50,7 +50,7 @@ export async function splitPdf(file: File, maxBytes = 25 * 1024 * 1024): Promise
 
     const baseName = file.name.replace(/\.pdf$/i, '');
     const partName = `${baseName}_parte_${chunks.length + 1}.pdf`;
-    chunks.push(new File([chunkBytes], partName, { type: 'application/pdf' }));
+    chunks.push(new File([chunkBytes.buffer as ArrayBuffer], partName, { type: 'application/pdf' }));
     pageStart = pageEnd;
   }
 
