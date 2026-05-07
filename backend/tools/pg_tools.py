@@ -681,9 +681,12 @@ def touch_job(analysis_id: str, **kwargs) -> None:
 
 
 def find_job_by_sha256(sha256: str) -> Optional[dict]:
-    """Retorna job recente (últimos 30 dias, não-failed) com mesmo SHA256 de PDF.
+    """Retorna job recente (últimos 30 dias) com mesmo SHA256 de PDF, apenas se:
+    - status em ('queued', 'running')  → pipeline ativo, não reprocessar
+    - status = 'done' E pg_edital_id IS NOT NULL  → persisted com sucesso
 
-    Usado para deduplicação: evita reprocessar o mesmo arquivo.
+    Se o job anterior foi 'done' mas sem pg_edital_id (persist falhou), retorna None
+    para permitir re-análise completa.
     """
     engine = get_engine()
     with engine.connect() as conn:
@@ -691,7 +694,10 @@ def find_job_by_sha256(sha256: str) -> Optional[dict]:
             text("""
                 SELECT * FROM analysis_jobs
                 WHERE pdf_sha256 = :sha
-                  AND status != 'failed'
+                  AND (
+                    status IN ('queued', 'running')
+                    OR (status = 'done' AND pg_edital_id IS NOT NULL)
+                  )
                   AND created_at > NOW() - INTERVAL '30 days'
                 ORDER BY created_at DESC
                 LIMIT 1
