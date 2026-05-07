@@ -1,12 +1,10 @@
 /**
  * Proxy route — forwards all requests to the FastAPI backend,
- * injecting the Google ID-token from the NextAuth session.
+ * injecting the Firebase ID-token from the Authorization header.
  *
  * /api/proxy/proc/contratacoes → BACKEND_URL/proc/contratacoes
  */
-import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -14,11 +12,8 @@ async function handler(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const session = (await getServerSession(authOptions)) as
-    | (Awaited<ReturnType<typeof getServerSession>> & { idToken?: string })
-    | null;
-
-  if (!session) {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
   }
 
@@ -29,10 +24,8 @@ async function handler(
 
   const headers: Record<string, string> = {
     "Content-Type": req.headers.get("content-type") ?? "application/json",
+    "Authorization": authHeader,
   };
-  if (session.idToken) {
-    headers["Authorization"] = `Bearer ${session.idToken}`;
-  }
 
   const body =
     req.method !== "GET" && req.method !== "HEAD"

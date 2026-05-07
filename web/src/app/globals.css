@@ -55,7 +55,7 @@
   --x-purple-glow:   rgba(124,58,237,0.3);
   --text-main:       #334155;
   --text-muted:      #64748B;
-  --text-gray:       #94A3B8;
+  --text-gray:       #64748B;
   --primary:         #047EA9;
   --primary-light:   #00BEFF;
   --danger:          #E14849;
@@ -120,7 +120,8 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #64748B; }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--x-primary-80, #038CBC); }
 .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 2px; }
@@ -371,20 +372,39 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
 .card {
   @apply rounded-2xl p-5;
   background: #FFFFFF;
-  border: 1px solid rgba(0,0,0,0.08);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04);
+  border: 1px solid rgba(15,23,42,0.06);
+  box-shadow:
+    0 1px 2px rgba(15,23,42,0.04),
+    0 4px 12px rgba(15,23,42,0.04),
+    0 12px 32px rgba(15,23,42,0.05);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.card:hover {
+  box-shadow:
+    0 1px 2px rgba(15,23,42,0.05),
+    0 6px 16px rgba(15,23,42,0.06),
+    0 20px 40px rgba(15,23,42,0.07);
+  border-color: rgba(15,23,42,0.09);
 }
 .card-flat {
   @apply rounded-xl p-4;
   background: #F1F5F9;
-  border: 1px solid rgba(0,0,0,0.07);
+  border: 1px solid rgba(15,23,42,0.07);
 }
 
 .section-card {
   @apply rounded-2xl p-5;
   background: #FFFFFF;
-  border: 1px solid rgba(0,0,0,0.08);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  border: 1px solid rgba(15,23,42,0.06);
+  box-shadow:
+    0 1px 2px rgba(15,23,42,0.04),
+    0 6px 18px rgba(15,23,42,0.05);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.section-card:hover {
+  box-shadow:
+    0 1px 2px rgba(15,23,42,0.05),
+    0 10px 28px rgba(15,23,42,0.07);
 }
 .section-card-green  { border-left: 3px solid #16A34A; }
 .section-card-blue   { border-left: 3px solid #047EA9; }
@@ -394,11 +414,11 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
 
 .section-title {
   @apply font-poppins font-bold text-sm uppercase tracking-wider mb-3;
-  color: #94A3B8;
+  color: #475569;
 }
 
 .info-grid { @apply grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm; }
-.info-grid-item label { @apply block text-xs mb-0.5 uppercase tracking-wide; color: #94A3B8; }
+.info-grid-item label { @apply block text-xs mb-0.5 uppercase tracking-wide font-semibold; color: #475569; }
 .info-grid-item span { @apply font-medium tabular-nums; color: #1E293B; }
 
 .score-number { @apply font-poppins font-bold leading-none tabular-nums; font-size: 3.5rem; }
@@ -418,7 +438,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
 .gap-item-sub { @apply text-xs mt-1 leading-relaxed; color: #64748B; }
 
 .req-group { @apply rounded-lg p-4 mb-3 last:mb-0; background: #F8FAFC; border: 1px solid rgba(0,0,0,0.08); }
-.req-group-title { @apply text-xs font-bold uppercase tracking-wide mb-2; color: #94A3B8; }
+.req-group-title { @apply text-xs font-bold uppercase tracking-wide mb-2; color: #475569; }
 .req-group-text { @apply text-sm font-medium mb-3 leading-relaxed; color: #1E293B; }
 
 .btn {
@@ -458,7 +478,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
   @apply w-full rounded-lg px-3 py-2 text-sm;
   background: #FFFFFF; border: 1px solid rgba(0,0,0,0.14); color: #1E293B; outline: none;
 }
-.input::placeholder { color: #94A3B8; }
+.input::placeholder { color: #94A3B8; opacity: 0.85; }
 .input:focus { border-color: #047EA9; box-shadow: 0 0 0 3px rgba(4,126,169,0.12); }
 select.input option { background: #FFFFFF; color: #1E293B; }
 
@@ -535,8 +555,8 @@ select.input option { background: #FFFFFF; color: #1E293B; }
 .kanban-card:active { cursor: grabbing; transform: scale(0.98); }
 
 .tab-bar { @apply flex gap-1 border-b; border-color: rgba(0,0,0,0.09); }
-.tab-btn { @apply px-4 py-2.5 text-sm font-medium transition-all -mb-px; color: #94A3B8; border-bottom: 2px solid transparent; }
-.tab-btn:hover { color: #64748B; }
+.tab-btn { @apply px-4 py-2.5 text-sm font-medium transition-all -mb-px; color: #475569; border-bottom: 2px solid transparent; }
+.tab-btn:hover { color: #1E293B; }
 .tab-btn-active { color: #047EA9; border-bottom-color: #047EA9; }
 
 .timeline-dot { @apply w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1; background: #047EA9; }
@@ -596,7 +616,7 @@ tr.is-selected .sel-dot { opacity: 1; }
 
 .card-trash {
   @apply absolute top-1.5 right-1.5 p-1 rounded-md transition-all opacity-0;
-  color: #94A3B8; background: rgba(0,0,0,0.04);
+  color: #64748B; background: rgba(0,0,0,0.04);
 }
 .kanban-card:hover .card-trash { opacity: 1; }
 .card-trash:hover { color: #B91C1C; background: rgba(225,72,73,0.08); }
@@ -737,30 +757,38 @@ tr.is-selected .sel-dot { opacity: 1; }
 }
 .cmd-input { @apply flex-1 bg-transparent text-sm outline-none; color: #1E293B; }
 .cmd-input::placeholder { color: #94A3B8; }
-.cmd-section-label { @apply px-4 py-1.5 text-[10px] uppercase tracking-widest font-semibold; color: #94A3B8; }
+.cmd-section-label { @apply px-4 py-1.5 text-[10px] uppercase tracking-widest font-semibold; color: #475569; }
 .cmd-item { @apply flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors; color: #64748B; }
 .cmd-item:hover, .cmd-item-active { background: rgba(4,126,169,0.06); color: #1E293B; }
 .cmd-item-active { background: rgba(4,126,169,0.08); }
-.cmd-footer { @apply flex items-center gap-4 px-4 py-2; border-top: 1px solid rgba(0,0,0,0.07); color: #94A3B8; font-size: 10px; }
+.cmd-footer { @apply flex items-center gap-4 px-4 py-2; border-top: 1px solid rgba(0,0,0,0.07); color: #64748B; font-size: 10px; }
 .cmd-kbd { @apply border rounded px-1 py-0.5; border-color: rgba(0,0,0,0.14); background: #F8FAFC; font-size: 10px; color: #64748B; font-family: var(--font-roboto); }
 
 .stat-card {
   @apply inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5;
   background: #FFFFFF;
   border: 1px solid rgba(15,23,42,0.07);
-  box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.02);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  box-shadow:
+    0 1px 2px rgba(15,23,42,0.04),
+    0 4px 12px rgba(15,23,42,0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
-.stat-card:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); transform: translateY(-1px); }
+.stat-card:hover {
+  box-shadow:
+    0 2px 4px rgba(15,23,42,0.05),
+    0 8px 20px rgba(15,23,42,0.08);
+  transform: translateY(-1px);
+  border-color: rgba(15,23,42,0.1);
+}
 .stat-card-value { font-family: var(--font-poppins); font-weight: 700; font-size: 1.25rem; line-height: 1; color: #0F172A; tabular-nums: 1; }
-.stat-card-label { font-size: 11px; color: #64748B; font-weight: 500; letter-spacing: 0.01em; }
+.stat-card-label { font-size: 11px; color: #475569; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
 .stat-card-icon {
   width: 30px; height: 30px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 
-.chat-link-btn { @apply flex items-center gap-1 transition-colors px-1 py-0.5 rounded; font-size: 10px; color: #94A3B8; }
+.chat-link-btn { @apply flex items-center gap-1 transition-colors px-1 py-0.5 rounded; font-size: 10px; color: #64748B; }
 .chat-link-btn:hover { color: #047EA9; background: rgba(4,126,169,0.08); }
 .chat-link-btn.linked { color: #047EA9; }
 .chat-link-badge { @apply inline-flex items-center justify-center rounded-full text-[9px] font-bold; width: 14px; height: 14px; background: #047EA9; color: white; }

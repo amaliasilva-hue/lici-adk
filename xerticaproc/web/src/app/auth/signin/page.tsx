@@ -1,10 +1,14 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function SignInPage() {
+  const { signInWithGoogle } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <>
@@ -108,10 +112,37 @@ export default function SignInPage() {
               <div style={{ flex:1, height:"1px", background:"rgba(30,53,80,.9)" }}/>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div style={{
+                marginBottom:"16px", padding:"10px 14px", borderRadius:"10px",
+                background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.25)",
+                fontSize:"13px", color:"#fca5a5", textAlign:"center",
+              }}>
+                {error}
+              </div>
+            )}
+
             {/* Google Button */}
             <button
               className="xp-btn"
-              onClick={() => { setLoading(true); signIn("google", { callbackUrl:"/" }); }}
+              onClick={async () => {
+                setError(null);
+                setLoading(true);
+                try {
+                  await signInWithGoogle();
+                  router.push("/");
+                } catch (err: unknown) {
+                  setLoading(false);
+                  const msg = err instanceof Error ? err.message : String(err);
+                  if (msg.includes("popup-closed") || msg.includes("cancelled")) return;
+                  if (msg.includes("unauthorized") || msg.toLowerCase().includes("domain")) {
+                    setError("Acesso restrito a colaboradores @xertica.com");
+                  } else {
+                    setError("Erro ao autenticar. Tente novamente.");
+                  }
+                }
+              }}
               disabled={loading}
               style={{
                 width:"100%", display:"flex", alignItems:"center", justifyContent:"center",

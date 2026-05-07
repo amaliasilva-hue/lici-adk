@@ -121,17 +121,28 @@ export interface RelatorioRevisao {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+let _authToken: string | null = null;
+
+/** Called by FirebaseAuthProvider when the token changes. */
+export function setApiToken(token: string | null): void {
+  _authToken = token;
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string>),
+  };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
   const res = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
   if (!res.ok) {
     const body = await res.text();

@@ -13,11 +13,15 @@ COPY . .
 # Runtime env vars are injected at deploy time via Cloud Run;
 # set a placeholder so next build doesn't fail on missing vars.
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXTAUTH_URL=http://localhost:3000
-ENV NEXTAUTH_SECRET=build-placeholder
-ENV GOOGLE_CLIENT_ID=build-placeholder
-ENV GOOGLE_CLIENT_SECRET=build-placeholder
 ENV BACKEND_URL=http://localhost:8000
+
+# Firebase web config (public by design — client-side SDK)
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyCKEpr6fQVQHtrYe4rNHuPkjJebZn0ePBQ
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=operaciones-br.firebaseapp.com
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=operaciones-br
+ENV NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=operaciones-br.firebasestorage.app
+ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=789640198008
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=1:789640198008:web:9506ae861e435007fb7a8d
 
 RUN npm run build
 

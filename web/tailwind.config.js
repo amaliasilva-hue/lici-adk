@@ -5,6 +5,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Override Tailwind's default slate scale so light grays read with
+        // adequate contrast on white surfaces (WCAG AA, ≥ 4.5:1).
+        // Each shade is shifted ~one step darker than the Tailwind default.
+        slate: {
+          50:  '#F8FAFC',
+          100: '#EEF2F7',
+          200: '#D9E0EA',
+          300: '#94A3B8', // was #CBD5E1 → now matches old slate-400
+          400: '#64748B', // was #94A3B8 → now matches old slate-500
+          500: '#475569', // was #64748B → now matches old slate-600
+          600: '#334155', // was #475569
+          700: '#1E293B', // was #334155
+          800: '#0F172A', // was #1E293B
+          900: '#020617',
+        },
         navy: {
           DEFAULT: '#14263D',
           900: '#0A1320',
