@@ -80,8 +80,8 @@ export function ConfirmModal({
               : <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-poppins font-bold text-base text-white mb-1">{title}</h3>
-            <div className="text-sm text-slate-400 leading-relaxed">{message}</div>
+            <h3 className="font-poppins font-bold text-base text-slate-900 mb-1">{title}</h3>
+            <div className="text-sm text-slate-600 leading-relaxed">{message}</div>
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-5">
@@ -258,7 +258,7 @@ export function BulkActionBar({
       <div className="bulk-bar">
         <div className="flex items-center gap-3">
           <span className="bulk-bar-count">{count}</span>
-          <span className="text-white font-medium">
+          <span className="text-slate-900 font-medium">
             {count === 1 ? 'item selecionado' : 'itens selecionados'}
           </span>
           <span className="hidden sm:inline text-xs text-slate-500 ml-2">

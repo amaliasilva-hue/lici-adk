@@ -57,7 +57,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-poppins font-bold text-2xl md:text-3xl text-white">Painel Administrativo</h1>
+        <h1 className="font-poppins font-bold text-2xl md:text-3xl text-slate-900">Painel Administrativo</h1>
         <span className={`badge ${health?.status === 'ok' ? 'badge-green' : 'badge-red'}`}>
           {health ? `backend: ${health.status}` : 'verificando…'}
         </span>
@@ -71,7 +71,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {stats.map((s) => (
               <div key={s.label} className="card text-center space-y-1">
-                <div className={`font-poppins font-bold text-3xl ${s.color ?? 'text-white'}`}>
+                <div className={`font-poppins font-bold text-3xl ${s.color ?? 'text-slate-900'}`}>
                   {s.value}
                 </div>
                 <div className="text-xs text-slate-500">{s.label}</div>

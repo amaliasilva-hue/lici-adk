@@ -35,7 +35,7 @@ function MdContent({ content }: { content: string }) {
     <ReactMarkdown
       components={{
         p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+        strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noreferrer" className="text-primary-400 underline underline-offset-2 hover:text-primary-300">
             {children}
@@ -44,9 +44,9 @@ function MdContent({ content }: { content: string }) {
         ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1.5">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 my-1.5">{children}</ol>,
         li: ({ children }) => <li className="text-slate-700">{children}</li>,
-        h1: ({ children }) => <h1 className="font-poppins font-bold text-white text-sm mt-2 mb-1">{children}</h1>,
-        h2: ({ children }) => <h2 className="font-poppins font-semibold text-white text-xs uppercase tracking-wider mt-2 mb-1 opacity-75">{children}</h2>,
-        h3: ({ children }) => <h3 className="font-semibold text-white text-xs mt-1.5 mb-0.5">{children}</h3>,
+        h1: ({ children }) => <h1 className="font-poppins font-bold text-slate-900 text-sm mt-2 mb-1">{children}</h1>,
+        h2: ({ children }) => <h2 className="font-poppins font-semibold text-slate-600 text-xs uppercase tracking-wider mt-2 mb-1">{children}</h2>,
+        h3: ({ children }) => <h3 className="font-semibold text-slate-800 text-xs mt-1.5 mb-0.5">{children}</h3>,
         blockquote: ({ children }) => (
           <blockquote className="border-l-2 border-primary-500 pl-3 italic text-slate-400 my-1.5">{children}</blockquote>
         ),
@@ -290,7 +290,7 @@ export default function ChatWidget() {
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-[#0E1A2A]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white leading-none">Assistente Lici</p>
+                <p className="text-sm font-semibold text-slate-900 leading-none">Assistente Lici</p>
                 <p className="text-[10px] text-slate-500 mt-0.5">Atestados · Contratos · Pipeline</p>
               </div>
             </div>
@@ -325,7 +325,7 @@ export default function ChatWidget() {
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <p className="text-white font-semibold text-sm mb-1">Assistente de Atestados</p>
+                  <p className="text-slate-900 font-semibold text-sm mb-1">Assistente de Atestados</p>
                   <p className="text-slate-500 text-xs leading-relaxed max-w-xs">
                     Pergunte sobre atestados, contratos, certificações e análises. Consulto os dados em tempo real.
                   </p>
@@ -438,10 +438,10 @@ export default function ChatWidget() {
                 placeholder="Pergunte sobre atestados, contratos, análises…"
                 rows={1}
                 disabled={loading}
-                className="flex-1 resize-none rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none transition-all custom-scrollbar disabled:opacity-50"
+                className="flex-1 resize-none rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 outline-none transition-all custom-scrollbar disabled:opacity-50"
                 style={{
                   background: '#F1F5F9',
-                  border: '1px solid rgba(255,255,255,0.09)',
+                  border: '1px solid rgba(15,23,42,0.10)',
                   maxHeight: '120px',
                   lineHeight: '1.5',
                   boxShadow: input ? '0 0 0 2px rgba(0,190,255,0.15)' : undefined,

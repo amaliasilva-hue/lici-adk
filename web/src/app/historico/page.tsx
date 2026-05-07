@@ -257,7 +257,7 @@ export default function HistoricoPage() {
                     </svg>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{job.fileName}</p>
+                    <p className="text-sm text-slate-900 font-medium truncate">{job.fileName}</p>
                     <p className="text-xs text-slate-500">
                       {isFailed
                         ? (job.errorMsg ?? 'Falha no pipeline')

@@ -48,7 +48,7 @@ function SACallout({ hidden, onHide }: { hidden: boolean; onHide: () => void }) 
         <div className="flex items-start gap-3">
           <span className="text-lg mt-0.5 flex-shrink-0">🛈</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white mb-1">Antes de importar do Google Drive</p>
+            <p className="text-sm font-semibold text-slate-900 mb-1">Antes de importar do Google Drive</p>
             <p className="text-xs text-slate-500 mb-3 leading-relaxed">
               Compartilhe o arquivo (ou pasta) com a conta de serviço abaixo — basta acesso de leitura.
             </p>
@@ -165,7 +165,7 @@ function ProgressWidget({
         </svg>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-white font-medium text-sm">
+            <p className="text-slate-900 font-medium text-sm">
               {stage === 'uploading' && (
                 uploadProgress != null
                   ? <span>Enviando PDF — <span style={{ color: 'var(--x-cyan)' }} className="font-mono">{uploadProgress}%</span></span>
@@ -807,7 +807,7 @@ function ResultWidget({
       <div className="card space-y-4" style={{ borderColor: 'rgba(192,255,125,0.25)' }}>
         <div className="flex items-center gap-3">
           <span className="text-2xl" style={{ color: 'var(--x-green)' }}>✓</span>
-          <p className="text-white font-semibold">Análise concluída</p>
+          <p className="text-slate-900 font-semibold">Análise concluída</p>
         </div>
         {(score != null || resultStatus) && (
           <div className="flex gap-6 items-center">
@@ -820,7 +820,7 @@ function ResultWidget({
             {resultStatus && (
               <div>
                 <p className="text-xs text-slate-400 mb-0.5">Status</p>
-                <p className="text-white font-semibold">{resultStatus}</p>
+                <p className="text-slate-900 font-semibold">{resultStatus}</p>
               </div>
             )}
           </div>

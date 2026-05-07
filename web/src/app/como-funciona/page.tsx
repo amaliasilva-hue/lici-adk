@@ -101,7 +101,7 @@ export default function ComoFuncionaPage() {
                       Passo {agent.num}
                     </span>
                   </div>
-                  <h3 className="font-poppins font-bold text-lg text-white mb-2">{agent.name}</h3>
+                  <h3 className="font-poppins font-bold text-lg text-slate-900 mb-2">{agent.name}</h3>
                   <p className="text-sm text-slate-500 leading-relaxed mb-3">{agent.desc}</p>
                   <ul className="space-y-1">
                     {agent.outputs.map((out) => (
@@ -127,14 +127,14 @@ export default function ComoFuncionaPage() {
 
       {/* ── Fontes de dados ── */}
       <section className="max-w-5xl mx-auto px-4 pb-20">
-        <h2 className="font-poppins font-bold text-2xl text-white text-center mb-8">
+        <h2 className="font-poppins font-bold text-2xl text-slate-900 text-center mb-8">
           Fontes de dados
         </h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {DATA_SOURCES.map((src) => (
             <div key={src.label} className="card text-center">
               <div className="text-3xl mb-3">{src.icon}</div>
-              <div className="font-poppins font-semibold text-white text-sm mb-1">{src.label}</div>
+              <div className="font-poppins font-semibold text-slate-900 text-sm mb-1">{src.label}</div>
               <div className="text-xs text-slate-500 leading-relaxed">{src.desc}</div>
             </div>
           ))}
@@ -147,7 +147,7 @@ export default function ComoFuncionaPage() {
           <div className="flex items-start gap-4">
             <span className="text-2xl flex-shrink-0">⚖️</span>
             <div>
-              <h3 className="font-poppins font-semibold text-white mb-1">
+              <h3 className="font-poppins font-semibold text-slate-900 mb-1">
                 Análise jurídica é sob demanda
               </h3>
               <p className="text-sm text-slate-500 leading-relaxed">

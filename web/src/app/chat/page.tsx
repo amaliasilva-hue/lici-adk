@@ -120,7 +120,7 @@ function MdContent({ content }: { content: string }) {
           {children}
         </h1>
       ),
-      h2: ({ children }) => <h2 className="font-poppins font-semibold text-sm mt-3 mb-1.5 uppercase tracking-wider" style={{ color: '#94A3B8' }}>{children}</h2>,
+      h2: ({ children }) => <h2 className="font-poppins font-semibold text-sm mt-3 mb-1.5 uppercase tracking-wider" style={{ color: '#475569' }}>{children}</h2>,
       h3: ({ children }) => <h3 className="font-semibold text-slate-800 text-sm mt-2 mb-1">{children}</h3>,
       blockquote: ({ children }) => (
         <blockquote className="pl-3 italic my-2 text-slate-600" style={{ borderLeft: '2px solid rgba(0,190,255,0.4)' }}>{children}</blockquote>
@@ -174,7 +174,7 @@ function GlowCard({ onClick, color, icon, label, hint }: {
       <div className="relative">
         <div className="flex items-center gap-2.5 mb-1.5">
           <span style={{ color }}>{icon}</span>
-          <span className="text-sm font-semibold" style={{ color: '#E2E8F0' }}>{label}</span>
+          <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>{label}</span>
         </div>
         <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: '#475569' }}>{hint}</p>
       </div>
@@ -223,7 +223,7 @@ function DocCard({ content }: { content: string }) {
           </button>
         </div>
       </div>
-      <div className="px-4 py-4 max-h-72 overflow-y-auto chat-scroller text-sm" style={{ color: '#CBD5E1' }}>
+      <div className="px-4 py-4 max-h-72 overflow-y-auto chat-scroller text-sm" style={{ color: '#1E293B' }}>
         <MdContent content={content} />
       </div>
     </div>
