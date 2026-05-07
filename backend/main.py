@@ -1037,7 +1037,8 @@ async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
     # Fallback: tenta buscar por analysis_id_comercial
     if not row:
         row = await asyncio.to_thread(_get_edital_by_analysis_id, edital_id_or_analysis_id)
-    if row:        eid = str(row["edital_id"])
+    if row:
+        eid = str(row["edital_id"])
         comentarios = await asyncio.to_thread(list_comentarios, eid)
         gates = await asyncio.to_thread(list_gates, eid)
         movs = await asyncio.to_thread(list_movimentacoes, eid)
