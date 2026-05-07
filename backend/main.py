@@ -204,8 +204,9 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             pdf_bytes, trace_id=analysis_id, edital_filename=filename,
             on_agent_done=_on_agent_done,
         )
-        # Fase 6 — persiste no Cloud SQL ANTES de marcar status="done"
-        # para evitar que o frontend receba done+pg_edital_id=null (race condition).
+        # Fase 6 — persiste no Cloud SQL ANTES de marcar status="done".
+        # Se a persistência falhar, o job vira "failed" — NUNCA "done" sem pg_edital_id.
+        # Isso garante que a dedup por SHA256 nunca devolva um job órfão (sem edital real).
         _eid: str | None = None
         try:
             edital = pipeline_result.edital
@@ -243,29 +244,29 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             seed_gates(_eid, "identificacao")
             log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": _eid}})
         except Exception as pg_exc:  # noqa: BLE001
-            log.warning("pipeline.pg_persist_failed", extra={"error": str(pg_exc)})
-        # Marca done — pg_edital_id incluído atomicamente (None se persist falhou)
-        _touch_kwargs: dict = {
-            "status": "done",
-            "current_agent": None,
-            "result": pipeline_result.parecer,
-            "edital_json": pipeline_result.edital.model_dump() if pipeline_result.edital else None,
-            "somatorio_drive_json": pipeline_result.somatorio_drive,
-        }
-        if _eid:
-            _touch_kwargs["pg_edital_id"] = _eid
-        _touch(analysis_id, **_touch_kwargs)
+            log.exception("pipeline.pg_persist_failed", extra={"lici_adk": {"trace_id": analysis_id, "error": str(pg_exc)}})
+            _touch(
+                analysis_id,
+                status="failed",
+                current_agent=None,
+                error=f"Persistência Postgres falhou: {type(pg_exc).__name__}: {pg_exc}",
+            )
+            return  # ABORTA — não marca done sem pg_edital_id válido
+        # Marca done — pg_edital_id sempre presente neste ponto
+        _touch(
+            analysis_id,
+            status="done",
+            current_agent=None,
+            result=pipeline_result.parecer,
+            edital_json=pipeline_result.edital.model_dump() if pipeline_result.edital else None,
+            somatorio_drive_json=pipeline_result.somatorio_drive,
+            pg_edital_id=_eid,
+        )
         # Notificação in-app (best-effort)
-        if _eid:
-            try:
-                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)  # type: ignore[possibly-undefined]
-            except Exception:
-                pass
-        if _eid:
-            try:
-                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)  # type: ignore[possibly-undefined]
-            except Exception:
-                pass
+        try:
+            _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)
+        except Exception:
+            pass
     except Exception as exc:  # noqa: BLE001
         log.exception("pipeline.failed", extra={"lici_adk": {"trace_id": analysis_id}})
         _touch(analysis_id, status="failed", current_agent=None, error=f"{type(exc).__name__}: {exc}")
