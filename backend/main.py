@@ -205,7 +205,7 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             on_agent_done=_on_agent_done,
         )
         # Fase 6 — persiste no Cloud SQL ANTES de marcar status="done"
-        # para evitar race condition (frontend receber done+pg_edital_id=null).
+        # para evitar que o frontend receba done+pg_edital_id=null (race condition).
         _eid: str | None = None
         try:
             edital = pipeline_result.edital
@@ -244,8 +244,8 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             log.info("pipeline.edital_row_created", extra={"lici_adk": {"trace_id": analysis_id, "edital_id": _eid}})
         except Exception as pg_exc:  # noqa: BLE001
             log.warning("pipeline.pg_persist_failed", extra={"error": str(pg_exc)})
-        # Marca done — pg_edital_id incluído na mesma chamada (None se persist falhou)
-        _touch_kw: dict = {
+        # Marca done — pg_edital_id incluído atomicamente (None se persist falhou)
+        _touch_kwargs: dict = {
             "status": "done",
             "current_agent": None,
             "result": pipeline_result.parecer,
@@ -253,9 +253,14 @@ def _run_pipeline(analysis_id: str, pdf_bytes: bytes, filename: str | None = Non
             "somatorio_drive_json": pipeline_result.somatorio_drive,
         }
         if _eid:
-            _touch_kw["pg_edital_id"] = _eid
-        _touch(analysis_id, **_touch_kw)
+            _touch_kwargs["pg_edital_id"] = _eid
+        _touch(analysis_id, **_touch_kwargs)
         # Notificação in-app (best-effort)
+        if _eid:
+            try:
+                _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)  # type: ignore[possibly-undefined]
+            except Exception:
+                pass
         if _eid:
             try:
                 _maybe_notify_analysis_done(analysis_id, row, pipeline_result.parecer)  # type: ignore[possibly-undefined]
@@ -1032,8 +1037,7 @@ async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
     # Fallback: tenta buscar por analysis_id_comercial
     if not row:
         row = await asyncio.to_thread(_get_edital_by_analysis_id, edital_id_or_analysis_id)
-    if row:
-        eid = str(row["edital_id"])
+    if row:        eid = str(row["edital_id"])
         comentarios = await asyncio.to_thread(list_comentarios, eid)
         gates = await asyncio.to_thread(list_gates, eid)
         movs = await asyncio.to_thread(list_movimentacoes, eid)
@@ -1053,6 +1057,17 @@ async def get_edital_detail(edital_id_or_analysis_id: str) -> dict:
             "gates": [_serialize_edital(g) for g in gates],
             "movimentacoes": [_serialize_edital(m) for m in movs],
         }
+    # 404 — log para diagnóstico (analysis_id stale, race condition, etc.)
+    job_row = await asyncio.to_thread(get_job, edital_id_or_analysis_id)
+    log.warning(
+        "editais.lookup_404",
+        extra={"lici_adk": {
+            "lookup_id": edital_id_or_analysis_id,
+            "found_in_jobs": bool(job_row),
+            "job_status": job_row.get("status") if job_row else None,
+            "job_pg_edital_id": job_row.get("pg_edital_id") if job_row else None,
+        }},
+    )
     raise HTTPException(status_code=404, detail="edital não encontrado")
 
 

@@ -120,7 +120,7 @@ export default function HistoricoPage() {
             anyDone = true;
           } else {
             updateJob(job.id, { status: 'done', pgEditalId: data.pg_edital_id || data.edital_id || null });
-            completedJob = { ...job, pgEditalId: data.pg_edital_id || data.edital_id || null;
+            completedJob = { ...job, pgEditalId: data.pg_edital_id || data.edital_id || null };
             anyDone = true;
           }
         } catch {}

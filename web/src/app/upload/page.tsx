@@ -434,7 +434,7 @@ function TabDrive() {
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
         if (data.status === 'queued') continue;
         if (data.status === 'failed') { setStage('failed'); setErrorMsg(data.error ?? 'Falha'); return; }
-        const eid = data.pg_edital_id || data.edital_id || id;
+        const eid = data.pg_edital_id || data.edital_id || null;
         setPgEditalId(eid);
         setScore(data.score_comercial ?? data.result?.score_aderencia ?? null);
         setResultStatus(data.result?.status ?? null);
@@ -702,7 +702,7 @@ function TabURL() {
         if (data.status === 'running') { setCurrentAgent(data.current_agent ?? null); continue; }
         if (data.status === 'queued') continue;
         if (data.status === 'failed') { setStage('failed'); setErrorMsg(data.error ?? 'Falha'); return; }
-        const eid = data.pg_edital_id || data.edital_id || id;
+        const eid = data.pg_edital_id || data.edital_id || null;
         setPgEditalId(eid);
         setScore(data.score_comercial ?? data.result?.score_aderencia ?? null);
         setResultStatus(data.result?.status ?? null);
