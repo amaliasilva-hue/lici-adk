@@ -683,23 +683,26 @@ def touch_job(analysis_id: str, **kwargs) -> None:
 def find_job_by_sha256(sha256: str) -> Optional[dict]:
     """Retorna job recente (últimos 30 dias) com mesmo SHA256 de PDF, apenas se:
     - status em ('queued', 'running')  → pipeline ativo, não reprocessar
-    - status = 'done' E pg_edital_id IS NOT NULL  → persisted com sucesso
+    - status = 'done' E pg_edital_id IS NOT NULL E o edital ainda existe (não soft-deleted)
 
-    Se o job anterior foi 'done' mas sem pg_edital_id (persist falhou), retorna None
-    para permitir re-análise completa.
+    Se o job anterior foi 'done' mas sem pg_edital_id (persist falhou) ou apontando
+    para um edital deletado, retorna None para permitir re-análise completa.
     """
     engine = get_engine()
     with engine.connect() as conn:
         row = conn.execute(
             text("""
-                SELECT * FROM analysis_jobs
-                WHERE pdf_sha256 = :sha
+                SELECT j.* FROM analysis_jobs j
+                LEFT JOIN editais e
+                    ON e.edital_id::text = j.pg_edital_id
+                    AND e.deleted_at IS NULL
+                WHERE j.pdf_sha256 = :sha
                   AND (
-                    status IN ('queued', 'running')
-                    OR (status = 'done' AND pg_edital_id IS NOT NULL)
+                    j.status IN ('queued', 'running')
+                    OR (j.status = 'done' AND j.pg_edital_id IS NOT NULL AND e.edital_id IS NOT NULL)
                   )
-                  AND created_at > NOW() - INTERVAL '30 days'
-                ORDER BY created_at DESC
+                  AND j.created_at > NOW() - INTERVAL '30 days'
+                ORDER BY j.created_at DESC
                 LIMIT 1
             """),
             {"sha": sha256},
