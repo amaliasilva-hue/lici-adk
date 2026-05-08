@@ -27,6 +27,9 @@ async function handler(
     "Authorization": authHeader,
   };
 
+  const accept = req.headers.get("accept");
+  if (accept) headers["Accept"] = accept;
+
   const body =
     req.method !== "GET" && req.method !== "HEAD"
       ? await req.text()
@@ -39,8 +42,21 @@ async function handler(
   });
 
   const contentType = upstream.headers.get("content-type") ?? "application/json";
-  const data = await upstream.arrayBuffer();
 
+  // Streaming passthrough (SSE)
+  if (contentType.includes("text/event-stream") && upstream.body) {
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
+        connection: "keep-alive",
+      },
+    });
+  }
+
+  const data = await upstream.arrayBuffer();
   return new NextResponse(data, {
     status: upstream.status,
     headers: { "content-type": contentType },

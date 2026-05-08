@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from xerticaproc.backend.agents.orchestrator import OrchestratorResult, executar_etapa, executar_pipeline_completo
 from xerticaproc.backend.logging_config import configure_logging
+from xerticaproc.backend.routes.copilot import router as copilot_router
 from xerticaproc.backend.models.schemas import (
     ContratacaoCreated,
     EntradaDemanda,
@@ -47,6 +48,8 @@ app = FastAPI(
     version="1.0.0",
     description="Plataforma de inteligência para ETP/TR — Contratações Públicas de TIC",
 )
+
+app.include_router(copilot_router)
 
 # ── Estado em memória (MVP — substituir por AlloyDB em produção) ──────────────
 _jobs: dict[str, dict[str, Any]] = {}

@@ -80,7 +80,7 @@ export default function ComoFuncionaPage() {
               className="card fade-up relative overflow-hidden"
               style={{
                 animationDelay: `${0.1 + i * 0.1}s`,
-                borderColor: `rgba(255,255,255,0.07)`,
+                borderColor: 'rgba(15,23,42,0.07)',
               }}
             >
               {/* Glow accent */}
@@ -162,7 +162,7 @@ export default function ComoFuncionaPage() {
 
       {/* ── CTA ── */}
       <section className="text-center pb-24 px-4">
-        <h2 className="font-poppins font-bold text-2xl text-white mb-3">
+        <h2 className="font-poppins font-bold text-2xl text-slate-900 mb-3">
           Pronto para analisar seu primeiro edital?
         </h2>
         <p className="text-sm text-slate-500 mb-6">

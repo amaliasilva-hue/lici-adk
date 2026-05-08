@@ -338,18 +338,18 @@ export default function ChatWidget() {
                     <button
                       key={i}
                       onClick={() => sendMessage(q)}
-                      className="w-full text-left text-xs text-slate-400 hover:text-slate-800 px-3 py-2.5 rounded-xl transition-all duration-200 group"
+                      className="w-full text-left text-xs text-slate-700 hover:text-slate-900 px-3 py-2.5 rounded-xl transition-all duration-200 group"
                       style={{
                         background: '#F8FAFC',
-                        border: '1px solid rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(15,23,42,0.08)',
                       }}
                       onMouseEnter={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,190,255,0.07)';
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(0,190,255,0.2)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(0,190,255,0.3)';
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.025)';
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.06)';
+                        (e.currentTarget as HTMLButtonElement).style.background = '#F8FAFC';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(15,23,42,0.08)';
                       }}
                     >
                       <span className="mr-2 opacity-40">→</span>{q}
@@ -385,7 +385,7 @@ export default function ChatWidget() {
                             }
                           : {
                               background: '#F1F5F9',
-                              border: '1px solid rgba(255,255,255,0.07)',
+                              border: '1px solid rgba(15,23,42,0.08)',
                               color: '#1E293B',
                               borderBottomLeftRadius: '4px',
                             }
@@ -410,7 +410,7 @@ export default function ChatWidget() {
                       </svg>
                     </div>
                     <div className="rounded-2xl rounded-bl-sm"
-                      style={{ background: '#F1F5F9', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      style={{ background: '#F1F5F9', border: '1px solid rgba(15,23,42,0.08)' }}>
                       <ThinkingDots />
                     </div>
                   </div>
@@ -445,7 +445,7 @@ export default function ChatWidget() {
                   maxHeight: '120px',
                   lineHeight: '1.5',
                   boxShadow: input ? '0 0 0 2px rgba(0,190,255,0.15)' : undefined,
-                  borderColor: input ? 'rgba(0,190,255,0.3)' : 'rgba(255,255,255,0.09)',
+                  borderColor: input ? 'rgba(0,190,255,0.3)' : 'rgba(15,23,42,0.10)',
                 }}
                 onInput={(e) => {
                   const el = e.currentTarget;

@@ -1,0 +1,220 @@
+"""Copilot schemas — conversational layer.
+
+Schemas usados pelo ConversationOrchestrator, ChecklistEngine e ReadinessAgent.
+"""
+from __future__ import annotations
+
+import enum
+from datetime import datetime
+from typing import Any, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Enums
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ChecklistStatus(str, enum.Enum):
+    PENDENTE = "pendente"
+    INFERIDO = "inferido"
+    CONFIRMADO = "confirmado"
+    DISPENSADO = "dispensado"
+
+
+class ChecklistCriticidade(str, enum.Enum):
+    BLOQUEANTE = "bloqueante"
+    ALTO = "alto"
+    MEDIO = "medio"
+    BAIXO = "baixo"
+
+
+class ChecklistOwner(str, enum.Enum):
+    USUARIO = "usuario"
+    ORGAO = "orgao"
+    SISTEMA = "sistema"
+    JURIDICO = "juridico"
+
+
+class MensagemRole(str, enum.Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+
+class FonteOrigem(str, enum.Enum):
+    USUARIO = "usuario"
+    SISTEMA = "sistema"
+    DOCUMENTO = "documento"
+    PESQUISA = "pesquisa"
+
+
+class ClassificacaoPreco(str, enum.Enum):
+    DIRETA = "direta"
+    INDIRETA = "indireta"
+    PARAMETRICA = "parametrica"
+    COMPLEMENTAR = "complementar"
+    OUTLIER = "outlier"
+    DESCARTADA = "descartada"
+
+
+class TurnIntent(str, enum.Enum):
+    CONFIRMAR_DECISAO = "confirmar_decisao"
+    FORNECER_FATO = "fornecer_fato"
+    FORNECER_FONTE_PRECO = "fornecer_fonte_preco"
+    PEDIR_GERACAO = "pedir_geracao"
+    PEDIR_REVISAO = "pedir_revisao"
+    PERGUNTAR_PROCESSO = "perguntar_processo"
+    DISPENSAR_ITEM = "dispensar_item"
+    OVERRIDE = "override"
+    OUTRO = "outro"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mensagem / Conversa
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Anexo(BaseModel):
+    tipo: Literal["url", "arquivo", "imagem", "texto"]
+    nome: str
+    gcs_uri: Optional[str] = None
+    url: Optional[str] = None
+
+
+class MensagemIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=8000)
+    anexos: list[Anexo] = Field(default_factory=list)
+
+
+class MensagemOut(BaseModel):
+    id: UUID
+    role: MensagemRole
+    conteudo: str
+    meta: dict[str, Any] = Field(default_factory=dict)
+    anexos: list[Anexo] = Field(default_factory=list)
+    criado_em: datetime
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: list[MensagemOut]
+    has_more: bool = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Saída estruturada do orchestrator (ConversationTurnAnalysis)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FactToAdd(BaseModel):
+    tipo: str
+    valor: Any
+    confianca: float = Field(0.7, ge=0.0, le=1.0)
+    confirmado: bool = False
+
+
+class DecisionToAdd(BaseModel):
+    tipo: str
+    valor: Any
+    justificativa: Optional[str] = None
+    fonte: FonteOrigem = FonteOrigem.USUARIO
+
+
+class ChecklistUpdate(BaseModel):
+    item_key: str
+    status: ChecklistStatus
+    valor: Optional[Any] = None
+    justificativa: Optional[str] = None
+
+
+class PriceSourceToAdd(BaseModel):
+    tipo: Literal["url", "texto_colado", "arquivo", "print"]
+    url: Optional[str] = None
+    texto_colado: Optional[str] = None
+    arquivo_gcs_uri: Optional[str] = None
+    produto: Optional[str] = None
+    valor_total: Optional[float] = None
+    quantidade: Optional[float] = None
+    vigencia_meses: Optional[int] = None
+
+
+class CalculationToRun(BaseModel):
+    operacao: str
+    parametros: dict[str, Any] = Field(default_factory=dict)
+
+
+class SuggestedAction(BaseModel):
+    label: str
+    command: str  # comando interno, ex: "confirm_fact:escopo.modalidade=pregao_eletronico"
+
+
+class ConversationTurnAnalysis(BaseModel):
+    """Saída JSON forçada do Gemini Flash para cada turno do usuário."""
+    intent: TurnIntent
+    facts_to_add: list[FactToAdd] = Field(default_factory=list)
+    decisions_to_add: list[DecisionToAdd] = Field(default_factory=list)
+    checklist_updates: list[ChecklistUpdate] = Field(default_factory=list)
+    price_sources_to_add: list[PriceSourceToAdd] = Field(default_factory=list)
+    calculations_to_run: list[CalculationToRun] = Field(default_factory=list)
+    user_response: str = Field(..., description="Texto a ser exibido para o usuário")
+    next_best_question: Optional[str] = None
+    suggested_actions: list[SuggestedAction] = Field(default_factory=list)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Checklist
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ChecklistItem(BaseModel):
+    item_key: str
+    categoria: str
+    label: str
+    status: ChecklistStatus
+    criticidade: ChecklistCriticidade
+    owner: ChecklistOwner
+    valor: Optional[Any] = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    justificativa: Optional[str] = None
+    atualizado_em: Optional[datetime] = None
+
+
+class ChecklistSummary(BaseModel):
+    total: int
+    confirmado: int
+    inferido: int
+    pendente: int
+    dispensado: int
+    bloqueante_pendente: int
+
+
+class ChecklistResponse(BaseModel):
+    by_category: dict[str, list[ChecklistItem]]
+    summary: ChecklistSummary
+
+
+class ChecklistPatch(BaseModel):
+    status: ChecklistStatus
+    valor: Optional[Any] = None
+    justificativa: Optional[str] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Readiness
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MissingItem(BaseModel):
+    item_key: str
+    label: str
+    criticidade: ChecklistCriticidade
+    owner: ChecklistOwner
+
+
+class DocumentReadiness(BaseModel):
+    doc_type: Literal["etp", "tr", "mapa_precos"]
+    can_generate: bool
+    score: float = Field(..., ge=0.0, le=1.0)
+    blocking_missing: list[MissingItem] = Field(default_factory=list)
+    optional_missing: list[MissingItem] = Field(default_factory=list)
+    inferred_items: list[MissingItem] = Field(default_factory=list)
+    open_fields_for_orgao: list[MissingItem] = Field(default_factory=list)
+    recommendations: Optional[str] = None
+    avaliado_em: datetime = Field(default_factory=datetime.utcnow)

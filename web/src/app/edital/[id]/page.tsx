@@ -302,22 +302,22 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
       : null;
     return (
       <div className="rounded-lg border p-3 flex flex-col gap-1.5"
-           style={{ background: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.08)' }}>
+           style={{ background: '#F8FAFC', borderColor: 'rgba(15,23,42,0.08)' }}>
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 font-bold
-              ${isAtestado ? 'bg-[rgba(192,255,125,0.15)] text-[#C0FF7D]' : 'bg-[rgba(245,158,11,0.15)] text-[#FCD34D]'}`}>
+              ${isAtestado ? 'bg-[rgba(22,163,74,0.12)] text-[#15803D]' : 'bg-[rgba(245,158,11,0.15)] text-[#B45309]'}`}>
               {isAtestado ? '✓' : '○'}
             </span>
-            <span className="text-sm font-semibold text-slate-200 truncate">{name}</span>
+            <span className="text-sm font-semibold text-slate-800 truncate">{name}</span>
             {e.fonte_id && (
               <span className="text-[10px] text-slate-500 font-mono shrink-0">#{e.fonte_id.slice(0,8)}</span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {valorFmt && (
-              <span className="text-xs font-bold text-[#C0FF7D]">{valorFmt}</span>
+              <span className="text-xs font-bold text-[#15803D]">{valorFmt}</span>
             )}
             <span className={`badge text-[10px] py-0 ${pct >= 80 ? 'badge-green' : pct >= 50 ? 'badge-blue' : 'badge-orange'}`}>
               {pct}%
@@ -409,7 +409,7 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
     const badgeTxt = statusAtende ? 'Atendido' : 'Parcial';
 
     return (
-      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="rounded-xl p-4" style={{ background: '#F8FAFC', border: '1px solid rgba(15,23,42,0.07)' }}>
         {/* Requisito header */}
         <div className="flex items-start gap-3 mb-3">
           <div className="flex-1 min-w-0">
@@ -419,8 +419,8 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
             </div>
             {/* Edital verbatim text */}
             {editalText ? (
-              <blockquote className="text-sm text-slate-300 leading-relaxed border-l-2 pl-3 italic"
-                          style={{ borderColor: 'rgba(0,190,255,0.4)' }}>
+              <blockquote className="text-sm text-slate-700 leading-relaxed border-l-2 pl-3 italic"
+                          style={{ borderColor: 'rgba(4,126,169,0.4)' }}>
                 {editalText}
               </blockquote>
             ) : (
@@ -536,8 +536,8 @@ function AtestadosSection({ parecer, juridico }: { parecer?: ParecerComercial; j
         <div className="space-y-3">
           <p className="section-title px-1">Análise de somatório — requisitos quantitativos</p>
           {cascatas.map((c, i) => (
-            <div key={i} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="text-sm font-medium text-slate-300 mb-2">{c.requisito}</p>
+            <div key={i} className="rounded-xl p-4" style={{ background: '#F8FAFC', border: '1px solid rgba(15,23,42,0.07)' }}>
+              <p className="text-sm font-medium text-slate-800 mb-2">{c.requisito}</p>
               <CascataCard c={c} />
             </div>
           ))}

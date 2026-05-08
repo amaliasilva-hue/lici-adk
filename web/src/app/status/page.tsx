@@ -38,7 +38,7 @@ function StatusRow({
       <div className="flex items-center gap-3 min-w-0">
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot(status)}`} />
         <div>
-          <p className="text-sm text-white font-medium">{label}</p>
+          <p className="text-sm text-slate-900 font-medium">{label}</p>
           {detail && <p className="text-xs text-slate-400 mt-0.5">{detail}</p>}
         </div>
       </div>
@@ -125,7 +125,7 @@ export default function StatusPage() {
       >
         <span className={`w-4 h-4 rounded-full flex-shrink-0 ${dot(overall)}`} />
         <div className="flex-1">
-          <p className="font-semibold text-white">{overallLabel}</p>
+          <p className="font-semibold text-slate-900">{overallLabel}</p>
           {lastChecked && (
             <p className="text-xs text-slate-400 mt-0.5">
               Última verificação: {lastChecked.toLocaleTimeString('pt-BR')}
@@ -175,7 +175,7 @@ export default function StatusPage() {
         <div className="card grid grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Jobs recentes (50)</p>
-            <p className="text-3xl font-bold font-poppins text-white">{jobs.count}</p>
+            <p className="text-3xl font-bold font-poppins text-slate-900">{jobs.count}</p>
           </div>
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Em execução / fila</p>

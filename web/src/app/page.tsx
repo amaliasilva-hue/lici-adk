@@ -1103,12 +1103,12 @@ export default function PipelinePage() {
         message={
           confirm && confirm.ids.length > 1 ? (
             <>
-              Esta ação removerá <strong className="text-white">{confirm.ids.length}</strong> editais do pipeline.
+              Esta ação removerá <strong className="text-slate-900">{confirm.ids.length}</strong> editais do pipeline.
               <br />Não poderá ser desfeita.
             </>
           ) : (
             <>
-              Esta ação removerá <strong className="text-white">{confirm?.label}</strong> do pipeline.
+              Esta ação removerá <strong className="text-slate-900">{confirm?.label}</strong> do pipeline.
               <br />Não poderá ser desfeita.
             </>
           )

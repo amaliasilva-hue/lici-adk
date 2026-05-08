@@ -324,12 +324,12 @@ function AnalisesPageInner() {
         message={
           confirm && confirm.ids.length > 1 ? (
             <>
-              Esta ação removerá <strong className="text-white">{confirm.ids.length}</strong> análises do histórico.
+              Esta ação removerá <strong className="text-slate-900">{confirm.ids.length}</strong> análises do histórico.
               <br />Não poderá ser desfeita.
             </>
           ) : (
             <>
-              Esta ação removerá <strong className="text-white">{confirm?.label}</strong> do histórico.
+              Esta ação removerá <strong className="text-slate-900">{confirm?.label}</strong> do histórico.
               <br />Não poderá ser desfeita.
             </>
           )

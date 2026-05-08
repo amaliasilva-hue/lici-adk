@@ -113,7 +113,7 @@ body {
   overflow: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-heading); }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-heading); line-height: 1.25; letter-spacing: -0.01em; }
 .font-heading { font-family: var(--font-heading) !important; }
 .font-mono    { font-family: var(--font-mono) !important; }
 .bg-app       { background-color: var(--bg-app); }
@@ -121,10 +121,10 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: #64748B; }
-::-webkit-scrollbar-thumb:hover { background-color: var(--x-primary-80, #038CBC); }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
 .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
 /* ── Focus rings (F8-P2) ─────────────────────────────────────────────────── */
 :focus-visible {
@@ -479,7 +479,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); color: var(--text-hea
   background: #FFFFFF; border: 1px solid rgba(0,0,0,0.14); color: #1E293B; outline: none;
 }
 .input::placeholder { color: #94A3B8; opacity: 0.85; }
-.input:focus { border-color: #047EA9; box-shadow: 0 0 0 3px rgba(4,126,169,0.12); }
+.input:focus { border-color: #047EA9; box-shadow: 0 0 0 3px rgba(4,126,169,0.18); }
 select.input option { background: #FFFFFF; color: #1E293B; }
 
 .stage-col {
@@ -844,7 +844,7 @@ tr.is-selected .sel-dot { opacity: 1; }
   transition: background 0.15s;
 }
 .data-table tbody tr { cursor: pointer; }
-.data-table tbody tr:hover td { background: rgba(4,126,169,0.03); }
+.data-table tbody tr:hover td { background: rgba(4,126,169,0.06); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 .chat-link-session-row {
   @apply flex items-center gap-3 px-4 py-3 border-b last:border-0 cursor-pointer transition-colors;
