@@ -37,7 +37,13 @@ export function FirebaseAuthProvider({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setInterval> | null = null;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+
       if (firebaseUser) {
         const email = firebaseUser.email ?? "";
         if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
@@ -50,11 +56,10 @@ export function FirebaseAuthProvider({
           setApiToken(token);
           setUser(firebaseUser);
           // Refresh token every 55 minutes (Firebase tokens expire after 60 min)
-          const refresh = setInterval(async () => {
+          refreshTimer = setInterval(async () => {
             const freshToken = await firebaseUser.getIdToken(true);
             setApiToken(freshToken);
           }, 55 * 60 * 1000);
-          return () => clearInterval(refresh);
         }
       } else {
         setApiToken(null);
@@ -62,7 +67,12 @@ export function FirebaseAuthProvider({
       }
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+      unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {

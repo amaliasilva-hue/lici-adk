@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { chatStream, getHistory } from "@/lib/copilot/api";
+import { waitForApiToken } from "@/lib/api";
 import type {
   ChatHistoryResponse,
   MensagemOut,
@@ -35,6 +36,14 @@ export function useChatStream(contratacaoId: string, opts: UseChatStreamOpts = {
   const send = React.useCallback(
     async (text: string) => {
       if (!text.trim() || pending) return;
+      
+      // Ensure token is available before sending
+      const token = await waitForApiToken(6000);
+      if (!token) {
+        setError("Token não disponível. Faça login novamente.");
+        return;
+      }
+
       const now = new Date().toISOString();
       const userMsg: MensagemOut = {
         id: `local-user-${Date.now()}`,

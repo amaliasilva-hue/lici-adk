@@ -16,6 +16,8 @@ import { useChecklist } from "@/hooks/useChecklist";
 import { useReadiness } from "@/hooks/useReadiness";
 import { useNegativeSearches, useSources } from "@/hooks/useSources";
 import { getRevisorReport, pacoteEvidenciasUrl } from "@/lib/copilot/api";
+import { useAuth } from "@/lib/auth-context";
+import { AuthGate } from "@/app/auth-gate";
 import type {
   ChecklistItem,
   DocType,
@@ -23,7 +25,7 @@ import type {
   RevisorReport,
 } from "@/lib/copilot/types";
 
-export default function CopilotWorkspacePage() {
+function CopilotWorkspacPageContent() {
   const params = useParams<{ id: string }>();
   const contratacaoId = params?.id ?? "";
 
@@ -325,5 +327,13 @@ export default function CopilotWorkspacePage() {
         initialReadiness={gerarDocType === "etp" ? readiness.data ?? null : null}
       />
     </>
+  );
+}
+
+export default function CopilotWorkspacePage() {
+  return (
+    <AuthGate>
+      <CopilotWorkspacPageContent />
+    </AuthGate>
   );
 }

@@ -24,17 +24,25 @@ export type StatusContratacao =
 export type TipoDocumento = "ETP" | "TR" | "DFD" | "PCA";
 
 export interface EntradaDemanda {
-  id_orgao: string;
-  nome_orgao: string;
+  orgao: string;
   uasg?: string;
-  objeto_resumido: string;
-  descricao_necessidade: string;
-  valor_estimado_maximo?: number;
-  prazo_vigencia_meses?: number;
-  natureza_objeto?: "servico" | "bem" | "obra" | "solucao_ti";
-  palavras_chave: string[];
-  data_necessidade?: string; // ISO date
-  dfd_texto?: string;
+  unidade_demandante: string;
+  objeto_da_contratacao: string;
+  problema_publico: string;
+  objetivo: string;
+  prazo_estimado_meses: number;
+  orcamento_estimado?: number;
+  pca_id?: string;
+  pdtic_alinhado?: boolean;
+  contrato_atual?: string;
+  ha_dados_pessoais?: boolean;
+  ha_integracao_sistemas?: boolean;
+  restricoes?: string[];
+  premissas?: string[];
+  dependencias?: string[];
+  requisitos_tecnicos_iniciais?: string;
+  quantidades?: Record<string, unknown>;
+  responsavel: string;
 }
 
 export interface ContratacaoSummary {
@@ -44,6 +52,31 @@ export interface ContratacaoSummary {
   nome_orgao: string;
   criado_em: string;
   atualizado_em: string;
+}
+
+interface RawContratacao {
+  id: string;
+  status: StatusContratacao;
+  criado_em: string;
+  atualizado_em?: string;
+  objeto_resumido?: string;
+  nome_orgao?: string;
+  entrada?: {
+    orgao?: string;
+    objeto_da_contratacao?: string;
+  };
+}
+
+function normalizeContratacao(raw: RawContratacao): ContratacaoSummary {
+  return {
+    id: raw.id,
+    status: raw.status,
+    objeto_resumido:
+      raw.objeto_resumido ?? raw.entrada?.objeto_da_contratacao ?? "Sem objeto",
+    nome_orgao: raw.nome_orgao ?? raw.entrada?.orgao ?? "Sem órgão",
+    criado_em: raw.criado_em,
+    atualizado_em: raw.atualizado_em ?? raw.criado_em,
+  };
 }
 
 export interface JobStatus {
@@ -133,7 +166,7 @@ export function setApiToken(token: string | null): void {
 }
 
 /** Wait up to `timeoutMs` for a token to become available. */
-async function waitForToken(timeoutMs = 4000): Promise<string | null> {
+export async function waitForApiToken(timeoutMs = 4000): Promise<string | null> {
   if (_authToken) return _authToken;
   return new Promise((resolve) => {
     const t = setTimeout(() => {
@@ -148,19 +181,29 @@ async function waitForToken(timeoutMs = 4000): Promise<string | null> {
   });
 }
 
+export async function buildApiHeaders(
+  initHeaders?: HeadersInit,
+  opts?: { contentType?: string | null; waitMs?: number },
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    ...(initHeaders as Record<string, string> | undefined),
+  };
+  if (opts?.contentType !== null && !headers["Content-Type"]) {
+    headers["Content-Type"] = opts?.contentType ?? "application/json";
+  }
+  const token = _authToken ?? (await waitForApiToken(opts?.waitMs));
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string>),
-  };
-  const token = _authToken ?? (await waitForToken());
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  const headers = await buildApiHeaders(init?.headers, { contentType: "application/json" });
   const res = await fetch(url, {
     ...init,
     headers,
@@ -176,13 +219,15 @@ async function apiFetch<T>(
 
 export const api = {
   contratacoes: {
-    list(): Promise<ContratacaoSummary[]> {
-      return apiFetch("/proc/contratacoes");
+    async list(): Promise<ContratacaoSummary[]> {
+      const rows = await apiFetch<RawContratacao[]>("/proc/contratacoes");
+      return rows.map(normalizeContratacao);
     },
-    get(id: string): Promise<ContratacaoSummary> {
-      return apiFetch(`/proc/contratacoes/${id}`);
+    async get(id: string): Promise<ContratacaoSummary> {
+      const row = await apiFetch<RawContratacao>(`/proc/contratacoes/${id}`);
+      return normalizeContratacao(row);
     },
-    create(body: EntradaDemanda): Promise<{ id: string; status: string }> {
+    create(body: EntradaDemanda): Promise<{ contratacao_id: string; status: string; mensagem: string }> {
       return apiFetch("/proc/contratacoes", {
         method: "POST",
         body: JSON.stringify(body),

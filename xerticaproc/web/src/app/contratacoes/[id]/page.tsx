@@ -2,6 +2,7 @@
 
 import { AuthGate } from "@/app/auth-gate";
 import { api, pollJob, type ContratacaoSummary, type JobStatus } from "@/lib/api";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -89,13 +90,21 @@ export default function ContratacaoPage() {
                     {contratacao.status.replace(/_/g, " ")}
                   </p>
                 </div>
-                <button
-                  onClick={runPipeline}
-                  disabled={running}
-                  className="px-5 py-2.5 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium text-sm transition-colors"
-                >
-                  {running ? "Executando…" : "▶ Executar Pipeline Completo"}
-                </button>
+                <div className="flex gap-3">
+                  <Link
+                    href={`/contratacoes/${id}/copilot`}
+                    className="px-5 py-2.5 bg-surface-card border border-surface-border hover:bg-surface-border text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    Abrir Chat
+                  </Link>
+                  <button
+                    onClick={runPipeline}
+                    disabled={running}
+                    className="px-5 py-2.5 bg-brand-blue hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    {running ? "Executando…" : "▶ Executar Pipeline Completo"}
+                  </button>
+                </div>
               </div>
 
               {/* Progress bar */}

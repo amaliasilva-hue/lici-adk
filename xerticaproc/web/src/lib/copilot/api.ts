@@ -17,6 +17,7 @@ import type {
   RevisorReport,
   StreamEvent,
 } from "./types";
+import { buildApiHeaders } from "@/lib/api";
 
 const PROXY = "/api/proxy";
 
@@ -32,9 +33,22 @@ async function jsonOrThrow<T>(r: Response, label: string): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+async function authFetch(path: string, init?: RequestInit & { contentType?: string | null }) {
+  const headers = await buildApiHeaders(init?.headers, {
+    contentType: init?.contentType ?? "application/json",
+  });
+  return fetch(path, {
+    ...init,
+    headers,
+  });
+}
+
 // ── Checklist ──────────────────────────────────────────────────────────────
 export async function getChecklist(contratacaoId: string): Promise<ChecklistResponse> {
-  const r = await fetch(buildUrl(contratacaoId, "/checklist"), { cache: "no-store" });
+  const r = await authFetch(buildUrl(contratacaoId, "/checklist"), {
+    cache: "no-store",
+    contentType: null,
+  });
   return jsonOrThrow<ChecklistResponse>(r, "getChecklist");
 }
 
@@ -43,11 +57,10 @@ export async function patchChecklist(
   itemKey: string,
   patch: ChecklistPatch,
 ): Promise<ChecklistItem> {
-  const r = await fetch(
+  const r = await authFetch(
     buildUrl(contratacaoId, `/checklist/${encodeURIComponent(itemKey)}`),
     {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     },
   );
@@ -63,7 +76,10 @@ export async function getHistory(
   if (opts?.limit) qs.set("limit", String(opts.limit));
   if (opts?.before) qs.set("before", opts.before);
   const suffix = `/chat/history${qs.toString() ? `?${qs}` : ""}`;
-  const r = await fetch(buildUrl(contratacaoId, suffix), { cache: "no-store" });
+  const r = await authFetch(buildUrl(contratacaoId, suffix), {
+    cache: "no-store",
+    contentType: null,
+  });
   return jsonOrThrow<ChatHistoryResponse>(r, "getHistory");
 }
 
@@ -74,9 +90,9 @@ export async function chatStream(
   onEvent: (ev: StreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const resp = await fetch(buildUrl(contratacaoId, "/chat"), {
+  const resp = await authFetch(buildUrl(contratacaoId, "/chat"), {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    headers: { accept: "text/event-stream" },
     body: JSON.stringify({ message }),
     signal,
   });
@@ -118,7 +134,10 @@ function parseSseChunk(chunk: string): StreamEvent | null {
 
 // ── Sprint B: Fontes (Price Workbench) ─────────────────────────────────────
 export async function listSources(contratacaoId: string): Promise<FonteUsuario[]> {
-  const r = await fetch(buildUrl(contratacaoId, "/fontes"), { cache: "no-store" });
+  const r = await authFetch(buildUrl(contratacaoId, "/fontes"), {
+    cache: "no-store",
+    contentType: null,
+  });
   return jsonOrThrow<FonteUsuario[]>(r, "listSources");
 }
 
@@ -126,9 +145,8 @@ export async function addSource(
   contratacaoId: string,
   payload: FonteUsuarioIn,
 ): Promise<FonteUsuario> {
-  const r = await fetch(buildUrl(contratacaoId, "/fontes"), {
+  const r = await authFetch(buildUrl(contratacaoId, "/fontes"), {
     method: "POST",
-    headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
   return jsonOrThrow<FonteUsuario>(r, "addSource");
@@ -139,11 +157,10 @@ export async function patchSource(
   sourceId: string,
   payload: FonteUsuarioPatch,
 ): Promise<FonteUsuario> {
-  const r = await fetch(
+  const r = await authFetch(
     buildUrl(contratacaoId, `/fontes/${encodeURIComponent(sourceId)}`),
     {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     },
   );
@@ -153,8 +170,9 @@ export async function patchSource(
 export async function listNegativeSearches(
   contratacaoId: string,
 ): Promise<PesquisaNegativa[]> {
-  const r = await fetch(buildUrl(contratacaoId, "/pesquisas-negativas"), {
+  const r = await authFetch(buildUrl(contratacaoId, "/pesquisas-negativas"), {
     cache: "no-store",
+    contentType: null,
   });
   return jsonOrThrow<PesquisaNegativa[]>(r, "listNegativeSearches");
 }
@@ -163,9 +181,8 @@ export async function addNegativeSearch(
   contratacaoId: string,
   payload: PesquisaNegativaIn,
 ): Promise<PesquisaNegativa> {
-  const r = await fetch(buildUrl(contratacaoId, "/pesquisas-negativas"), {
+  const r = await authFetch(buildUrl(contratacaoId, "/pesquisas-negativas"), {
     method: "POST",
-    headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
   return jsonOrThrow<PesquisaNegativa>(r, "addNegativeSearch");
@@ -176,9 +193,9 @@ export async function getReadiness(
   contratacaoId: string,
   docType: DocType = "etp",
 ): Promise<DocumentReadiness> {
-  const r = await fetch(
+  const r = await authFetch(
     buildUrl(contratacaoId, `/readiness?doc_type=${docType}`),
-    { cache: "no-store" },
+    { cache: "no-store", contentType: null },
   );
   return jsonOrThrow<DocumentReadiness>(r, "getReadiness");
 }
@@ -187,9 +204,8 @@ export async function gerarDocumento(
   contratacaoId: string,
   docType: DocType,
 ): Promise<DocumentoGeradoLite> {
-  const r = await fetch(buildUrl(contratacaoId, `/gerar/${docType}`), {
+  const r = await authFetch(buildUrl(contratacaoId, `/gerar/${docType}`), {
     method: "POST",
-    headers: { "content-type": "application/json" },
   });
   if (r.status === 422) {
     const body = await r.json().catch(() => ({}));
@@ -205,8 +221,9 @@ export async function gerarDocumento(
 export async function listDocumentos(
   contratacaoId: string,
 ): Promise<DocumentoGeradoLite[]> {
-  const r = await fetch(buildUrl(contratacaoId, "/documentos"), {
+  const r = await authFetch(buildUrl(contratacaoId, "/documentos"), {
     cache: "no-store",
+    contentType: null,
   });
   return jsonOrThrow<DocumentoGeradoLite[]>(r, "listDocumentos");
 }
@@ -215,7 +232,10 @@ export async function listDocumentos(
 export async function getRevisorReport(
   contratacaoId: string,
 ): Promise<RevisorReport> {
-  const r = await fetch(buildUrl(contratacaoId, "/revisar"), { cache: "no-store" });
+  const r = await authFetch(buildUrl(contratacaoId, "/revisar"), {
+    cache: "no-store",
+    contentType: null,
+  });
   return jsonOrThrow<RevisorReport>(r, "getRevisorReport");
 }
 

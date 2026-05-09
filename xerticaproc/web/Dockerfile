@@ -13,7 +13,6 @@ COPY . .
 # Runtime env vars are injected at deploy time via Cloud Run;
 # set a placeholder so next build doesn't fail on missing vars.
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV BACKEND_URL=http://localhost:8000
 
 # Firebase web config (public by design — client-side SDK)
 ENV NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyCKEpr6fQVQHtrYe4rNHuPkjJebZn0ePBQ

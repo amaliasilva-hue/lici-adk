@@ -2,6 +2,7 @@
 
 import { AuthGate } from "@/app/auth-gate";
 import { api, type EntradaDemanda } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -12,19 +13,34 @@ const NATUREZAS = [
   { value: "solucao_ti", label: "Solução de TI" },
 ] as const;
 
+type NovaContratacaoForm = {
+  id_orgao: string;
+  nome_orgao: string;
+  uasg?: string;
+  unidade_demandante?: string;
+  objeto_resumido: string;
+  descricao_necessidade: string;
+  objetivo?: string;
+  valor_estimado_maximo?: number;
+  prazo_vigencia_meses?: number;
+  natureza_objeto?: "servico" | "bem" | "obra" | "solucao_ti";
+  palavras_chave: string[];
+};
+
 export default function NovaContratacaoPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState<Partial<EntradaDemanda>>({
+  const [form, setForm] = useState<Partial<NovaContratacaoForm>>({
     natureza_objeto: "servico",
     palavras_chave: [],
   });
 
   const [kwInput, setKwInput] = useState("");
 
-  function set<K extends keyof EntradaDemanda>(key: K, val: EntradaDemanda[K]) {
+  function set<K extends keyof NovaContratacaoForm>(key: K, val: NovaContratacaoForm[K]) {
     setForm((p) => ({ ...p, [key]: val }));
   }
 
@@ -49,11 +65,39 @@ export default function NovaContratacaoPage() {
       setError("Preencha todos os campos obrigatórios.");
       return;
     }
+    if (!form.prazo_vigencia_meses) {
+      setError("Informe o prazo de vigência em meses.");
+      return;
+    }
+    const responsavel = (user?.email ?? "").trim();
+    if (!responsavel) {
+      setError("Não foi possível identificar o responsável autenticado. Faça login novamente.");
+      return;
+    }
+
+    const payload: EntradaDemanda = {
+      orgao: form.nome_orgao.trim(),
+      uasg: form.uasg?.trim() || undefined,
+      unidade_demandante: (form.unidade_demandante?.trim() || form.nome_orgao.trim()),
+      objeto_da_contratacao: form.objeto_resumido.trim(),
+      problema_publico: form.descricao_necessidade.trim(),
+      objetivo:
+        form.objetivo?.trim() ||
+        `Atender a necessidade do órgão ${form.nome_orgao.trim()} por meio da contratação de ${form.objeto_resumido.trim()}.`,
+      prazo_estimado_meses: form.prazo_vigencia_meses,
+      orcamento_estimado: form.valor_estimado_maximo,
+      premissas: form.palavras_chave ?? [],
+      restricoes: [],
+      dependencias: [],
+      quantidades: {},
+      responsavel,
+    };
+
     setLoading(true);
     setError(null);
     try {
-      const result = await api.contratacoes.create(form as EntradaDemanda);
-      router.push(`/contratacoes/${result.id}`);
+      const result = await api.contratacoes.create(payload);
+      router.push(`/contratacoes/${result.contratacao_id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -111,6 +155,16 @@ export default function NovaContratacaoPage() {
                   required
                 />
               </Field>
+
+              <Field label="Unidade Demandante" htmlFor="unidade_demandante">
+                <input
+                  id="unidade_demandante"
+                  className="input"
+                  placeholder="Se vazio, usa o nome do órgão"
+                  value={form.unidade_demandante ?? ""}
+                  onChange={(e) => set("unidade_demandante", e.target.value)}
+                />
+              </Field>
             </div>
 
             <div className="card space-y-4">
@@ -135,7 +189,7 @@ export default function NovaContratacaoPage() {
                   onChange={(e) =>
                     set(
                       "natureza_objeto",
-                      e.target.value as EntradaDemanda["natureza_objeto"]
+                      e.target.value as NovaContratacaoForm["natureza_objeto"]
                     )
                   }
                 >
@@ -155,6 +209,16 @@ export default function NovaContratacaoPage() {
                   value={form.descricao_necessidade ?? ""}
                   onChange={(e) => set("descricao_necessidade", e.target.value)}
                   required
+                />
+              </Field>
+
+              <Field label="Objetivo da Contratação" htmlFor="objetivo">
+                <textarea
+                  id="objetivo"
+                  className="input min-h-24 resize-y"
+                  placeholder="Se vazio, o sistema gera um objetivo inicial com base no órgão e no objeto"
+                  value={form.objetivo ?? ""}
+                  onChange={(e) => set("objetivo", e.target.value)}
                 />
               </Field>
 
@@ -194,6 +258,15 @@ export default function NovaContratacaoPage() {
                   />
                 </Field>
               </div>
+
+              <Field label="Responsável" htmlFor="responsavel">
+                <input
+                  id="responsavel"
+                  className="input opacity-80"
+                  value={user?.email ?? ""}
+                  readOnly
+                />
+              </Field>
             </div>
 
             <div className="card space-y-4">
