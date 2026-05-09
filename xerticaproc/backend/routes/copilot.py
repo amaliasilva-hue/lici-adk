@@ -15,7 +15,14 @@ from xerticaproc.backend.models.copilot_schemas import (
     ChecklistItem,
     ChecklistPatch,
     ChecklistResponse,
+    DocumentReadiness,
+    DocumentoGeradoLite,
+    FonteUsuario,
+    FonteUsuarioIn,
+    FonteUsuarioPatch,
     MensagemIn,
+    PesquisaNegativa,
+    PesquisaNegativaIn,
 )
 
 log = logging.getLogger("xerticaproc.api.copilot")
@@ -89,6 +96,78 @@ async def patch_checklist(
     if item is None:
         raise HTTPException(404, f"Item de checklist {item_key} não encontrado")
     return item
+
+
+
+
+# ─── Sprint B: Fontes (Price Workbench) ──────────────────────────────────────
+
+@router.get("/fontes", response_model=list[FonteUsuario])
+async def list_fontes(contratacao_id: str) -> list[FonteUsuario]:
+    backend = get_backend()
+    return await backend.list_sources(contratacao_id)
+
+
+@router.post("/fontes", response_model=FonteUsuario, status_code=202)
+async def add_fonte(
+    contratacao_id: str, payload: FonteUsuarioIn,
+) -> FonteUsuario:
+    backend = get_backend()
+    return await backend.add_source(contratacao_id, payload)
+
+
+@router.patch("/fontes/{source_id}", response_model=FonteUsuario)
+async def patch_fonte(
+    contratacao_id: str, source_id: str, payload: FonteUsuarioPatch,
+) -> FonteUsuario:
+    backend = get_backend()
+    src = await backend.patch_source(contratacao_id, source_id, payload)
+    if src is None:
+        raise HTTPException(404, f"Fonte {source_id} não encontrada")
+    return src
+
+
+@router.get("/pesquisas-negativas", response_model=list[PesquisaNegativa])
+async def list_negativas(contratacao_id: str) -> list[PesquisaNegativa]:
+    backend = get_backend()
+    return await backend.list_negative_searches(contratacao_id)
+
+
+@router.post(
+    "/pesquisas-negativas", response_model=PesquisaNegativa, status_code=201,
+)
+async def add_negativa(
+    contratacao_id: str, payload: PesquisaNegativaIn,
+) -> PesquisaNegativa:
+    backend = get_backend()
+    return await backend.add_negative_search(contratacao_id, payload)
+
+
+# ─── Sprint C: Readiness + geração de documentos ────────────────────────────
+
+@router.get("/readiness", response_model=DocumentReadiness)
+async def get_readiness(
+    contratacao_id: str,
+    doc_type: str = Query("etp", pattern="^(etp|tr|mapa_precos)$"),
+) -> DocumentReadiness:
+    backend = get_backend()
+    return await backend.evaluate_readiness(contratacao_id, doc_type)
+
+
+@router.post("/gerar/{doc_type}", response_model=DocumentoGeradoLite)
+async def gerar_documento(
+    contratacao_id: str, doc_type: str,
+) -> DocumentoGeradoLite:
+    if doc_type not in ("etp", "tr", "mapa_precos"):
+        raise HTTPException(400, "doc_type inválido")
+    backend = get_backend()
+    return await backend.generate_document(contratacao_id, doc_type)
+
+
+@router.get("/documentos", response_model=list[DocumentoGeradoLite])
+async def list_documentos(contratacao_id: str) -> list[DocumentoGeradoLite]:
+    backend = get_backend()
+    return await backend.list_documents(contratacao_id)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

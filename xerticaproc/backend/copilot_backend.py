@@ -25,8 +25,16 @@ from xerticaproc.backend.models.copilot_schemas import (
     ChecklistStatus,
     ChecklistSummary,
     ConversationTurnAnalysis,
+    DocumentReadiness,
+    DocumentoGeradoLite,
+    FonteUsuario,
+    FonteUsuarioIn,
+    FonteUsuarioPatch,
+    FonteUsuarioStatus,
     MensagemOut,
     MensagemRole,
+    PesquisaNegativa,
+    PesquisaNegativaIn,
 )
 
 log = logging.getLogger(__name__)
@@ -62,6 +70,30 @@ class CopilotBackend(Protocol):
         valor: Optional[Any] = None,
         justificativa: Optional[str] = None,
     ) -> Optional[ChecklistItem]: ...
+    # Sprint B
+    async def list_sources(self, contratacao_id: str) -> list[FonteUsuario]: ...
+    async def add_source(
+        self, contratacao_id: str, payload: FonteUsuarioIn,
+    ) -> FonteUsuario: ...
+    async def patch_source(
+        self, contratacao_id: str, source_id: str, payload: FonteUsuarioPatch,
+    ) -> Optional[FonteUsuario]: ...
+    async def list_negative_searches(
+        self, contratacao_id: str,
+    ) -> list[PesquisaNegativa]: ...
+    async def add_negative_search(
+        self, contratacao_id: str, payload: PesquisaNegativaIn,
+    ) -> PesquisaNegativa: ...
+    # Sprint C
+    async def evaluate_readiness(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentReadiness: ...
+    async def generate_document(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentoGeradoLite: ...
+    async def list_documents(
+        self, contratacao_id: str,
+    ) -> list[DocumentoGeradoLite]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -71,7 +103,9 @@ class CopilotBackend(Protocol):
 class InMemoryCopilotBackend:
     def __init__(self) -> None:
         # contratacao_id -> { conversa_id, mensagens[], facts[], decisions[],
-        #                     checklist{item_key: ChecklistItem} }
+        #                     checklist{item_key: ChecklistItem},
+        #                     fontes{source_id: FonteUsuario},
+        #                     pesquisas_negativas[] }
         self._data: dict[str, dict[str, Any]] = {}
 
     def _state(self, cid: str) -> dict[str, Any]:
@@ -84,6 +118,9 @@ class InMemoryCopilotBackend:
                 "facts": [],
                 "decisions": [],
                 "checklist": {},
+                "fontes": {},
+                "pesquisas_negativas": [],
+                "documentos": [],
             }
             self._data[cid] = st
         return st
@@ -318,6 +355,150 @@ class InMemoryCopilotBackend:
         it.atualizado_em = datetime.now(timezone.utc)
         return it
 
+    # ── Sprint B: fontes ────────────────────────────────────────────────
+    async def list_sources(self, contratacao_id: str) -> list[FonteUsuario]:
+        st = self._state(contratacao_id)
+        return sorted(
+            st["fontes"].values(),
+            key=lambda s: s.criado_em,
+            reverse=True,
+        )
+
+    async def add_source(
+        self, contratacao_id: str, payload: FonteUsuarioIn,
+    ) -> FonteUsuario:
+        from xerticaproc.backend.tools import price_workbench as pw
+
+        st = self._state(contratacao_id)
+        sid = uuid.uuid4()
+        src = FonteUsuario(
+            id=sid,
+            contratacao_id=contratacao_id,
+            tipo=payload.tipo,
+            status=FonteUsuarioStatus.PENDENTE,
+            url=payload.url,
+            texto_colado=payload.texto_colado,
+            arquivo_gcs_uri=payload.arquivo_gcs_uri,
+            produto=payload.produto,
+            observacao=payload.observacao,
+            criado_em=datetime.now(timezone.utc),
+        )
+        st["fontes"][str(sid)] = src
+
+        # Validação assíncrona em background (best-effort)
+        async def _bg() -> None:
+            try:
+                updated = await pw.validate(src)
+                st["fontes"][str(sid)] = updated
+                log.info(
+                    "fonte_validada id=%s status=%s class=%s score=%s",
+                    sid, updated.status, updated.classificacao, updated.score,
+                )
+            except Exception:  # noqa: BLE001
+                log.exception("Erro validando fonte %s", sid)
+                src.status = FonteUsuarioStatus.DESCARTADA
+                src.observacao = "Erro interno na validação"
+                src.validado_em = datetime.now(timezone.utc)
+
+        import asyncio
+        asyncio.create_task(_bg())
+        return src
+
+    async def patch_source(
+        self, contratacao_id: str, source_id: str, payload: FonteUsuarioPatch,
+    ) -> Optional[FonteUsuario]:
+        st = self._state(contratacao_id)
+        src = st["fontes"].get(source_id)
+        if src is None:
+            return None
+        if payload.classificacao is not None:
+            src.classificacao = payload.classificacao
+        if payload.status is not None:
+            src.status = payload.status
+        if payload.observacao is not None:
+            src.observacao = payload.observacao
+        return src
+
+    async def list_negative_searches(
+        self, contratacao_id: str,
+    ) -> list[PesquisaNegativa]:
+        st = self._state(contratacao_id)
+        return list(st["pesquisas_negativas"])
+
+    async def add_negative_search(
+        self, contratacao_id: str, payload: PesquisaNegativaIn,
+    ) -> PesquisaNegativa:
+        st = self._state(contratacao_id)
+        pn = PesquisaNegativa(
+            id=uuid.uuid4(),
+            contratacao_id=contratacao_id,
+            criado_em=datetime.now(timezone.utc),
+            **payload.model_dump(),
+        )
+        st["pesquisas_negativas"].append(pn)
+        return pn
+
+    # ── Sprint C: readiness + geração ──────────────────────────────────
+    async def evaluate_readiness(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentReadiness:
+        from xerticaproc.backend.agents import readiness_agent as ra
+        checklist = await self.get_checklist(contratacao_id)
+        return ra.evaluate(checklist, doc_type)
+
+    async def generate_document(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentoGeradoLite:
+        from xerticaproc.backend.tools import etp_renderer
+        readiness = await self.evaluate_readiness(contratacao_id, doc_type)
+        if not readiness.can_generate:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "readiness_failed",
+                    "readiness": readiness.model_dump(mode="json"),
+                },
+            )
+        if doc_type != "etp":
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=501,
+                detail=f"Geração de {doc_type!r} ainda não implementada (Sprint D).",
+            )
+        st = self._state(contratacao_id)
+        checklist = await self.get_checklist(contratacao_id)
+        fontes = list(st["fontes"].values())
+        content_md = etp_renderer.render_etp_markdown(
+            contratacao_id=contratacao_id,
+            checklist=checklist,
+            facts=st["facts"],
+            decisions=st["decisions"],
+            fontes=fontes,
+        )
+        prev = [d for d in st["documentos"] if d.doc_type == doc_type]
+        doc = DocumentoGeradoLite(
+            id=uuid.uuid4(),
+            contratacao_id=contratacao_id,
+            doc_type=doc_type,  # type: ignore[arg-type]
+            versao=len(prev) + 1,
+            content_md=content_md,
+            readiness_snapshot=readiness,
+            gerado_em=datetime.now(timezone.utc),
+        )
+        st["documentos"].append(doc)
+        log.info(
+            "documento_gerado cid=%s doc_type=%s versao=%s score=%s",
+            contratacao_id, doc_type, doc.versao, readiness.score,
+        )
+        return doc
+
+    async def list_documents(
+        self, contratacao_id: str,
+    ) -> list[DocumentoGeradoLite]:
+        st = self._state(contratacao_id)
+        return list(st["documentos"])
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Postgres backend (produção)
@@ -388,6 +569,53 @@ class PostgresCopilotBackend:
                 status=status, valor=valor, justificativa=justificativa,
                 allow_orgao_override=True,  # PATCH explícito do usuário pode override
             )
+
+    # ── Sprint B (stubs Postgres — implementação completa depois) ───────
+    async def list_sources(self, contratacao_id: str) -> list[FonteUsuario]:
+        log.warning("PostgresCopilotBackend.list_sources não implementado")
+        return []
+
+    async def add_source(
+        self, contratacao_id: str, payload: FonteUsuarioIn,
+    ) -> FonteUsuario:
+        raise NotImplementedError("Persistência de fontes em Postgres pendente")
+
+    async def patch_source(
+        self, contratacao_id: str, source_id: str, payload: FonteUsuarioPatch,
+    ) -> Optional[FonteUsuario]:
+        raise NotImplementedError
+
+    async def list_negative_searches(
+        self, contratacao_id: str,
+    ) -> list[PesquisaNegativa]:
+        return []
+
+    async def add_negative_search(
+        self, contratacao_id: str, payload: PesquisaNegativaIn,
+    ) -> PesquisaNegativa:
+        raise NotImplementedError
+
+    # ── Sprint C (readiness funciona; geração persistente em Postgres pendente)
+    async def evaluate_readiness(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentReadiness:
+        from xerticaproc.backend.agents import readiness_agent as ra
+        checklist = await self.get_checklist(contratacao_id)
+        return ra.evaluate(checklist, doc_type)
+
+    async def generate_document(
+        self, contratacao_id: str, doc_type: str,
+    ) -> DocumentoGeradoLite:
+        # Postgres impl reaproveita InMemory transitoriamente; persistência em
+        # `documentos_gerados` será adicionada no Sprint D.
+        raise NotImplementedError(
+            "Geração persistente em Postgres pendente (Sprint D)."
+        )
+
+    async def list_documents(
+        self, contratacao_id: str,
+    ) -> list[DocumentoGeradoLite]:
+        return []
 
 
 # ─────────────────────────────────────────────────────────────────────────────

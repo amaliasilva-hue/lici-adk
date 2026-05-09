@@ -3,6 +3,9 @@ import type {
   ChecklistItem,
   ChecklistPatch,
   ChecklistResponse,
+  DocType,
+  DocumentReadiness,
+  DocumentoGeradoLite,
   FonteUsuario,
   FonteUsuarioIn,
   FonteUsuarioPatch,
@@ -163,119 +166,43 @@ export async function addNegativeSearch(
   });
   return jsonOrThrow<PesquisaNegativa>(r, "addNegativeSearch");
 }
-import type {
-  ChatHistoryResponse,
-  ChecklistItem,
-  ChecklistResponse,
-  StreamEvent,
-} from "./types";
 
-const PROXY = "/api/proxy";
-
-function buildUrl(contratacaoId: string, suffix: string): string {
-  return `${PROXY}/proc/contratacoes/${contratacaoId}${suffix}`;
+// ── Sprint C: Readiness + geração ──────────────────────────────────────────
+export async function getReadiness(
+  contratacaoId: string,
+  docType: DocType = "etp",
+): Promise<DocumentReadiness> {
+  const r = await fetch(
+    buildUrl(contratacaoId, `/readiness?doc_type=${docType}`),
+    { cache: "no-store" },
+  );
+  return jsonOrThrow<DocumentReadiness>(r, "getReadiness");
 }
 
-export async function getChecklist(
+export async function gerarDocumento(
   contratacaoId: string,
-): Promise<ChecklistResponse> {
-  const r = await fetch(buildUrl(contratacaoId, "/checklist"), {
+  docType: DocType,
+): Promise<DocumentoGeradoLite> {
+  const r = await fetch(buildUrl(contratacaoId, `/gerar/${docType}`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+  });
+  if (r.status === 422) {
+    const body = await r.json().catch(() => ({}));
+    const err = new Error("readiness_failed") as Error & {
+      readiness?: DocumentReadiness;
+    };
+    err.readiness = body?.detail?.readiness as DocumentReadiness | undefined;
+    throw err;
+  }
+  return jsonOrThrow<DocumentoGeradoLite>(r, "gerarDocumento");
+}
+
+export async function listDocumentos(
+  contratacaoId: string,
+): Promise<DocumentoGeradoLite[]> {
+  const r = await fetch(buildUrl(contratacaoId, "/documentos"), {
     cache: "no-store",
   });
-  if (!r.ok) throw new Error(`getChecklist ${r.status}`);
-  return r.json();
-}
-
-export async function patchChecklist(
-  contratacaoId: string,
-  itemKey: string,
-  patch: Partial<ChecklistItem> & { justificativa?: string },
-): Promise<ChecklistItem> {
-  const r = await fetch(
-    buildUrl(contratacaoId, `/checklist/${encodeURIComponent(itemKey)}`),
-    {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    },
-  );
-  if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`patchChecklist ${r.status}: ${text}`);
-  }
-  return r.json();
-}
-
-export async function getHistory(
-  contratacaoId: string,
-  opts?: { limit?: number; before?: string },
-): Promise<ChatHistoryResponse> {
-  const qs = new URLSearchParams();
-  if (opts?.limit) qs.set("limit", String(opts.limit));
-  if (opts?.before) qs.set("before", opts.before);
-  const suffix = `/chat/history${qs.toString() ? `?${qs}` : ""}`;
-  const r = await fetch(buildUrl(contratacaoId, suffix), { cache: "no-store" });
-  if (!r.ok) throw new Error(`getHistory ${r.status}`);
-  return r.json();
-}
-
-/**
- * Faz POST /chat e consome SSE até `turn_complete` ou `error`.
- * Chama onEvent para cada evento parseado.
- */
-export async function chatStream(
-  contratacaoId: string,
-  message: string,
-  onEvent: (ev: StreamEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const resp = await fetch(buildUrl(contratacaoId, "/chat"), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "text/event-stream",
-    },
-    body: JSON.stringify({ conteudo: message }),
-    signal,
-  });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`chatStream ${resp.status}`);
-  }
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    let idx: number;
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const raw = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      const evt = parseSseChunk(raw);
-      if (evt) onEvent(evt);
-    }
-  }
-}
-
-function parseSseChunk(chunk: string): StreamEvent | null {
-  let event: string | undefined;
-  const dataLines: string[] = [];
-  for (const line of chunk.split("\n")) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
-  }
-  if (!event) return null;
-  const dataStr = dataLines.join("\n");
-  let data: unknown = {};
-  if (dataStr) {
-    try {
-      data = JSON.parse(dataStr);
-    } catch {
-      data = { raw: dataStr };
-    }
-  }
-  return { event, data } as StreamEvent;
+  return jsonOrThrow<DocumentoGeradoLite[]>(r, "listDocumentos");
 }

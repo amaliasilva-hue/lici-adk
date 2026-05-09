@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import EditalSidePanel from '@/components/edital-side-panel';
 
 // ─── Types ────────────────────────────────────────────────
 type Evidencia = {
@@ -739,7 +740,8 @@ export default function EditalPage() {
   const gatesDone      = edital.gates?.filter(g => g.concluido).length ?? 0;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
+      <div className="space-y-6 min-w-0">
 
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <div className="text-sm text-slate-400 flex items-center gap-1.5">
@@ -1398,6 +1400,10 @@ export default function EditalPage() {
           </div>
         </Accordion>
       )}
+      </div>
+      <div className="xl:pt-0">
+        {edital.edital_id && <EditalSidePanel editalId={edital.edital_id} />}
+      </div>
     </div>
   );
 }

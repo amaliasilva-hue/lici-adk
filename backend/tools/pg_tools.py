@@ -303,6 +303,54 @@ CREATE INDEX IF NOT EXISTS notifications_user_unread_idx
     ON notifications (user_email, created_at DESC) WHERE read_at IS NULL;
 """
 
+# ── Checklist editável por edital ────────────────────────────────────────────
+
+_DDL_CHECKLIST = """
+CREATE TABLE IF NOT EXISTS edital_checklist (
+    item_id      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    edital_id    UUID        NOT NULL REFERENCES editais(edital_id) ON DELETE CASCADE,
+    label        TEXT        NOT NULL,
+    checked      BOOLEAN     NOT NULL DEFAULT FALSE,
+    order_idx    INTEGER     NOT NULL DEFAULT 0,
+    autor_email  TEXT        NOT NULL DEFAULT 'sistema',
+    criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS edital_checklist_edital_idx
+    ON edital_checklist (edital_id, order_idx ASC);
+"""
+
+# ── Kanban (substitui Trello) ────────────────────────────────────────────────
+
+_DDL_KANBAN = """
+CREATE TABLE IF NOT EXISTS kanban_columns (
+    column_id    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome         TEXT        NOT NULL,
+    cor          TEXT        NOT NULL DEFAULT '#94A3B8',
+    order_idx    INTEGER     NOT NULL DEFAULT 0,
+    deleted_at   TIMESTAMPTZ,
+    criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS kanban_columns_order_idx
+    ON kanban_columns (order_idx ASC) WHERE deleted_at IS NULL;
+"""
+
+_DDL_KANBAN_MIGRATIONS = [
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS kanban_column_id UUID REFERENCES kanban_columns(column_id)",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS kanban_order INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE edital_comentarios ADD COLUMN IF NOT EXISTS secao TEXT",
+]
+
+DEFAULT_KANBAN_COLUMNS = [
+    ("Triagem",       "#94A3B8", 0),
+    ("Em análise",    "#00BEFF", 1),
+    ("Aprovado",      "#C0FF7D", 2),
+    ("Em proposta",   "#FF89FF", 3),
+    ("Em disputa",    "#047EA9", 4),
+    ("Ganho",         "#22C55E", 5),
+    ("Perdido",       "#E14849", 6),
+]
+
 
 def ensure_schema() -> None:
     """Cria todas as tabelas Postgres se não existirem (idempotente)."""
@@ -319,9 +367,21 @@ def ensure_schema() -> None:
             conn.execute(text(_DDL_CHAT_MESSAGES))
             conn.execute(text(_DDL_ANALYSIS_JOBS))
             conn.execute(text(_DDL_NOTIFICATIONS))
+            conn.execute(text(_DDL_CHECKLIST))
+            conn.execute(text(_DDL_KANBAN))
             # Migrations — adicionam colunas se não existirem (safe para tabelas já criadas)
             for migration in _DDL_EDITAIS_MIGRATIONS:
                 conn.execute(text(migration))
+            for migration in _DDL_KANBAN_MIGRATIONS:
+                conn.execute(text(migration))
+            # Seed default kanban columns (idempotent: só insere se tabela vazia)
+            existing = conn.execute(text("SELECT COUNT(*) FROM kanban_columns WHERE deleted_at IS NULL")).scalar()
+            if existing == 0:
+                for nome, cor, idx in DEFAULT_KANBAN_COLUMNS:
+                    conn.execute(
+                        text("INSERT INTO kanban_columns (nome, cor, order_idx) VALUES (:n, :c, :i)"),
+                        {"n": nome, "c": cor, "i": idx},
+                    )
             conn.commit()
         log.info("pg.schema_ok")
     except Exception as exc:
@@ -448,28 +508,44 @@ def list_movimentacoes(edital_id: str) -> list[dict]:
 
 # ── CRUD comentários ──────────────────────────────────────────────────────────
 
-def add_comentario(edital_id: str, autor_email: str, texto: str, mencionados: list[str] | None = None) -> dict:
+def add_comentario(edital_id: str, autor_email: str, texto: str, mencionados: list[str] | None = None, secao: str | None = None) -> dict:
     engine = get_engine()
     with engine.connect() as conn:
         row = conn.execute(
             text("""
-                INSERT INTO edital_comentarios (edital_id, autor_email, texto, mencionados)
-                VALUES (:eid, :ae, :texto, :mencionados) RETURNING *
+                INSERT INTO edital_comentarios (edital_id, autor_email, texto, mencionados, secao)
+                VALUES (:eid, :ae, :texto, :mencionados, :secao) RETURNING *
             """),
-            {"eid": edital_id, "ae": autor_email, "texto": texto, "mencionados": mencionados or []},
+            {"eid": edital_id, "ae": autor_email, "texto": texto, "mencionados": mencionados or [], "secao": secao},
         ).fetchone()
         conn.commit()
     return dict(row._mapping)
 
 
-def list_comentarios(edital_id: str, limit: int = 100) -> list[dict]:
+def list_comentarios(edital_id: str, limit: int = 200, secao: str | None = None) -> list[dict]:
     engine = get_engine()
+    params: dict = {"eid": edital_id, "limit": limit}
+    extra = ""
+    if secao is not None:
+        extra = " AND secao = :secao"
+        params["secao"] = secao
     with engine.connect() as conn:
         rows = conn.execute(
-            text("SELECT * FROM edital_comentarios WHERE edital_id = :eid ORDER BY criado_em ASC LIMIT :limit"),
-            {"eid": edital_id, "limit": limit},
+            text(f"SELECT * FROM edital_comentarios WHERE edital_id = :eid{extra} ORDER BY criado_em ASC LIMIT :limit"),
+            params,
         ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def delete_comentario(comentario_id: str) -> bool:
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("DELETE FROM edital_comentarios WHERE comentario_id = :cid"),
+            {"cid": comentario_id},
+        )
+        conn.commit()
+    return (result.rowcount or 0) > 0
 
 
 # ── CRUD gates ────────────────────────────────────────────────────────────────
@@ -865,3 +941,252 @@ def mark_notifications_read(user_email: str, notification_ids: list[str] | None 
         result = conn.execute(sql, params)
         conn.commit()
     return result.rowcount or 0
+
+
+# ── CRUD Checklist editável (por edital) ─────────────────────────────────────
+
+def list_checklist(edital_id: str) -> list[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM edital_checklist WHERE edital_id = :eid ORDER BY order_idx ASC, criado_em ASC"),
+            {"eid": edital_id},
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def add_checklist_item(edital_id: str, label: str, autor_email: str = "sistema") -> dict:
+    engine = get_engine()
+    with engine.connect() as conn:
+        # next order_idx
+        next_idx = conn.execute(
+            text("SELECT COALESCE(MAX(order_idx), -1) + 1 FROM edital_checklist WHERE edital_id = :eid"),
+            {"eid": edital_id},
+        ).scalar() or 0
+        row = conn.execute(
+            text("""
+                INSERT INTO edital_checklist (edital_id, label, autor_email, order_idx)
+                VALUES (:eid, :label, :ae, :idx) RETURNING *
+            """),
+            {"eid": edital_id, "label": label, "ae": autor_email, "idx": next_idx},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def update_checklist_item(item_id: str, *, label: str | None = None, checked: bool | None = None, order_idx: int | None = None) -> Optional[dict]:
+    sets = []
+    params: dict = {"item_id": item_id}
+    if label is not None:
+        sets.append("label = :label")
+        params["label"] = label
+    if checked is not None:
+        sets.append("checked = :checked")
+        params["checked"] = checked
+    if order_idx is not None:
+        sets.append("order_idx = :order_idx")
+        params["order_idx"] = order_idx
+    if not sets:
+        return None
+    sets.append("atualizado_em = NOW()")
+    sql = f"UPDATE edital_checklist SET {', '.join(sets)} WHERE item_id = :item_id RETURNING *"
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(text(sql), params).fetchone()
+        conn.commit()
+    return dict(row._mapping) if row else None
+
+
+def delete_checklist_item(item_id: str) -> bool:
+    engine = get_engine()
+    with engine.connect() as conn:
+        result = conn.execute(text("DELETE FROM edital_checklist WHERE item_id = :item_id"), {"item_id": item_id})
+        conn.commit()
+    return (result.rowcount or 0) > 0
+
+
+# ── CRUD Kanban (colunas + posição de editais) ───────────────────────────────
+
+def list_kanban_columns() -> list[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM kanban_columns WHERE deleted_at IS NULL ORDER BY order_idx ASC, criado_em ASC")
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def create_kanban_column(nome: str, cor: str = "#94A3B8") -> dict:
+    engine = get_engine()
+    with engine.connect() as conn:
+        next_idx = conn.execute(
+            text("SELECT COALESCE(MAX(order_idx), -1) + 1 FROM kanban_columns WHERE deleted_at IS NULL")
+        ).scalar() or 0
+        row = conn.execute(
+            text("INSERT INTO kanban_columns (nome, cor, order_idx) VALUES (:n, :c, :i) RETURNING *"),
+            {"n": nome, "c": cor, "i": next_idx},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping)
+
+
+def update_kanban_column(column_id: str, *, nome: str | None = None, cor: str | None = None, order_idx: int | None = None) -> Optional[dict]:
+    sets = []
+    params: dict = {"cid": column_id}
+    if nome is not None:
+        sets.append("nome = :nome")
+        params["nome"] = nome
+    if cor is not None:
+        sets.append("cor = :cor")
+        params["cor"] = cor
+    if order_idx is not None:
+        sets.append("order_idx = :order_idx")
+        params["order_idx"] = order_idx
+    if not sets:
+        return None
+    sql = f"UPDATE kanban_columns SET {', '.join(sets)} WHERE column_id = :cid AND deleted_at IS NULL RETURNING *"
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(text(sql), params).fetchone()
+        conn.commit()
+    return dict(row._mapping) if row else None
+
+
+def delete_kanban_column(column_id: str) -> bool:
+    """Soft delete; editais que estavam nessa coluna ficam com kanban_column_id NULL."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(
+            text("UPDATE editais SET kanban_column_id = NULL WHERE kanban_column_id = :cid"),
+            {"cid": column_id},
+        )
+        result = conn.execute(
+            text("UPDATE kanban_columns SET deleted_at = NOW() WHERE column_id = :cid AND deleted_at IS NULL"),
+            {"cid": column_id},
+        )
+        conn.commit()
+    return (result.rowcount or 0) > 0
+
+
+def move_edital_kanban(edital_id: str, column_id: str | None, order_idx: int = 0) -> Optional[dict]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                UPDATE editais
+                SET kanban_column_id = :cid, kanban_order = :ord, atualizado_em = NOW()
+                WHERE edital_id = :eid AND deleted_at IS NULL
+                RETURNING *
+            """),
+            {"cid": column_id, "ord": order_idx, "eid": edital_id},
+        ).fetchone()
+        conn.commit()
+    return dict(row._mapping) if row else None
+
+
+def list_editais_by_kanban() -> list[dict]:
+    """Retorna todos os editais não deletados com info mínima para kanban view."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT edital_id, orgao, uf, numero_pregao, objeto, valor_estimado,
+                       data_encerramento, fase_atual, estado_terminal, vendedor_email,
+                       prioridade, score_comercial, classificacao, risco,
+                       kanban_column_id, kanban_order, atualizado_em
+                FROM editais
+                WHERE deleted_at IS NULL
+                ORDER BY kanban_order ASC, atualizado_em DESC
+            """)
+        ).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+# ── Dashboard KPIs ───────────────────────────────────────────────────────────
+
+def dashboard_kpis() -> dict:
+    """Agrega KPIs principais do funil para a home."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        total = conn.execute(text("SELECT COUNT(*) FROM editais WHERE deleted_at IS NULL")).scalar() or 0
+        ultimos_7d = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND criado_em >= NOW() - INTERVAL '7 days'
+        """)).scalar() or 0
+        ultimos_30d = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND criado_em >= NOW() - INTERVAL '30 days'
+        """)).scalar() or 0
+        pipeline_valor = conn.execute(text("""
+            SELECT COALESCE(SUM(valor_estimado), 0)
+            FROM editais
+            WHERE deleted_at IS NULL
+              AND estado_terminal IS NULL
+              AND valor_estimado IS NOT NULL
+        """)).scalar() or 0
+        ganhos_30d = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND estado_terminal = 'ganho'
+              AND atualizado_em >= NOW() - INTERVAL '30 days'
+        """)).scalar() or 0
+        perdidos_30d = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND estado_terminal = 'perdido'
+              AND atualizado_em >= NOW() - INTERVAL '30 days'
+        """)).scalar() or 0
+        recomendados_go = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND classificacao = 'go'
+        """)).scalar() or 0
+        recomendados_nogo = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND classificacao = 'no_go'
+        """)).scalar() or 0
+        em_andamento = conn.execute(text("""
+            SELECT COUNT(*) FROM editais
+            WHERE deleted_at IS NULL AND estado_terminal IS NULL
+              AND fase_atual NOT IN ('identificacao', 'homologado')
+        """)).scalar() or 0
+        # Top 5 órgãos
+        top_orgaos = conn.execute(text("""
+            SELECT orgao, COUNT(*) AS qtd, COALESCE(SUM(valor_estimado), 0) AS valor
+            FROM editais
+            WHERE deleted_at IS NULL AND orgao <> ''
+            GROUP BY orgao
+            ORDER BY qtd DESC
+            LIMIT 5
+        """)).fetchall()
+        # Distribuição por fase
+        por_fase = conn.execute(text("""
+            SELECT fase_atual, COUNT(*) AS qtd
+            FROM editais
+            WHERE deleted_at IS NULL AND estado_terminal IS NULL
+            GROUP BY fase_atual
+        """)).fetchall()
+        # Tempo médio de análise (em horas) — diferença entre created_at e updated_at de jobs done
+        tempo_medio_h = conn.execute(text("""
+            SELECT EXTRACT(EPOCH FROM AVG(updated_at - created_at)) / 3600.0
+            FROM analysis_jobs
+            WHERE status = 'done' AND updated_at >= NOW() - INTERVAL '30 days'
+        """)).scalar() or 0
+
+    total_decisoes = ganhos_30d + perdidos_30d
+    win_rate = (ganhos_30d / total_decisoes * 100) if total_decisoes else 0
+
+    return {
+        "total_editais": int(total),
+        "ultimos_7d": int(ultimos_7d),
+        "ultimos_30d": int(ultimos_30d),
+        "pipeline_valor": float(pipeline_valor),
+        "ganhos_30d": int(ganhos_30d),
+        "perdidos_30d": int(perdidos_30d),
+        "win_rate_30d": round(float(win_rate), 1),
+        "recomendados_go": int(recomendados_go),
+        "recomendados_nogo": int(recomendados_nogo),
+        "em_andamento": int(em_andamento),
+        "tempo_medio_analise_h": round(float(tempo_medio_h), 2),
+        "top_orgaos": [
+            {"orgao": r[0], "qtd": int(r[1]), "valor": float(r[2] or 0)} for r in top_orgaos
+        ],
+        "por_fase": {r[0]: int(r[1]) for r in por_fase},
+    }

@@ -42,6 +42,10 @@ from backend.tools.pg_tools import (
     # Novos endpoints (Lote 1)
     get_historico_orgao, bulk_update_editais,
     create_notification, list_notifications, mark_notifications_read,
+    # Checklist + Kanban + Dashboard
+    list_checklist, add_checklist_item, update_checklist_item, delete_checklist_item,
+    list_kanban_columns, create_kanban_column, update_kanban_column, delete_kanban_column,
+    move_edital_kanban, list_editais_by_kanban, dashboard_kpis, delete_comentario,
 )
 from google.cloud import bigquery
 
@@ -1131,6 +1135,7 @@ class _ComentarioRequest(BaseModel):
     texto: str
     autor_email: str = "sistema"
     mencionados: list[str] = []
+    secao: str | None = None
 
 
 # ── Notificação por e-mail via Apps Script (background, não bloqueia response) ─
@@ -1183,18 +1188,25 @@ async def post_comentario(edital_id: str, body: _ComentarioRequest, background_t
     current = await asyncio.to_thread(get_edital, edital_id)
     if not current:
         raise HTTPException(status_code=404, detail="edital não encontrado")
-    row = await asyncio.to_thread(add_comentario, edital_id, body.autor_email, body.texto, body.mencionados)
+    row = await asyncio.to_thread(add_comentario, edital_id, body.autor_email, body.texto, body.mencionados, body.secao)
     background_tasks.add_task(_notify_comment, edital_id, body.autor_email, body.texto)
     return _serialize_edital(row)
 
 
 @app.get("/editais/{edital_id}/comentarios")
-async def get_comentarios(edital_id: str) -> list[dict]:
+async def get_comentarios(edital_id: str, secao: str | None = None) -> list[dict]:
     current = await asyncio.to_thread(get_edital, edital_id)
     if not current:
         raise HTTPException(status_code=404, detail="edital não encontrado")
-    rows = await asyncio.to_thread(list_comentarios, edital_id)
+    rows = await asyncio.to_thread(list_comentarios, edital_id, 200, secao)
     return [_serialize_edital(r) for r in rows]
+
+
+@app.delete("/editais/{edital_id}/comentarios/{comentario_id}", status_code=204)
+async def remove_comentario(edital_id: str, comentario_id: str) -> None:
+    ok = await asyncio.to_thread(delete_comentario, comentario_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="comentário não encontrado")
 
 
 @app.get("/editais/{edital_id}/gates")
@@ -1754,3 +1766,211 @@ async def list_edital_chat_sessions(edital_id: str) -> list[dict]:
     return await asyncio.to_thread(_fetch)
 
 
+
+
+# ── Checklist editável ───────────────────────────────────────────────────────
+
+class _ChecklistItemRequest(BaseModel):
+    label: str
+    autor_email: str = "sistema"
+
+
+class _ChecklistItemUpdate(BaseModel):
+    label: str | None = None
+    checked: bool | None = None
+    order_idx: int | None = None
+
+
+@app.get("/editais/{edital_id}/checklist")
+async def get_checklist(edital_id: str) -> list[dict]:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    rows = await asyncio.to_thread(list_checklist, edital_id)
+    return [_serialize_row(r) for r in rows]
+
+
+@app.post("/editais/{edital_id}/checklist", status_code=201)
+async def post_checklist_item(edital_id: str, body: _ChecklistItemRequest) -> dict:
+    current = await asyncio.to_thread(get_edital, edital_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    if not body.label.strip():
+        raise HTTPException(status_code=400, detail="label vazio")
+    row = await asyncio.to_thread(add_checklist_item, edital_id, body.label.strip(), body.autor_email)
+    return _serialize_row(row)
+
+
+@app.patch("/editais/{edital_id}/checklist/{item_id}")
+async def patch_checklist_item(edital_id: str, item_id: str, body: _ChecklistItemUpdate) -> dict:
+    row = await asyncio.to_thread(
+        update_checklist_item, item_id,
+        label=body.label, checked=body.checked, order_idx=body.order_idx,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="item não encontrado")
+    return _serialize_row(row)
+
+
+@app.delete("/editais/{edital_id}/checklist/{item_id}", status_code=204)
+async def remove_checklist_item(edital_id: str, item_id: str) -> None:
+    ok = await asyncio.to_thread(delete_checklist_item, item_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="item não encontrado")
+
+
+# ── Kanban (colunas + movimentação de cards) ─────────────────────────────────
+
+class _KanbanColumnRequest(BaseModel):
+    nome: str
+    cor: str = "#94A3B8"
+
+
+class _KanbanColumnUpdate(BaseModel):
+    nome: str | None = None
+    cor: str | None = None
+    order_idx: int | None = None
+
+
+class _KanbanMoveRequest(BaseModel):
+    column_id: str | None = None
+    order_idx: int = 0
+
+
+@app.get("/kanban")
+async def get_kanban_board() -> dict:
+    """Retorna board completo: colunas + editais agrupados."""
+    cols = await asyncio.to_thread(list_kanban_columns)
+    editais = await asyncio.to_thread(list_editais_by_kanban)
+    cols_serialized = [_serialize_row(c) for c in cols]
+    editais_serialized = [_serialize_row(e) for e in editais]
+    # Agrupa
+    by_col: dict[str, list[dict]] = {str(c["column_id"]): [] for c in cols_serialized}
+    by_col["__unassigned__"] = []
+    for e in editais_serialized:
+        cid = e.get("kanban_column_id")
+        key = str(cid) if cid else "__unassigned__"
+        by_col.setdefault(key, []).append(e)
+    return {"columns": cols_serialized, "editais_by_column": by_col}
+
+
+@app.get("/kanban/columns")
+async def get_kanban_columns() -> list[dict]:
+    rows = await asyncio.to_thread(list_kanban_columns)
+    return [_serialize_row(r) for r in rows]
+
+
+@app.post("/kanban/columns", status_code=201)
+async def post_kanban_column(body: _KanbanColumnRequest) -> dict:
+    if not body.nome.strip():
+        raise HTTPException(status_code=400, detail="nome vazio")
+    row = await asyncio.to_thread(create_kanban_column, body.nome.strip(), body.cor)
+    return _serialize_row(row)
+
+
+@app.patch("/kanban/columns/{column_id}")
+async def patch_kanban_column(column_id: str, body: _KanbanColumnUpdate) -> dict:
+    row = await asyncio.to_thread(
+        update_kanban_column, column_id,
+        nome=body.nome, cor=body.cor, order_idx=body.order_idx,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="coluna não encontrada")
+    return _serialize_row(row)
+
+
+@app.delete("/kanban/columns/{column_id}", status_code=204)
+async def remove_kanban_column(column_id: str) -> None:
+    ok = await asyncio.to_thread(delete_kanban_column, column_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="coluna não encontrada")
+
+
+@app.patch("/editais/{edital_id}/kanban")
+async def move_kanban_card(edital_id: str, body: _KanbanMoveRequest) -> dict:
+    row = await asyncio.to_thread(move_edital_kanban, edital_id, body.column_id, body.order_idx)
+    if not row:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+    return _serialize_row(row)
+
+
+# ── Dashboard KPIs ───────────────────────────────────────────────────────────
+
+@app.get("/dashboard/kpis")
+async def get_dashboard_kpis() -> dict:
+    return await asyncio.to_thread(dashboard_kpis)
+
+
+# ── Reprocessar edital (re-roda análise comercial+jurídica) ──────────────────
+
+class _ReprocessRequest(BaseModel):
+    motivo: str | None = None
+
+
+@app.post("/editais/{edital_id}/reprocess", status_code=202)
+async def reprocess_edital(
+    edital_id: str,
+    background_tasks: BackgroundTasks,
+    body: _ReprocessRequest | None = None,
+) -> dict:
+    """Re-roda a análise jurídica do edital (útil quando há novo atestado/info).
+
+    Usa o `edital_json` armazenado em Postgres como input. Não exige novo upload —
+    o backend já tem o conteúdo estruturado e pode rodar o pipeline jurídico
+    novamente, que vai recalcular fit com os atestados/atestados atualizados.
+    """
+    pg_row = await asyncio.to_thread(get_edital, edital_id)
+    if not pg_row:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+
+    # Localiza o analysis_id (é igual ao edital_id na maioria dos casos)
+    analysis_id = str(pg_row.get("analysis_id_juridica") or pg_row.get("analysis_id_comercial") or edital_id)
+
+    edital_json_stored = pg_row.get("edital_json_storage")
+    result_json_stored = pg_row.get("result_json")
+    if not edital_json_stored:
+        raise HTTPException(
+            status_code=409,
+            detail="edital_json não disponível para reprocesso — refaça upload do PDF original",
+        )
+    edital_data = json.loads(edital_json_stored) if isinstance(edital_json_stored, str) else edital_json_stored
+    result_data = json.loads(result_json_stored) if result_json_stored and isinstance(result_json_stored, str) else (result_json_stored or {})
+
+    # Garante job no in-memory store
+    job = await asyncio.to_thread(_get_job, analysis_id)
+    if not job:
+        await asyncio.to_thread(
+            touch_job, analysis_id,
+            status="done",
+            edital_json=edital_data,
+            result_json=result_data if result_data else None,
+            pg_edital_id=str(pg_row["edital_id"]),
+            edital_filename=pg_row.get("edital_filename"),
+        )
+
+    # Invalida cache de atestados para forçar recálculo
+    try:
+        await asyncio.to_thread(invalidate_cache, edital_id)
+    except Exception as exc:
+        log.warning("reprocess.invalidate_cache_failed", extra={"error": str(exc)})
+
+    # Marca jurídico como running e dispara em background
+    _touch(analysis_id, job_juridico_status="running", error_juridico=None, relatorio_juridico=None)
+    background_tasks.add_task(_run_juridico, analysis_id, None)
+
+    # Registra movimentação para auditoria
+    try:
+        motivo = (body.motivo if body else None) or "reprocesso solicitado"
+        await asyncio.to_thread(
+            add_movimentacao, edital_id, pg_row.get("fase_atual", ""), pg_row.get("fase_atual", ""),
+            "sistema", f"Reprocesso: {motivo}"
+        )
+    except Exception:
+        pass
+
+    return {
+        "edital_id": edital_id,
+        "analysis_id": analysis_id,
+        "status": "reprocessing",
+        "poll_url": f"/editais/{analysis_id}/analise_juridica",
+    }

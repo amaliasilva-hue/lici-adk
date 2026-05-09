@@ -218,3 +218,75 @@ class DocumentReadiness(BaseModel):
     open_fields_for_orgao: list[MissingItem] = Field(default_factory=list)
     recommendations: Optional[str] = None
     avaliado_em: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sprint B — Price Workbench
+# ─────────────────────────────────────────────────────────────────────────────
+
+class FonteUsuarioStatus(str, enum.Enum):
+    PENDENTE = "pendente"
+    VALIDADA = "validada"
+    DESCARTADA = "descartada"
+
+
+class FonteUsuarioIn(BaseModel):
+    tipo: Literal["url", "texto_colado", "arquivo", "print"]
+    url: Optional[str] = None
+    texto_colado: Optional[str] = None
+    arquivo_gcs_uri: Optional[str] = None
+    produto: Optional[str] = None
+    observacao: Optional[str] = None
+
+
+class FonteUsuario(BaseModel):
+    id: UUID
+    contratacao_id: str
+    tipo: Literal["url", "texto_colado", "arquivo", "print"]
+    status: FonteUsuarioStatus
+    url: Optional[str] = None
+    texto_colado: Optional[str] = None
+    arquivo_gcs_uri: Optional[str] = None
+    produto: Optional[str] = None
+    valor_total: Optional[float] = None
+    quantidade: Optional[float] = None
+    vigencia_meses: Optional[int] = None
+    valor_mensal_unitario: Optional[float] = None
+    classificacao: Optional[ClassificacaoPreco] = None
+    score: Optional[float] = None
+    observacao: Optional[str] = None
+    criado_em: datetime
+    validado_em: Optional[datetime] = None
+
+
+class FonteUsuarioPatch(BaseModel):
+    classificacao: Optional[ClassificacaoPreco] = None
+    status: Optional[FonteUsuarioStatus] = None
+    observacao: Optional[str] = None
+
+
+class PesquisaNegativaIn(BaseModel):
+    termo: str = Field(..., min_length=1)
+    fontes_consultadas: list[str] = Field(default_factory=list)
+    justificativa: Optional[str] = None
+    efeito_na_estimativa: Optional[str] = None
+
+
+class PesquisaNegativa(PesquisaNegativaIn):
+    id: UUID
+    contratacao_id: str
+    criado_em: datetime
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sprint C — Documentos gerados (versão leve)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DocumentoGeradoLite(BaseModel):
+    id: UUID
+    contratacao_id: str
+    doc_type: Literal["etp", "tr", "mapa_precos"]
+    versao: int
+    content_md: str
+    readiness_snapshot: DocumentReadiness
+    gerado_em: datetime

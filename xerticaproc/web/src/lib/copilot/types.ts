@@ -151,76 +151,36 @@ export interface PesquisaNegativa extends PesquisaNegativaIn {
   contratacao_id: string;
   criado_em: string;
 }
-// Tipos espelhando backend/models/copilot_schemas.py
 
-export type ChecklistStatus =
-  | "pendente"
-  | "inferido"
-  | "confirmado"
-  | "dispensado"
-  | "bloqueante";
+// Sprint C — Readiness + Documentos gerados
 
-export type ChecklistCriticidade = "baixa" | "media" | "alta" | "bloqueante";
-export type ChecklistOwner = "orgao" | "sistema" | "ambos";
-export type MensagemRole = "user" | "assistant" | "system";
-export type FonteOrigem = "usuario" | "sistema" | "ia";
-
-export interface ChecklistItem {
+export interface MissingItem {
   item_key: string;
-  categoria: string;
-  rotulo: string;
+  label: string;
   criticidade: ChecklistCriticidade;
   owner: ChecklistOwner;
-  status: ChecklistStatus;
-  valor?: string | number | boolean | null;
-  fonte_id?: string | null;
-  fonte_origem?: FonteOrigem | null;
-  observacoes?: string | null;
-  atualizado_em?: string | null;
 }
 
-export interface ChecklistSummary {
-  total: number;
-  por_status: Record<ChecklistStatus, number>;
-  bloqueantes_pendentes: number;
+export type DocType = "etp" | "tr" | "mapa_precos";
+
+export interface DocumentReadiness {
+  doc_type: DocType;
+  can_generate: boolean;
+  score: number;
+  blocking_missing: MissingItem[];
+  optional_missing: MissingItem[];
+  inferred_items: MissingItem[];
+  open_fields_for_orgao: MissingItem[];
+  recommendations?: string | null;
+  avaliado_em: string;
 }
 
-export interface ChecklistResponse {
-  contratacao_id: string;
-  itens: ChecklistItem[];
-  summary: ChecklistSummary;
-}
-
-export interface MensagemOut {
+export interface DocumentoGeradoLite {
   id: string;
-  role: MensagemRole;
-  conteudo: string;
-  created_at: string;
-  intencao?: string | null;
-  facts_added?: string[];
-  decisions_added?: string[];
-  checklist_updates?: string[];
+  contratacao_id: string;
+  doc_type: DocType;
+  versao: number;
+  content_md: string;
+  readiness_snapshot: DocumentReadiness;
+  gerado_em: string;
 }
-
-export interface ChatHistoryResponse {
-  conversa_id: string;
-  resumo?: string | null;
-  mensagens: MensagemOut[];
-}
-
-export interface SuggestedAction {
-  tipo: string;
-  rotulo: string;
-  payload?: Record<string, unknown>;
-}
-
-// SSE events
-export type StreamEvent =
-  | { event: "assistant_token"; data: { delta: string } }
-  | { event: "facts_added"; data: { facts: Array<{ tipo: string; valor: unknown }> } }
-  | { event: "decisions_added"; data: { decisions: Array<{ tipo: string; valor: unknown }> } }
-  | { event: "checklist_updated"; data: { items: string[] } }
-  | { event: "price_sources_added"; data: { sources: Array<Record<string, unknown>> } }
-  | { event: "suggested_actions"; data: { actions: SuggestedAction[] } }
-  | { event: "turn_complete"; data: { mensagem_id: string; intencao?: string | null } }
-  | { event: "error"; data: { message: string } };

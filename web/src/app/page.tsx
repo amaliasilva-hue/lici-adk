@@ -17,6 +17,7 @@ import {
 import ScoreIndicator from '@/components/ui/ScoreIndicator';
 import Avatar from '@/components/ui/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
+import DashboardKpis from '@/components/dashboard-kpis';
 
 const STAGES: { key: string; label: string; color: string; bg: string }[] = [
   { key: 'identificacao',  label: 'Identificação',    color: '#94A3B8', bg: 'rgba(148,163,184,0.1)' },
@@ -822,6 +823,7 @@ export default function PipelinePage() {
     >
       {/* ── Top controls bar ── */}
       <div className="shrink-0 px-6 pt-4 pb-3 border-b border-slate-100 bg-app">
+        <DashboardKpis />
         {/* Title + actions row */}
         <div className="flex items-center gap-3 mb-3">
           <h1 className="heading-xl mr-auto">Pipeline de Editais</h1>
