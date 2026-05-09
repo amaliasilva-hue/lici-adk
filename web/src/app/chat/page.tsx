@@ -750,7 +750,7 @@ function ChatPageInner() {
       `}</style>
 
       <div className="flex overflow-hidden"
-        style={{ height: 'calc(100vh - 64px)', marginTop: '-1rem', marginLeft: '-1.5rem', marginRight: '-1.5rem' }}
+        style={{ height: 'calc(100vh - 64px)' }}
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
 
         {/* ── Sidebar ─────────────────────────────────── */}
