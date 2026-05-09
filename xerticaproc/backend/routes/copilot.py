@@ -6,10 +6,11 @@ import logging
 from datetime import datetime
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from xerticaproc.backend.copilot_backend import get_backend
+from xerticaproc.backend.middleware.rate_limit import enforce_chat_rate
 from xerticaproc.backend.models.copilot_schemas import (
     Aprovacao,
     AprovacaoIn,
@@ -36,8 +37,9 @@ router = APIRouter(prefix="/proc/contratacoes/{contratacao_id}", tags=["copilot"
 # ─── Chat ────────────────────────────────────────────────────────────────────
 
 @router.post("/chat")
-async def chat(contratacao_id: str, payload: MensagemIn) -> StreamingResponse:
+async def chat(contratacao_id: str, payload: MensagemIn, request: Request) -> StreamingResponse:
     """Envia mensagem do usuário. Retorna SSE com eventos do turno."""
+    enforce_chat_rate(request, contratacao_id)
     backend = get_backend()
     await backend.ensure_seed(contratacao_id)
 
@@ -86,6 +88,7 @@ async def get_checklist(contratacao_id: str) -> ChecklistResponse:
 @router.patch("/checklist/{item_key}", response_model=ChecklistItem)
 async def patch_checklist(
     contratacao_id: str, item_key: str, payload: ChecklistPatch,
+    request: Request,
 ) -> ChecklistItem:
     backend = get_backend()
     try:
@@ -98,6 +101,15 @@ async def patch_checklist(
         raise HTTPException(422, str(e))
     if item is None:
         raise HTTPException(404, f"Item de checklist {item_key} não encontrado")
+    user = request.headers.get("x-user-id", "anon")
+    log.info(
+        "checklist.patch",
+        extra={
+            "event": "checklist.patch", "contratacao_id": contratacao_id,
+            "item_key": item_key, "status": payload.status.value,
+            "user": user,
+        },
+    )
     return item
 
 
@@ -222,6 +234,25 @@ async def list_aprovacoes(contratacao_id: str) -> list[Aprovacao]:
     return await backend.list_aprovacoes(contratacao_id)  # type: ignore[attr-defined]
 
 
+@router.get("/documentos/{documento_id}/workflow")
+async def documento_workflow(
+    contratacao_id: str, documento_id: str,
+) -> dict[str, Any]:
+    """Retorna status agregado do workflow de aprovação do documento."""
+    from xerticaproc.backend.agents.approval_workflow import evaluate_workflow
+    backend = get_backend()
+    docs = await backend.list_documents(contratacao_id)
+    doc = next((d for d in docs if str(d.id) == documento_id), None)
+    if doc is None:
+        raise HTTPException(404, "Documento não encontrado")
+    aprovs_all = (
+        await backend.list_aprovacoes(contratacao_id)  # type: ignore[attr-defined]
+        if hasattr(backend, "list_aprovacoes") else []
+    )
+    aprovs = [a for a in aprovs_all if str(a.documento_id) == documento_id]
+    return evaluate_workflow(doc.doc_type, aprovs)
+
+
 @router.get("/eventos", response_model=list[EventoOut])
 async def list_eventos(
     contratacao_id: str,
@@ -243,6 +274,25 @@ async def mark_eventos_read(contratacao_id: str) -> dict[str, int]:
         return {"updated": 0}
     n = await backend.mark_eventos_read(contratacao_id)  # type: ignore[attr-defined]
     return {"updated": n}
+
+
+@router.post("/documentos/{documento_id}/renderizar")
+async def renderizar_documento(
+    contratacao_id: str, documento_id: str,
+    formats: str = Query("docx,pdf"),
+) -> dict[str, Any]:
+    """Dispara Cloud Run Job pandoc para gerar DOCX/PDF do documento."""
+    from xerticaproc.backend.tools.pandoc_renderer import render_to_gcs
+    backend = get_backend()
+    docs = await backend.list_documents(contratacao_id)
+    doc = next((d for d in docs if str(d.id) == documento_id), None)
+    if doc is None:
+        raise HTTPException(404, "Documento não encontrado")
+    fmts = [f.strip() for f in formats.split(",") if f.strip()]
+    return await render_to_gcs(
+        contratacao_id=contratacao_id, doc_type=doc.doc_type,
+        versao=doc.versao, content_md=doc.content_md, formats=fmts,
+    )
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

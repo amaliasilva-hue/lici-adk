@@ -122,10 +122,30 @@ export interface RelatorioRevisao {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 let _authToken: string | null = null;
+let _tokenResolvers: Array<(t: string | null) => void> = [];
 
 /** Called by FirebaseAuthProvider when the token changes. */
 export function setApiToken(token: string | null): void {
   _authToken = token;
+  const r = _tokenResolvers;
+  _tokenResolvers = [];
+  r.forEach((fn) => fn(token));
+}
+
+/** Wait up to `timeoutMs` for a token to become available. */
+async function waitForToken(timeoutMs = 4000): Promise<string | null> {
+  if (_authToken) return _authToken;
+  return new Promise((resolve) => {
+    const t = setTimeout(() => {
+      _tokenResolvers = _tokenResolvers.filter((fn) => fn !== resolver);
+      resolve(_authToken);
+    }, timeoutMs);
+    const resolver = (tok: string | null) => {
+      clearTimeout(t);
+      resolve(tok);
+    };
+    _tokenResolvers.push(resolver);
+  });
 }
 
 async function apiFetch<T>(
@@ -137,8 +157,9 @@ async function apiFetch<T>(
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string>),
   };
-  if (_authToken) {
-    headers["Authorization"] = `Bearer ${_authToken}`;
+  const token = _authToken ?? (await waitForToken());
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
   const res = await fetch(url, {
     ...init,

@@ -1419,7 +1419,8 @@ def _edital_context_str(edital_id: str) -> str | None:
         row = get_edital(edital_id)
         if not row:
             return None
-        parts = [f"Edital: {row.get('orgao', '')} ({row.get('uf', '')})"]
+        parts = [f"edital_id: {edital_id}"]
+        parts.append(f"Edital: {row.get('orgao', '')} ({row.get('uf', '')})")
         if row.get("objeto"):
             parts.append(f"Objeto: {row['objeto']}")
         if row.get("fase_atual"):
@@ -1431,6 +1432,37 @@ def _edital_context_str(edital_id: str) -> str | None:
             parts.append(f"Valor estimado: R$ {float(row['valor_estimado']):,.2f}")
         if row.get("data_encerramento"):
             parts.append(f"Encerramento: {row['data_encerramento']}")
+
+        # Atestados do Drive (cache fresco do SomadorAgent)
+        try:
+            from backend.tools.pg_tools import get_cache as _gc
+            cache = _gc(edital_id)
+            if cache:
+                contribs = cache.get("atestados_contribuintes") or []
+                cats = cache.get("atestados_por_categoria") or {}
+                pdfs_ok = cache.get("pdfs_processados", 0)
+                calc = cache.get("calculado_em", "")
+                parts.append("")
+                parts.append(f"## Atestados na pasta Drive ({pdfs_ok} PDFs · indexado em {calc})")
+                if cats:
+                    cats_str = ", ".join(f"{k}={v}" for k, v in cats.items())
+                    parts.append(f"Somatório por categoria: {cats_str}")
+                for c in contribs[:20]:
+                    nome = c.get("drive_file_name") or "?"
+                    contr = c.get("contratante") or "?"
+                    obj = (c.get("objeto") or "")[:120]
+                    vol = c.get("volume") or 0
+                    un = c.get("unidade") or ""
+                    cat = c.get("categoria") or ""
+                    parts.append(f"- {nome} | {contr} | {obj} | {vol} {un} ({cat})")
+                if len(contribs) > 20:
+                    parts.append(f"… e mais {len(contribs) - 20} atestados (use atestados_drive_edital para ver todos)")
+            else:
+                parts.append("")
+                parts.append("## Atestados na pasta Drive: nenhum em cache. Se houver PDFs novos, instrua o usuário a clicar em 'Reprocessar análise'.")
+        except Exception:
+            pass
+
         return "\n".join(parts)
     except Exception:
         return None

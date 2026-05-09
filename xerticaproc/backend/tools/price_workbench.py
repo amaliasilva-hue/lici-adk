@@ -65,7 +65,7 @@ def _money_to_float(raw: str) -> Optional[float]:
 
 
 def _extract_from_text(text: str) -> dict:
-    """Extração heurística (stub do Gemini Flash)."""
+    """Extração heurística (fallback)."""
     out: dict = {}
     if m := RE_MONEY.search(text):
         v = _money_to_float(m.group(1))
@@ -82,6 +82,78 @@ def _extract_from_text(text: str) -> dict:
         except ValueError:
             pass
     return out
+
+
+async def _extract_with_gemini(text: str) -> Optional[dict]:
+    """Extrai estrutura via Gemini Flash com JSON forçado.
+
+    Retorna None se LLM indisponível ou falhar — caller cai no regex.
+    """
+    import json
+    import os
+    snippet = text[:6000]
+    prompt = (
+        "Você é um extrator de dados de contratos públicos brasileiros. "
+        "Analise o texto abaixo e retorne APENAS JSON válido com as chaves: "
+        "valor_total (number, R$ total do contrato), "
+        "quantidade (number, qtd de licenças/unidades/usuários), "
+        "vigencia_meses (integer, duração em meses), "
+        "produto (string, nome do produto/serviço). "
+        "Use null para campos ausentes. Não inclua explicações.\n\n"
+        f"Texto:\n{snippet}"
+    )
+    try:
+        if os.environ.get("VERTEX_PROJECT") or os.environ.get("GCP_PROJECT_ID"):
+            import vertexai
+            from vertexai.generative_models import GenerationConfig, GenerativeModel
+            project = os.environ.get("GCP_PROJECT_ID") or os.environ.get("VERTEX_PROJECT")
+            location = os.environ.get("GCP_LOCATION", "us-central1")
+            vertexai.init(project=project, location=location)
+            model = GenerativeModel(
+                os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            )
+            cfg = GenerationConfig(
+                temperature=0.0, max_output_tokens=512,
+                response_mime_type="application/json",
+            )
+            resp = await asyncio.to_thread(
+                model.generate_content, prompt, generation_config=cfg,
+            )
+            data = json.loads(resp.text or "{}")
+        elif os.environ.get("GOOGLE_API_KEY"):
+            import google.generativeai as genai
+            genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+            model = genai.GenerativeModel(
+                os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+                generation_config={"response_mime_type": "application/json"},
+            )
+            resp = await asyncio.to_thread(model.generate_content, prompt)
+            data = json.loads(resp.text or "{}")
+        else:
+            return None
+        out: dict = {}
+        for k in ("valor_total", "quantidade", "vigencia_meses"):
+            v = data.get(k)
+            if v is None:
+                continue
+            try:
+                out[k] = int(v) if k == "vigencia_meses" else float(v)
+            except (TypeError, ValueError):
+                continue
+        if isinstance(data.get("produto"), str) and data["produto"].strip():
+            out["produto"] = data["produto"].strip()[:200]
+        return out or None
+    except Exception:
+        log.exception("Gemini extraction failed; using regex fallback")
+        return None
+
+
+async def _extract_smart(text: str) -> dict:
+    """Tenta Gemini primeiro; cai em regex se vazio/indisponível."""
+    via_llm = await _extract_with_gemini(text)
+    via_regex = _extract_from_text(text)
+    merged: dict = {**via_regex, **(via_llm or {})}
+    return merged
 
 
 def _classify(score: float) -> ClassificacaoPreco:
@@ -167,11 +239,11 @@ async def validate(src: FonteUsuario) -> FonteUsuario:
             src.observacao = f"Fetch falhou (HTTP {code})"
             src.validado_em = datetime.now(timezone.utc)
             return src
-        extracted = _extract_from_text(body)
+        extracted = await _extract_smart(body)
         if not extracted:
-            src.observacao = (src.observacao or "") + " | Extração heurística sem valores; revisão manual necessária"
+            src.observacao = (src.observacao or "") + " | Extração sem valores; revisão manual necessária"
     elif src.tipo == "texto_colado" and src.texto_colado:
-        extracted = _extract_from_text(src.texto_colado)
+        extracted = await _extract_smart(src.texto_colado)
     elif src.tipo in ("arquivo", "print"):
         # Document AI será integrado depois; por enquanto fica pendente
         src.status = FonteUsuarioStatus.PENDENTE

@@ -46,6 +46,7 @@ from backend.tools.bigquery_tools import (
     buscar_deals_lost as _deals_lost,
     BQ_PROJECT,
 )
+from backend.tools.pg_tools import get_cache as _get_drive_cache
 from backend.agents.persistor import DEST_PROJECT, DEST_DATASET, DEST_TABLE
 
 log = logging.getLogger("lici_adk.chat")
@@ -202,6 +203,42 @@ def _execute_tool(name: str, args: dict) -> str:
                 rows.append(d)
             return json.dumps({"count": len(rows), "items": rows}, ensure_ascii=False, default=str)
 
+        elif name == "atestados_drive_edital":
+            eid = (args.get("edital_id") or "").strip()
+            if not eid:
+                return json.dumps({"error": "edital_id obrigatório"})
+            cached = _get_drive_cache(eid)
+            if not cached:
+                return json.dumps({
+                    "edital_id": eid,
+                    "msg": "Sem atestados em cache para este edital. Verifique se a pasta Drive está vinculada e clique em 'Reprocessar análise' para indexar novos PDFs.",
+                    "atestados": [],
+                })
+            # Compact response
+            contribs = cached.get("atestados_contribuintes") or []
+            kit = cached.get("kit_minimo_recomendado") or []
+            slim_contribs = [
+                {
+                    "arquivo": c.get("drive_file_name"),
+                    "contratante": c.get("contratante"),
+                    "objeto": c.get("objeto"),
+                    "volume": c.get("volume"),
+                    "unidade": c.get("unidade"),
+                    "categoria": c.get("categoria"),
+                    "periodo": c.get("periodo"),
+                }
+                for c in contribs
+            ]
+            return json.dumps({
+                "edital_id": eid,
+                "calculado_em": cached.get("calculado_em"),
+                "pdfs_processados": cached.get("pdfs_processados", 0),
+                "pdfs_com_erro": cached.get("pdfs_com_erro", 0),
+                "somatorio_por_categoria": cached.get("atestados_por_categoria", {}),
+                "atestados": slim_contribs,
+                "kit_minimo_recomendado": [k.get("drive_file_name") for k in kit],
+            }, ensure_ascii=False, default=str)
+
         else:
             return json.dumps({"error": f"tool desconhecida: {name}"})
 
@@ -336,6 +373,26 @@ _TOOLS = Tool(function_declarations=[
         },
     ),
     FunctionDeclaration(
+        name="atestados_drive_edital",
+        description=(
+            "Lista os atestados que foram efetivamente enviados pelo usuário na pasta "
+            "Google Drive vinculada a um edital específico (cache do SomadorAgent). "
+            "USE SEMPRE que a pergunta for sobre 'meus atestados', 'os atestados que subi', "
+            "'atestados deste edital', 'pasta do edital', 'arquivos no Drive', ou quando "
+            "o usuário acabou de subir/atualizar atestados. "
+            "Esta tool consulta dados FRESCOS do Drive (não o BigQuery histórico). "
+            "Se retornar vazio, oriente o usuário a clicar em 'Reprocessar análise' na página do edital. "
+            "Retorna: somatorio_por_categoria, lista de atestados (arquivo, contratante, objeto, volume, unidade, categoria), kit mínimo."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "edital_id": {"type": "string", "description": "UUID do edital. Use o id do edital vinculado à sessão (informado no contexto do system prompt)."},
+            },
+            "required": ["edital_id"],
+        },
+    ),
+    FunctionDeclaration(
         name="query_pipeline",
         description=(
             "Executa SQL SELECT no PostgreSQL na tabela editais (pipeline ativo). "
@@ -391,6 +448,13 @@ Responder perguntas sobre:
 - Dados em BigQuery: `operaciones-br.sales_intelligence.{atestados,contratos,closed_deals_won,...}`
 - Dados de pipeline em PostgreSQL: tabela `editais`
 - Análises históricas em BigQuery: `operaciones-br.lici_adk.analises_editais`
+
+# Atestados do edital atual (Drive) vs. histórico (BigQuery)
+Existem DUAS fontes de atestados — não confunda:
+- **`atestados_drive_edital(edital_id)`** → atestados que o usuário SUBIU na pasta Drive deste edital específico (cache fresco). USE SEMPRE para perguntas sobre 'meus atestados', 'o que tem na pasta', 'atestados deste edital', ou quando o usuário menciona ter subido novos PDFs.
+- **`buscar_atestados(keyword)`** → base histórica do CRM Xertica (BigQuery, todos os clientes/anos). Use para 'temos atestado de GCP?', 'que clientes já atestaram chatbot?'.
+
+Quando houver edital vinculado à sessão (vide seção 'Contexto do edital vinculado'), prefira `atestados_drive_edital` para qualquer pergunta sobre os atestados em análise. Se retornar vazio, instrua: 'Clique em **Reprocessar análise** na página do edital para indexar PDFs novos da pasta Drive.'
 
 # Geração de minutas de atestado
 Quando o usuário solicitar "gerar atestado", "rascunhar atestado", "minuta de atestado" ou similar:
