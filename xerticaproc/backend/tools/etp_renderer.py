@@ -149,6 +149,34 @@ def render_etp_markdown(
             media = sum(valores) / len(valores)
             md.append(f"**Valor unitário/mês de referência (média das fontes):** R$ {media:,.2f}")
             md.append("")
+            # Memória de cálculo automática
+            qtd_item = by_key.get("qtd.matriz_quantitativos")
+            qtd_val = qtd_item.valor if qtd_item and qtd_item.valor is not None else None
+            vig_item = by_key.get("escopo.vigencia") or by_key.get("qtd.vigencia")
+            vig_val = vig_item.valor if vig_item and vig_item.valor is not None else None
+            try:
+                if qtd_val and vig_val:
+                    qtd_n = float(qtd_val)
+                    vig_n = float(vig_val)
+                    total = media * qtd_n * vig_n
+                    md.append("### Memória de cálculo")
+                    md.append(
+                        f"Valor unitário mensal × quantidade × vigência (meses) = "
+                        f"R$ {media:,.2f} × {qtd_n:g} × {vig_n:g} meses = "
+                        f"**R$ {total:,.2f}**"
+                    )
+                    md.append("")
+            except (TypeError, ValueError):
+                pass
+            # Análise de dispersão
+            if len(valores) >= 3:
+                vmin, vmax = min(valores), max(valores)
+                disp = (vmax - vmin) / media if media else 0
+                md.append(
+                    f"_Dispersão (max-min)/média = {disp*100:.1f}% "
+                    f"(min R$ {vmin:,.2f} / max R$ {vmax:,.2f})._"
+                )
+                md.append("")
 
     md.append("## 7. Descrição da Solução como um todo")
     md.append(_line(by_key.get("escopo.objeto_resumido")))

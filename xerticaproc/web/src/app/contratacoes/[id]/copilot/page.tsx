@@ -9,12 +9,19 @@ import { ChecklistItemRow } from "@/components/ui/checklist-item";
 import { Chip } from "@/components/ui/chip";
 import { AddSourceModal } from "@/components/ui/add-source-modal";
 import { GerarDocModal } from "@/components/ui/gerar-doc-modal";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { SourceCard } from "@/components/ui/source-card";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useChecklist } from "@/hooks/useChecklist";
 import { useReadiness } from "@/hooks/useReadiness";
 import { useNegativeSearches, useSources } from "@/hooks/useSources";
-import type { ChecklistItem, FonteUsuarioIn } from "@/lib/copilot/types";
+import { getRevisorReport, pacoteEvidenciasUrl } from "@/lib/copilot/api";
+import type {
+  ChecklistItem,
+  DocType,
+  FonteUsuarioIn,
+  RevisorReport,
+} from "@/lib/copilot/types";
 
 export default function CopilotWorkspacePage() {
   const params = useParams<{ id: string }>();
@@ -34,8 +41,21 @@ export default function CopilotWorkspacePage() {
 
   const [input, setInput] = React.useState("");
   const [showAddSource, setShowAddSource] = React.useState(false);
-  const [showGerarEtp, setShowGerarEtp] = React.useState(false);
+  const [gerarDocType, setGerarDocType] = React.useState<DocType | null>(null);
+  const [revisor, setRevisor] = React.useState<RevisorReport | null>(null);
+  const [revisorPending, setRevisorPending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  const handleRevisar = async () => {
+    setRevisorPending(true);
+    try {
+      setRevisor(await getRevisorReport(contratacaoId));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRevisorPending(false);
+    }
+  };
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -133,6 +153,7 @@ export default function CopilotWorkspacePage() {
                       : " · pronto"}
                   </Chip>
                 )}
+                <NotificationBell contratacaoId={contratacaoId} />
               </div>
             </CardHeader>
           </Card>
@@ -184,16 +205,61 @@ export default function CopilotWorkspacePage() {
           <Card>
             <CardHeader><CardTitle>Atalhos</CardTitle></CardHeader>
             <div className="flex flex-col gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowGerarEtp(true)}>
+              <Button variant="outline" size="sm" onClick={() => setGerarDocType("etp")}>
                 Gerar ETP
               </Button>
-              <Button variant="outline" size="sm" onClick={() => chat.send("Quais itens ainda faltam para emitir o TR?")}>
-                O que falta para o TR?
+              <Button variant="outline" size="sm" onClick={() => setGerarDocType("tr")}>
+                Gerar TR
               </Button>
-              <Button variant="outline" size="sm" onClick={() => chat.send("Mostre o mapa de precos atual")}>
-                Mapa de precos
+              <Button variant="outline" size="sm" onClick={() => setGerarDocType("mapa_precos")}>
+                Gerar Mapa de Preços
               </Button>
+              <a
+                href={pacoteEvidenciasUrl(contratacaoId)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-outline px-2.5 py-1 text-xs text-center"
+              >
+                Baixar pacote (.zip)
+              </a>
             </div>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revisor</CardTitle>
+              <Button size="sm" variant="ghost" loading={revisorPending} onClick={handleRevisar}>
+                Rodar
+              </Button>
+            </CardHeader>
+            {revisor ? (
+              <>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  <Chip tone="red">{revisor.summary.error} erro</Chip>
+                  <Chip tone="amber">{revisor.summary.warn} alerta</Chip>
+                  <Chip tone="mute">{revisor.summary.info} info</Chip>
+                </div>
+                {revisor.findings.length === 0 ? (
+                  <p className="text-xs text-x-ink-mute">Sem achados — tudo limpo.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {revisor.findings.map((f) => (
+                      <li key={f.code} className="card-tight text-xs">
+                        <div className="flex items-center gap-1">
+                          <Chip tone={f.severity === "error" ? "red" : f.severity === "warn" ? "amber" : "mute"}>
+                            {f.code}
+                          </Chip>
+                          <span className="font-medium">{f.title}</span>
+                        </div>
+                        <div className="text-[11px] text-x-ink-mute mt-0.5">{f.detail}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-x-ink-mute">Clique em <strong>Rodar</strong> para checar coerência entre documentos, fontes e checklist.</p>
+            )}
           </Card>
 
           <Card>
@@ -248,15 +314,15 @@ export default function CopilotWorkspacePage() {
         onSubmit={handleAddSource}
       />
       <GerarDocModal
-        open={showGerarEtp}
+        open={gerarDocType !== null}
         onClose={() => {
-          setShowGerarEtp(false);
+          setGerarDocType(null);
           readiness.refresh();
           checklist.refresh();
         }}
         contratacaoId={contratacaoId}
-        docType="etp"
-        initialReadiness={readiness.data ?? null}
+        docType={gerarDocType ?? "etp"}
+        initialReadiness={gerarDocType === "etp" ? readiness.data ?? null : null}
       />
     </>
   );

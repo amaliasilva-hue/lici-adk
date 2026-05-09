@@ -94,7 +94,9 @@ class CopilotBackend(Protocol):
     async def list_documents(
         self, contratacao_id: str,
     ) -> list[DocumentoGeradoLite]: ...
-
+    # Sprint D
+    async def review_documents(self, contratacao_id: str) -> Any: ...
+    async def build_evidence_pack(self, contratacao_id: str) -> bytes: ...
 
 # ─────────────────────────────────────────────────────────────────────────────
 # In-memory backend (dev / testes)
@@ -121,6 +123,8 @@ class InMemoryCopilotBackend:
                 "fontes": {},
                 "pesquisas_negativas": [],
                 "documentos": [],
+                "aprovacoes": [],
+                "eventos": [],
             }
             self._data[cid] = st
         return st
@@ -449,7 +453,9 @@ class InMemoryCopilotBackend:
     async def generate_document(
         self, contratacao_id: str, doc_type: str,
     ) -> DocumentoGeradoLite:
-        from xerticaproc.backend.tools import etp_renderer
+        from xerticaproc.backend.tools import (
+            etp_renderer, mapa_precos_renderer, tr_renderer,
+        )
         readiness = await self.evaluate_readiness(contratacao_id, doc_type)
         if not readiness.can_generate:
             from fastapi import HTTPException
@@ -460,22 +466,37 @@ class InMemoryCopilotBackend:
                     "readiness": readiness.model_dump(mode="json"),
                 },
             )
-        if doc_type != "etp":
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=501,
-                detail=f"Geração de {doc_type!r} ainda não implementada (Sprint D).",
-            )
         st = self._state(contratacao_id)
         checklist = await self.get_checklist(contratacao_id)
         fontes = list(st["fontes"].values())
-        content_md = etp_renderer.render_etp_markdown(
-            contratacao_id=contratacao_id,
-            checklist=checklist,
-            facts=st["facts"],
-            decisions=st["decisions"],
-            fontes=fontes,
-        )
+
+        if doc_type == "etp":
+            content_md = etp_renderer.render_etp_markdown(
+                contratacao_id=contratacao_id,
+                checklist=checklist,
+                facts=st["facts"],
+                decisions=st["decisions"],
+                fontes=fontes,
+            )
+        elif doc_type == "tr":
+            content_md = tr_renderer.render_tr_markdown(
+                contratacao_id=contratacao_id,
+                checklist=checklist,
+                facts=st["facts"],
+                decisions=st["decisions"],
+                fontes=fontes,
+            )
+        elif doc_type == "mapa_precos":
+            content_md = mapa_precos_renderer.render_mapa_precos_markdown(
+                contratacao_id=contratacao_id,
+                checklist=checklist,
+                fontes=fontes,
+                negativas=st["pesquisas_negativas"],
+            )
+        else:
+            from fastapi import HTTPException
+            raise HTTPException(400, f"doc_type {doc_type!r} desconhecido")
+
         prev = [d for d in st["documentos"] if d.doc_type == doc_type]
         doc = DocumentoGeradoLite(
             id=uuid.uuid4(),
@@ -499,10 +520,110 @@ class InMemoryCopilotBackend:
         st = self._state(contratacao_id)
         return list(st["documentos"])
 
+    # ── Sprint D: revisor + pacote de evidências ────────────────────────
+    async def review_documents(self, contratacao_id: str):
+        from xerticaproc.backend.agents import revisor_agent_v2 as rv
+        st = self._state(contratacao_id)
+        checklist = await self.get_checklist(contratacao_id)
+        return rv.review(
+            contratacao_id=contratacao_id,
+            checklist=checklist,
+            documentos=list(st["documentos"]),
+            fontes=list(st["fontes"].values()),
+            decisions=st["decisions"],
+            facts=st["facts"],
+            negativas=list(st["pesquisas_negativas"]),
+        )
+
+    async def build_evidence_pack(self, contratacao_id: str) -> bytes:
+        import io, json, zipfile
+        st = self._state(contratacao_id)
+        checklist = await self.get_checklist(contratacao_id)
+        review = await self.review_documents(contratacao_id)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for doc in st["documentos"]:
+                fname = f"documentos/{doc.doc_type}-v{doc.versao}.md"
+                zf.writestr(fname, doc.content_md)
+            zf.writestr("checklist.json", checklist.model_dump_json(indent=2))
+            zf.writestr(
+                "fontes.json",
+                json.dumps(
+                    [f.model_dump(mode="json") for f in st["fontes"].values()],
+                    indent=2, ensure_ascii=False,
+                ),
+            )
+            zf.writestr(
+                "facts.json",
+                json.dumps(st["facts"], indent=2, ensure_ascii=False, default=str),
+            )
+            zf.writestr(
+                "decisions.json",
+                json.dumps(st["decisions"], indent=2, ensure_ascii=False, default=str),
+            )
+            zf.writestr(
+                "pesquisas_negativas.json",
+                json.dumps(
+                    [n.model_dump(mode="json") for n in st["pesquisas_negativas"]],
+                    indent=2, ensure_ascii=False,
+                ),
+            )
+            zf.writestr("revisor.json", review.model_dump_json(indent=2))
+            zf.writestr(
+                "README.md",
+                f"# Pacote de evidências — {contratacao_id}\n\n"
+                f"Gerado em {datetime.now(timezone.utc).isoformat()}.\n\n"
+                f"- {len(st['documentos'])} documento(s)\n"
+                f"- {len(st['fontes'])} fonte(s)\n"
+                f"- {len(st['facts'])} fato(s)\n"
+                f"- {len(st['decisions'])} decisão(ões)\n"
+                f"- {len(st['pesquisas_negativas'])} busca(s) negativa(s)\n"
+                f"- Revisor: {review.summary}\n",
+            )
+        return buf.getvalue()
+
+    # ── Sprint D extra: aprovações + eventos (in-memory) ────────────────
+    async def add_aprovacao(self, contratacao_id, documento_id, payload):
+        from xerticaproc.backend.models.copilot_schemas import Aprovacao
+        st = self._state(contratacao_id)
+        ap = Aprovacao(
+            id=uuid.uuid4(), contratacao_id=contratacao_id,
+            documento_id=UUID(documento_id), criado_em=datetime.now(timezone.utc),
+            **payload.model_dump(),
+        )
+        st["aprovacoes"].append(ap)
+        st["eventos"].append({
+            "id": uuid.uuid4(), "contratacao_id": contratacao_id,
+            "tipo": f"aprovacao.{ap.decisao}",
+            "payload": {"documento_id": documento_id, "aprovado_por": ap.aprovado_por},
+            "lido": False, "criado_em": datetime.now(timezone.utc),
+        })
+        return ap
+
+    async def list_aprovacoes(self, contratacao_id):
+        return list(self._state(contratacao_id)["aprovacoes"])
+
+    async def list_eventos(self, contratacao_id, *, only_unread=False, limit=50):
+        from xerticaproc.backend.models.copilot_schemas import EventoOut
+        st = self._state(contratacao_id)
+        evs = st["eventos"]
+        if only_unread:
+            evs = [e for e in evs if not e["lido"]]
+        evs = sorted(evs, key=lambda e: e["criado_em"], reverse=True)[:limit]
+        return [EventoOut(**e) for e in evs]
+
+    async def mark_eventos_read(self, contratacao_id):
+        st = self._state(contratacao_id)
+        n = 0
+        for e in st["eventos"]:
+            if not e["lido"]:
+                e["lido"] = True
+                n += 1
+        return n
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Postgres backend (produção)
-# ─────────────────────────────────────────────────────────────────────────────
 
 class PostgresCopilotBackend:
     async def ensure_seed(self, contratacao_id: str) -> None:
@@ -570,32 +691,68 @@ class PostgresCopilotBackend:
                 allow_orgao_override=True,  # PATCH explícito do usuário pode override
             )
 
-    # ── Sprint B (stubs Postgres — implementação completa depois) ───────
+    # ── Sprint B: fontes (Postgres) ─────────────────────────────────────
     async def list_sources(self, contratacao_id: str) -> list[FonteUsuario]:
-        log.warning("PostgresCopilotBackend.list_sources não implementado")
-        return []
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.list_sources(s, contratacao_id)
 
     async def add_source(
         self, contratacao_id: str, payload: FonteUsuarioIn,
     ) -> FonteUsuario:
-        raise NotImplementedError("Persistência de fontes em Postgres pendente")
+        import asyncio
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools import price_workbench as pw
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            src = await cs2.insert_source(s, contratacao_id, payload)
+
+        async def _bg() -> None:
+            try:
+                updated = await pw.validate(src)
+                async with get_session() as s2:
+                    await cs2.update_source_validation(s2, updated)
+                    if updated.status == FonteUsuarioStatus.VALIDADA:
+                        await cs2.emit_event(
+                            s2, contratacao_id,
+                            tipo="fonte_validada",
+                            payload={
+                                "fonte_id": str(src.id),
+                                "classificacao": updated.classificacao.value
+                                if updated.classificacao else None,
+                            },
+                        )
+            except Exception:
+                log.exception("Erro validando fonte %s (pg)", src.id)
+        asyncio.create_task(_bg())
+        return src
 
     async def patch_source(
         self, contratacao_id: str, source_id: str, payload: FonteUsuarioPatch,
     ) -> Optional[FonteUsuario]:
-        raise NotImplementedError
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.patch_source(s, contratacao_id, source_id, payload)
 
     async def list_negative_searches(
         self, contratacao_id: str,
     ) -> list[PesquisaNegativa]:
-        return []
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.list_negative_searches(s, contratacao_id)
 
     async def add_negative_search(
         self, contratacao_id: str, payload: PesquisaNegativaIn,
     ) -> PesquisaNegativa:
-        raise NotImplementedError
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.insert_negative_search(s, contratacao_id, payload)
 
-    # ── Sprint C (readiness funciona; geração persistente em Postgres pendente)
+    # ── Sprint C: readiness + geração persistente ──────────────────────
     async def evaluate_readiness(
         self, contratacao_id: str, doc_type: str,
     ) -> DocumentReadiness:
@@ -606,16 +763,167 @@ class PostgresCopilotBackend:
     async def generate_document(
         self, contratacao_id: str, doc_type: str,
     ) -> DocumentoGeradoLite:
-        # Postgres impl reaproveita InMemory transitoriamente; persistência em
-        # `documentos_gerados` será adicionada no Sprint D.
-        raise NotImplementedError(
-            "Geração persistente em Postgres pendente (Sprint D)."
+        from xerticaproc.backend.tools import (
+            copilot_store_v2 as cs2,
+            etp_renderer, mapa_precos_renderer, tr_renderer,
         )
+        from xerticaproc.backend.tools.pg_tools import get_session
+
+        readiness = await self.evaluate_readiness(contratacao_id, doc_type)
+        if not readiness.can_generate:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "readiness_failed",
+                    "readiness": readiness.model_dump(mode="json"),
+                },
+            )
+        checklist = await self.get_checklist(contratacao_id)
+        async with get_session() as s:
+            fontes = await cs2.list_sources(s, contratacao_id)
+            negativas = await cs2.list_negative_searches(s, contratacao_id)
+
+        # Facts/decisions: extrair do checklist (snapshot leve)
+        facts = [
+            {"tipo": it.item_key, "valor": it.valor}
+            for cat in checklist.by_category.values()
+            for it in cat
+            if it.valor is not None
+        ]
+        decisions: list[dict] = []
+
+        if doc_type == "etp":
+            content_md = etp_renderer.render_etp_markdown(
+                contratacao_id=contratacao_id, checklist=checklist,
+                facts=facts, decisions=decisions, fontes=fontes,
+            )
+        elif doc_type == "tr":
+            content_md = tr_renderer.render_tr_markdown(
+                contratacao_id=contratacao_id, checklist=checklist,
+                facts=facts, decisions=decisions, fontes=fontes,
+            )
+        elif doc_type == "mapa_precos":
+            content_md = mapa_precos_renderer.render_mapa_precos_markdown(
+                contratacao_id=contratacao_id, checklist=checklist,
+                fontes=fontes, negativas=negativas,
+            )
+        else:
+            from fastapi import HTTPException
+            raise HTTPException(400, f"doc_type {doc_type!r} desconhecido")
+
+        async with get_session() as s:
+            doc = await cs2.insert_documento(
+                s, contratacao_id, doc_type, content_md, readiness,
+            )
+        log.info(
+            "documento_gerado_pg cid=%s doc_type=%s versao=%s score=%s",
+            contratacao_id, doc_type, doc.versao, readiness.score,
+        )
+        return doc
 
     async def list_documents(
         self, contratacao_id: str,
     ) -> list[DocumentoGeradoLite]:
-        return []
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.list_documentos(s, contratacao_id)
+
+    async def review_documents(self, contratacao_id: str):
+        from xerticaproc.backend.agents import revisor_agent_v2 as rv
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        checklist = await self.get_checklist(contratacao_id)
+        async with get_session() as s:
+            documentos = await cs2.list_documentos(s, contratacao_id)
+            fontes = await cs2.list_sources(s, contratacao_id)
+            negativas = await cs2.list_negative_searches(s, contratacao_id)
+        return rv.review(
+            contratacao_id=contratacao_id, checklist=checklist,
+            documentos=documentos, fontes=fontes,
+            decisions=[], facts=[], negativas=negativas,
+        )
+
+    async def build_evidence_pack(self, contratacao_id: str) -> bytes:
+        import io, json, zipfile
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        checklist = await self.get_checklist(contratacao_id)
+        review = await self.review_documents(contratacao_id)
+        async with get_session() as s:
+            documentos = await cs2.list_documentos(s, contratacao_id)
+            fontes = await cs2.list_sources(s, contratacao_id)
+            negativas = await cs2.list_negative_searches(s, contratacao_id)
+            aprovacoes = await cs2.list_aprovacoes(s, contratacao_id)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for doc in documentos:
+                zf.writestr(
+                    f"documentos/{doc.doc_type}-v{doc.versao}.md",
+                    doc.content_md,
+                )
+            zf.writestr("checklist.json", checklist.model_dump_json(indent=2))
+            zf.writestr(
+                "fontes.json",
+                json.dumps(
+                    [f.model_dump(mode="json") for f in fontes],
+                    indent=2, ensure_ascii=False,
+                ),
+            )
+            zf.writestr(
+                "pesquisas_negativas.json",
+                json.dumps(
+                    [n.model_dump(mode="json") for n in negativas],
+                    indent=2, ensure_ascii=False,
+                ),
+            )
+            zf.writestr(
+                "aprovacoes.json",
+                json.dumps(
+                    [a.model_dump(mode="json") for a in aprovacoes],
+                    indent=2, ensure_ascii=False,
+                ),
+            )
+            zf.writestr("revisor.json", review.model_dump_json(indent=2))
+            zf.writestr(
+                "README.md",
+                f"# Pacote de evidências — {contratacao_id}\n\n"
+                f"Gerado em {datetime.now(timezone.utc).isoformat()}.\n\n"
+                f"- {len(documentos)} documento(s)\n"
+                f"- {len(fontes)} fonte(s)\n"
+                f"- {len(negativas)} busca(s) negativa(s)\n"
+                f"- {len(aprovacoes)} aprovação(ões)\n"
+                f"- Revisor: {review.summary}\n",
+            )
+        return buf.getvalue()
+
+    # ── Sprint D extra: aprovações + eventos (Postgres) ─────────────────
+    async def add_aprovacao(
+        self, contratacao_id: str, documento_id: str, payload,
+    ):
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.insert_aprovacao(s, contratacao_id, documento_id, payload)
+
+    async def list_aprovacoes(self, contratacao_id: str):
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.list_aprovacoes(s, contratacao_id)
+
+    async def list_eventos(self, contratacao_id: str, *, only_unread: bool = False, limit: int = 50):
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.list_eventos(s, contratacao_id, only_unread=only_unread, limit=limit)
+
+    async def mark_eventos_read(self, contratacao_id: str) -> int:
+        from xerticaproc.backend.tools import copilot_store_v2 as cs2
+        from xerticaproc.backend.tools.pg_tools import get_session
+        async with get_session() as s:
+            return await cs2.mark_eventos_read(s, contratacao_id)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

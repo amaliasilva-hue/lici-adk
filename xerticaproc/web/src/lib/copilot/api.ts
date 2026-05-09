@@ -1,4 +1,6 @@
 import type {
+  Aprovacao,
+  AprovacaoIn,
   ChatHistoryResponse,
   ChecklistItem,
   ChecklistPatch,
@@ -6,11 +8,13 @@ import type {
   DocType,
   DocumentReadiness,
   DocumentoGeradoLite,
+  EventoOut,
   FonteUsuario,
   FonteUsuarioIn,
   FonteUsuarioPatch,
   PesquisaNegativa,
   PesquisaNegativaIn,
+  RevisorReport,
   StreamEvent,
 } from "./types";
 
@@ -205,4 +209,58 @@ export async function listDocumentos(
     cache: "no-store",
   });
   return jsonOrThrow<DocumentoGeradoLite[]>(r, "listDocumentos");
+}
+
+// ── Sprint D: Revisor + pacote ─────────────────────────────────────────────
+export async function getRevisorReport(
+  contratacaoId: string,
+): Promise<RevisorReport> {
+  const r = await fetch(buildUrl(contratacaoId, "/revisar"), { cache: "no-store" });
+  return jsonOrThrow<RevisorReport>(r, "getRevisorReport");
+}
+
+export function pacoteEvidenciasUrl(contratacaoId: string): string {
+  return buildUrl(contratacaoId, "/pacote-evidencias");
+}
+
+// ── Sprint D extra: Aprovações + Eventos ─────────────────────────────────
+
+export async function addAprovacao(
+  contratacaoId: string, documentoId: string, payload: AprovacaoIn,
+): Promise<Aprovacao> {
+  const r = await fetch(
+    buildUrl(contratacaoId, `/documentos/${documentoId}/aprovacoes`),
+    { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload) },
+  );
+  return jsonOrThrow<Aprovacao>(r, "addAprovacao");
+}
+
+export async function listAprovacoes(
+  contratacaoId: string,
+): Promise<Aprovacao[]> {
+  const r = await fetch(buildUrl(contratacaoId, "/aprovacoes"), { cache: "no-store" });
+  return jsonOrThrow<Aprovacao[]>(r, "listAprovacoes");
+}
+
+export async function listEventos(
+  contratacaoId: string, opts: { onlyUnread?: boolean; limit?: number } = {},
+): Promise<EventoOut[]> {
+  const qs = new URLSearchParams();
+  if (opts.onlyUnread) qs.set("only_unread", "true");
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const r = await fetch(
+    buildUrl(contratacaoId, `/eventos${qs.size ? `?${qs}` : ""}`),
+    { cache: "no-store" },
+  );
+  return jsonOrThrow<EventoOut[]>(r, "listEventos");
+}
+
+export async function markEventosRead(
+  contratacaoId: string,
+): Promise<{ updated: number }> {
+  const r = await fetch(buildUrl(contratacaoId, "/eventos/marcar-lidos"), {
+    method: "POST",
+  });
+  return jsonOrThrow<{ updated: number }>(r, "markEventosRead");
 }

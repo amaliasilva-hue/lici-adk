@@ -3,6 +3,7 @@ import * as React from "react";
 import { X, FileText, Download, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { AprovacaoPanel } from "@/components/ui/aprovacao-panel";
 import { useGenerateDocument } from "@/hooks/useReadiness";
 import type { DocType, DocumentReadiness } from "@/lib/copilot/types";
 
@@ -85,6 +86,10 @@ export function GerarDocModal({
               <pre className="whitespace-pre-wrap rounded-lg border border-x-line bg-black/40 p-4 text-xs leading-relaxed text-x-ink">
                 {doc.content_md}
               </pre>
+              <AprovacaoPanel
+                contratacaoId={doc.contratacao_id}
+                documentoId={doc.id}
+              />
             </>
           )}
 

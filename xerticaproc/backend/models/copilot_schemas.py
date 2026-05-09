@@ -290,3 +290,30 @@ class DocumentoGeradoLite(BaseModel):
     content_md: str
     readiness_snapshot: DocumentReadiness
     gerado_em: datetime
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sprint D extra — Aprovações + Eventos
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AprovacaoIn(BaseModel):
+    aprovado_por: str = Field(..., min_length=1)
+    papel: str = Field(..., min_length=1)
+    decisao: Literal["aprovado", "rejeitado", "retorno"]
+    comentario: Optional[str] = None
+
+
+class Aprovacao(AprovacaoIn):
+    id: UUID
+    contratacao_id: str
+    documento_id: UUID
+    criado_em: datetime
+
+
+class EventoOut(BaseModel):
+    id: UUID
+    contratacao_id: str
+    tipo: str
+    payload: dict
+    lido: bool
+    criado_em: datetime

@@ -184,3 +184,48 @@ export interface DocumentoGeradoLite {
   readiness_snapshot: DocumentReadiness;
   gerado_em: string;
 }
+
+// Sprint D — Revisor
+
+export type FindingSeverity = "info" | "warn" | "error";
+
+export interface RevisorFinding {
+  code: string;
+  severity: FindingSeverity;
+  title: string;
+  detail: string;
+  refs?: string[];
+}
+
+export interface RevisorReport {
+  contratacao_id: string;
+  avaliado_em: string;
+  findings: RevisorFinding[];
+  summary: { info: number; warn: number; error: number };
+}
+
+// ── Sprint D extra: Aprovações + Eventos ─────────────────────────────────
+export type AprovacaoDecisao = "aprovado" | "rejeitado" | "retorno";
+
+export interface AprovacaoIn {
+  aprovado_por: string;
+  papel: string;
+  decisao: AprovacaoDecisao;
+  comentario?: string | null;
+}
+
+export interface Aprovacao extends AprovacaoIn {
+  id: string;
+  contratacao_id: string;
+  documento_id: string;
+  criado_em: string;
+}
+
+export interface EventoOut {
+  id: string;
+  contratacao_id: string;
+  tipo: string;
+  payload: Record<string, unknown>;
+  lido: boolean;
+  criado_em: string;
+}

@@ -315,6 +315,61 @@ def _build_prompt(
 
 # ─── handle_turn (entrada principal) ─────────────────────────────────────────
 
+async def _summarize_history(
+    msgs: list, prev: Optional[str] = None, *, max_chars: int = 4000,
+) -> Optional[str]:
+    """Compacta o histórico em um resumo breve (≤max_chars).
+
+    Usa Gemini quando disponível; cai em heurística de truncamento se não.
+    Recebe lista de MensagemOut (do conversation_store.list_messages).
+    """
+    try:
+        bullets: list[str] = []
+        for m in msgs[-32:]:
+            role = getattr(m, "role", None)
+            role_str = role.value if hasattr(role, "value") else str(role)
+            txt = (getattr(m, "conteudo", "") or "")[:400]
+            bullets.append(f"- {role_str}: {txt}")
+        body = "\n".join(bullets)
+        prefix = f"Resumo prévio:\n{prev}\n\n" if prev else ""
+        prompt = (
+            f"{prefix}Compacte a conversa abaixo em um resumo objetivo "
+            f"(até 6 parágrafos curtos), preservando: necessidade, escopo, "
+            f"valores, decisões e pendências críticas. Use linguagem técnica.\n\n"
+            f"Mensagens:\n{body}"
+        )
+        mode = _llm_mode()
+        if mode == "vertex":
+            import vertexai
+            from vertexai.generative_models import GenerationConfig, GenerativeModel
+            project = os.environ.get("GCP_PROJECT_ID")
+            location = os.environ.get("GCP_LOCATION", "us-central1")
+            vertexai.init(project=project, location=location)
+            model = GenerativeModel(
+                model_name=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            )
+            cfg = GenerationConfig(temperature=0.2, max_output_tokens=1024)
+            resp = await asyncio.to_thread(
+                model.generate_content, prompt, generation_config=cfg,
+            )
+            txt = (resp.text or "").strip()
+            return txt[:max_chars] if txt else None
+        if mode == "google_ai":
+            import google.generativeai as genai
+            genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+            model = genai.GenerativeModel(
+                os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            )
+            resp = await asyncio.to_thread(model.generate_content, prompt)
+            txt = (resp.text or "").strip()
+            return txt[:max_chars] if txt else None
+        # Fallback heurístico
+        return body[:max_chars]
+    except Exception:
+        log.exception("Falha em _summarize_history")
+        return None
+
+
 async def handle_turn(
     session: AsyncSession,
     *,
@@ -394,6 +449,16 @@ async def handle_turn(
         assistant_message_id=assistant_msg_id,
         analysis=analysis,
     )
+
+    # 6) compactação de contexto a cada 16 mensagens
+    try:
+        all_msgs = await cs.list_messages(session, cid, limit=200)
+        if len(all_msgs) >= 16 and len(all_msgs) % 16 == 0:
+            new_resumo = await _summarize_history(all_msgs, prev=resumo)
+            if new_resumo:
+                await cs.update_resumo(session, conversa_id, new_resumo)
+    except Exception:
+        log.exception("Falha na compactação de contexto cid=%s", cid)
 
     return {
         "user_message_id": user_msg_id,

@@ -11,12 +11,15 @@ from fastapi.responses import StreamingResponse
 
 from xerticaproc.backend.copilot_backend import get_backend
 from xerticaproc.backend.models.copilot_schemas import (
+    Aprovacao,
+    AprovacaoIn,
     ChatHistoryResponse,
     ChecklistItem,
     ChecklistPatch,
     ChecklistResponse,
     DocumentReadiness,
     DocumentoGeradoLite,
+    EventoOut,
     FonteUsuario,
     FonteUsuarioIn,
     FonteUsuarioPatch,
@@ -168,6 +171,78 @@ async def gerar_documento(
 async def list_documentos(contratacao_id: str) -> list[DocumentoGeradoLite]:
     backend = get_backend()
     return await backend.list_documents(contratacao_id)
+
+
+# ─── Sprint D: Revisor + Pacote de evidências ───────────────────────────────
+
+@router.get("/revisar")
+async def revisar(contratacao_id: str) -> dict[str, Any]:
+    backend = get_backend()
+    report = await backend.review_documents(contratacao_id)
+    # report é um RevisorReport (Pydantic)
+    return report.model_dump(mode="json")
+
+
+@router.get("/pacote-evidencias")
+async def pacote_evidencias(contratacao_id: str) -> StreamingResponse:
+    from io import BytesIO
+    backend = get_backend()
+    blob = await backend.build_evidence_pack(contratacao_id)
+    return StreamingResponse(
+        BytesIO(blob),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="evidencias-{contratacao_id}.zip"'
+            ),
+        },
+    )
+
+
+# ─── Sprint D extra: Aprovações + Eventos ──────────────────────────────────
+
+@router.post(
+    "/documentos/{documento_id}/aprovacoes",
+    response_model=Aprovacao, status_code=201,
+)
+async def add_aprovacao(
+    contratacao_id: str, documento_id: str, payload: AprovacaoIn,
+) -> Aprovacao:
+    backend = get_backend()
+    if not hasattr(backend, "add_aprovacao"):
+        raise HTTPException(501, "Aprovações não suportadas neste backend")
+    return await backend.add_aprovacao(contratacao_id, documento_id, payload)  # type: ignore[attr-defined]
+
+
+@router.get("/aprovacoes", response_model=list[Aprovacao])
+async def list_aprovacoes(contratacao_id: str) -> list[Aprovacao]:
+    backend = get_backend()
+    if not hasattr(backend, "list_aprovacoes"):
+        return []
+    return await backend.list_aprovacoes(contratacao_id)  # type: ignore[attr-defined]
+
+
+@router.get("/eventos", response_model=list[EventoOut])
+async def list_eventos(
+    contratacao_id: str,
+    only_unread: bool = Query(False),
+    limit: int = Query(50, ge=1, le=200),
+) -> list[EventoOut]:
+    backend = get_backend()
+    if not hasattr(backend, "list_eventos"):
+        return []
+    return await backend.list_eventos(  # type: ignore[attr-defined]
+        contratacao_id, only_unread=only_unread, limit=limit,
+    )
+
+
+@router.post("/eventos/marcar-lidos")
+async def mark_eventos_read(contratacao_id: str) -> dict[str, int]:
+    backend = get_backend()
+    if not hasattr(backend, "mark_eventos_read"):
+        return {"updated": 0}
+    n = await backend.mark_eventos_read(contratacao_id)  # type: ignore[attr-defined]
+    return {"updated": n}
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
