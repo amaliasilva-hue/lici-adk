@@ -740,7 +740,7 @@ export default function EditalPage() {
   const gatesDone      = edital.gates?.filter(g => g.concluido).length ?? 0;
 
   return (
-    <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
+    <div className="w-full grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start px-4 xl:px-6">
       <div className="space-y-6 min-w-0">
 
       {/* ── Breadcrumb ─────────────────────────────────── */}
