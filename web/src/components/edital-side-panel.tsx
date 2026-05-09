@@ -54,6 +54,9 @@ export default function EditalSidePanel({
   const [reprocAnalysisId, setReprocAnalysisId] = useState<string | null>(null);
   const [reprocStartedAt, setReprocStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [packageStatus, setPackageStatus] = useState<'idle' | 'building' | 'done' | 'err'>('idle');
+  const [packageMsg, setPackageMsg] = useState('');
+  const [packageUrl, setPackageUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -185,6 +188,32 @@ export default function EditalSidePanel({
       setReprocMsg('');
     } catch (e: any) {
       setReproc('err'); setReprocMsg(e.message || 'Erro de rede');
+    }
+  }
+
+  async function buildPackage() {
+    if (!confirm('Montar pacote de contratação com atestados, minutas e declarações?')) return;
+    setPackageStatus('building');
+    setPackageMsg('');
+    setPackageUrl(null);
+    try {
+      const r = await fetch(`/api/proxy/editais/${editalId}/pacote-contratacao`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        setPackageStatus('err');
+        setPackageMsg(txt.slice(0, 240) || `HTTP ${r.status}`);
+        return;
+      }
+      const data = await r.json();
+      setPackageStatus('done');
+      setPackageUrl(data.package_folder_url || null);
+      setPackageMsg('Pacote criado com sucesso.');
+    } catch (e: any) {
+      setPackageStatus('err');
+      setPackageMsg(e.message || 'Erro de rede');
     }
   }
 
@@ -352,6 +381,46 @@ export default function EditalSidePanel({
             100% { background-position: 200% 0; }
           }
         `}</style>
+      </div>
+
+      <div className="px-4 pb-3 border-b border-slate-200 bg-white">
+        <button
+          onClick={buildPackage}
+          disabled={reprocActive || packageStatus === 'building'}
+          className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold border transition-all disabled:opacity-60"
+          style={{
+            borderColor: '#047EA9',
+            color: '#047EA9',
+            background: packageStatus === 'building' ? 'rgba(4,126,169,0.08)' : '#fff',
+          }}
+        >
+          {packageStatus === 'building' ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                <path d="M22 12a10 10 0 00-10-10" />
+              </svg>
+              Montando pacote…
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h6l2 2h10v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+              </svg>
+              Montar pacote de contratação
+            </>
+          )}
+        </button>
+        {packageMsg && (
+          <div className={`mt-2 rounded-lg px-3 py-2 text-[11px] ${packageStatus === 'err' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>
+            <p>{packageMsg}</p>
+            {packageUrl && (
+              <a href={packageUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                Abrir pacote no Drive
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

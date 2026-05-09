@@ -20,18 +20,25 @@ Refs: architecture2.md §6.2 Somador de Atestados.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
+import re
 import time
 from functools import lru_cache
+from datetime import datetime, timezone
 from typing import Optional
 
 import vertexai
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseUpload
 from vertexai.generative_models import GenerationConfig, GenerativeModel, Part
+
+from backend.agents.gerador_documentos import gerar_declaracoes, listar_tipos_disponiveis
+from backend.models.schemas import EditalEstruturado
 
 log = logging.getLogger("lici_adk.drive_tools")
 
@@ -88,7 +95,8 @@ def _drive_service():
     from google.auth import default as gauth_default
     from google.auth.transport.requests import Request
 
-    SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+    # Precisa escrita para montar pacote (criar pastas/arquivos/cópias).
+    SCOPES = ["https://www.googleapis.com/auth/drive"]
 
     if IMPERSONATE_EMAIL:
         try:
@@ -249,6 +257,70 @@ def _list_pdfs(drive_svc, folder_id: str) -> list[dict]:
         return []
 
 
+def _safe_drive_name(name: str) -> str:
+    cleaned = re.sub(r"[\r\n\t]+", " ", name).replace("/", "-").replace("\\", "-")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:180] or "Pacote de Contratação"
+
+
+def _create_drive_folder(drive_svc, parent_id: str, name: str) -> dict:
+    body = {
+        "name": _safe_drive_name(name),
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [parent_id],
+    }
+    return drive_svc.files().create(body=body, fields="id, name, webViewLink").execute()
+
+
+def _upload_text_file(drive_svc, parent_id: str, name: str, content: str) -> dict:
+    media = MediaIoBaseUpload(io.BytesIO(content.encode("utf-8")), mimetype="text/plain; charset=utf-8", resumable=False)
+    body = {"name": _safe_drive_name(name), "parents": [parent_id]}
+    return drive_svc.files().create(body=body, media_body=media, fields="id, name, webViewLink").execute()
+
+
+def _copy_drive_file(drive_svc, file_id: str, parent_id: str, name: str) -> dict:
+    body = {"name": _safe_drive_name(name), "parents": [parent_id]}
+    return drive_svc.files().copy(fileId=file_id, body=body, fields="id, name, webViewLink").execute()
+
+
+def _build_package_readme(edital_id: str, edital: EditalEstruturado, package_name: str, cache: dict | None) -> str:
+    parts = [
+        f"Pacote de Contratação — {package_name}",
+        f"Edital ID: {edital_id}",
+        f"Órgão: {edital.orgao}",
+        f"Objeto: {edital.objeto}",
+        f"UF: {edital.uf or ''}",
+        f"Modalidade: {edital.modalidade or ''}",
+        f"Vencimento: {edital.data_encerramento or ''}",
+        "",
+        "Estrutura:",
+        "- 01_Edital",
+        "- 02_Atestados",
+        "- 03_Proposta_Comercial",
+        "- 04_Proposta_Tecnica",
+        "- 05_Habilitacao",
+        "- 06_Checklist",
+    ]
+    if cache:
+        parts += [
+            "",
+            f"Atestados em cache: {cache.get('pdfs_processados', 0)} PDF(s)",
+            f"Erros de extração: {cache.get('pdfs_com_erro', 0)}",
+        ]
+        cats = cache.get("atestados_por_categoria") or {}
+        if cats:
+            parts.append("Somatório por categoria:")
+            for key, value in cats.items():
+                parts.append(f"- {key}: {value}")
+    parts += [
+        "",
+        "Observação:",
+        "- O pacote foi gerado automaticamente. Revise as minutas antes de protocolar.",
+        "- As declarações ficam em 05_Habilitacao/Declaracoes.",
+    ]
+    return "\n".join(parts)
+
+
 # ── Kit mínimo recomendado ────────────────────────────────────────────────────
 
 def _calcular_kit_minimo(
@@ -383,3 +455,133 @@ def somar_atestados_do_drive(
         },
     )
     return result
+
+
+def montar_pacote_contratacao(
+    edital_id: str,
+    *,
+    drive_folder_id: str,
+    edital: EditalEstruturado,
+    edital_row: dict,
+    cache: dict | None = None,
+) -> dict:
+    """Cria a estrutura do pacote de contratação na pasta Drive do edital.
+
+    Retorna um dict com os IDs/URLs das pastas criadas e dos arquivos principais.
+    """
+    drive_svc = _drive_service()
+    timestamp = datetime.now(timezone.utc).astimezone().strftime("%Y%m%d-%H%M")
+    numero_pregao = str(edital_row.get("numero_pregao") or "").strip()
+    package_name = _safe_drive_name(
+        f"Pacote de Contratação - {edital.orgao}{f' - {numero_pregao}' if numero_pregao else ''} - {timestamp}"
+    )
+
+    root = _create_drive_folder(drive_svc, drive_folder_id, package_name)
+    root_id = root["id"]
+
+    subfolders: dict[str, dict] = {}
+    for folder_name in ["01_Edital", "02_Atestados", "03_Proposta_Comercial", "04_Proposta_Tecnica", "05_Habilitacao", "06_Checklist"]:
+        subfolders[folder_name] = _create_drive_folder(drive_svc, root_id, folder_name)
+
+    created_files: dict[str, dict] = {}
+
+    created_files["README"] = _upload_text_file(
+        drive_svc,
+        root_id,
+        "LEIA_PRIMEIRO.txt",
+        _build_package_readme(edital_id, edital, package_name, cache),
+    )
+
+    # Checklist e minutas base
+    proposta_comercial = _upload_text_file(
+        drive_svc,
+        subfolders["03_Proposta_Comercial"]["id"],
+        "MINUTA_PROPOSTA_COMERCIAL.txt",
+        "\n".join([
+            "MINUTA DE PROPOSTA COMERCIAL",
+            "",
+            f"Órgão: {edital.orgao}",
+            f"Objeto: {edital.objeto}",
+            f"Valor estimado: {edital.valor_estimado or ''}",
+            f"Modalidade: {edital.modalidade or ''}",
+            "",
+            "[PREENCHER] preço final, condições comerciais, validade da proposta e contatos.",
+        ]),
+    )
+    created_files["proposta_comercial"] = proposta_comercial
+
+    proposta_tecnica = _upload_text_file(
+        drive_svc,
+        subfolders["04_Proposta_Tecnica"]["id"],
+        "MINUTA_PROPOSTA_TECNICA.txt",
+        "\n".join([
+            "MINUTA DE PROPOSTA TÉCNICA",
+            "",
+            f"Órgão: {edital.orgao}",
+            f"Objeto: {edital.objeto}",
+            "",
+            "[PREENCHER] escopo, arquitetura, cronograma, equipe, premissas e diferenciais.",
+        ]),
+    )
+    created_files["proposta_tecnica"] = proposta_tecnica
+
+    # Declarações padrão + condicionais
+    declaracoes = gerar_declaracoes(edital, incluir_condicionais=[t for t in listar_tipos_disponiveis() if t not in {"nao_emprega_menor", "idoneidade", "habilitacao", "fato_superveniente"}])
+    declaracoes_folder = _create_drive_folder(drive_svc, subfolders["05_Habilitacao"]["id"], "Declaracoes")
+    created_files["declaracoes_folder"] = declaracoes_folder
+    for idx, (tipo, texto) in enumerate(declaracoes.items(), start=1):
+        created_files[f"decl_{tipo}"] = _upload_text_file(
+            drive_svc,
+            declaracoes_folder["id"],
+            f"{idx:02d}_{tipo}.txt",
+            texto,
+        )
+
+    # Copia os atestados já indexados no cache para a pasta do pacote
+    copied_atestados: list[dict] = []
+    if cache:
+        atestados = cache.get("atestados_contribuintes") or []
+        for idx, item in enumerate(atestados, start=1):
+            file_id = item.get("drive_file_id") if isinstance(item, dict) else None
+            file_name = item.get("drive_file_name") if isinstance(item, dict) else None
+            if not file_id:
+                continue
+            copied_atestados.append(_copy_drive_file(
+                drive_svc,
+                str(file_id),
+                subfolders["02_Atestados"]["id"],
+                f"{idx:02d} - {file_name or file_id}.pdf",
+            ))
+    if not copied_atestados:
+        copied_atestados.append(_upload_text_file(
+            drive_svc,
+            subfolders["02_Atestados"]["id"],
+            "SEM_ATESTADOS_EM_CACHE.txt",
+            "Nenhum atestado em cache foi encontrado. Rode Reprocessar análise antes de montar o pacote.",
+        ))
+
+    checklist = _upload_text_file(
+        drive_svc,
+        subfolders["06_Checklist"]["id"],
+        "CHECKLIST_PACOTE.txt",
+        "\n".join([
+            "CHECKLIST DO PACOTE DE CONTRATAÇÃO",
+            "",
+            "[ ] Validar edital original",
+            "[ ] Revisar atestados copiados",
+            "[ ] Conferir proposta comercial",
+            "[ ] Conferir proposta técnica",
+            "[ ] Revisar declarações de habilitação",
+            "[ ] Protocolar dentro do prazo",
+        ]),
+    )
+    created_files["checklist"] = checklist
+
+    return {
+        "package_folder_id": root_id,
+        "package_folder_url": root.get("webViewLink"),
+        "package_folder_name": package_name,
+        "subfolders": {k: v.get("webViewLink") for k, v in subfolders.items()},
+        "created_files": {k: v.get("webViewLink") for k, v in created_files.items()},
+        "copied_atestados_count": len(copied_atestados),
+    }

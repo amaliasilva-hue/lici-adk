@@ -141,6 +141,8 @@ CREATE TABLE IF NOT EXISTS editais (
     vendedor_email     TEXT,
     drive_folder_id    TEXT,
     drive_folder_url   TEXT,
+    pacote_drive_folder_id  TEXT,
+    pacote_drive_folder_url TEXT,
     analysis_id_comercial UUID,
     analysis_id_juridica  UUID,
     classificacao      TEXT,
@@ -232,6 +234,8 @@ _DDL_EDITAIS_MIGRATIONS = [
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS result_json JSONB",
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS relatorio_juridico_json JSONB",
     "ALTER TABLE editais ADD COLUMN IF NOT EXISTS edital_json_storage JSONB",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS pacote_drive_folder_id TEXT",
+    "ALTER TABLE editais ADD COLUMN IF NOT EXISTS pacote_drive_folder_url TEXT",
 ]
 
 # ── Fase 7 — Jobs persistentes (substitui _JOBS in-memory) ───────────────────

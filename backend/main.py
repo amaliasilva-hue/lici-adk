@@ -1468,6 +1468,34 @@ def _edital_context_str(edital_id: str) -> str | None:
         return None
 
 
+def _edital_model_for_package(pg_row: dict) -> EditalEstruturado:
+    raw = pg_row.get("edital_json_storage")
+    data: dict = {}
+    if raw:
+        try:
+            data = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        except Exception:
+            data = {}
+    data.setdefault("objeto", pg_row.get("objeto") or "")
+    data.setdefault("orgao", pg_row.get("orgao") or "")
+    if pg_row.get("uf"):
+        data.setdefault("uf", pg_row.get("uf"))
+    if pg_row.get("uasg"):
+        data.setdefault("uasg", pg_row.get("uasg"))
+    if pg_row.get("portal"):
+        data.setdefault("portal", pg_row.get("portal"))
+    if pg_row.get("modalidade"):
+        data.setdefault("modalidade", pg_row.get("modalidade"))
+    if pg_row.get("data_encerramento"):
+        data.setdefault("data_encerramento", str(pg_row.get("data_encerramento")))
+    if pg_row.get("valor_estimado") is not None:
+        data.setdefault("valor_estimado", float(pg_row.get("valor_estimado")))
+    try:
+        return EditalEstruturado.model_validate(data)
+    except Exception:
+        return EditalEstruturado.model_validate({"objeto": data.get("objeto", ""), "orgao": data.get("orgao", "")})
+
+
 @app.get("/chat/sessions")
 async def list_chat_sessions(limit: int = 60) -> list[dict]:
     return await asyncio.to_thread(_cs_list, limit)
@@ -1937,6 +1965,58 @@ async def get_dashboard_kpis() -> dict:
 
 class _ReprocessRequest(BaseModel):
     motivo: str | None = None
+
+
+@app.post("/editais/{edital_id}/pacote-contratacao", status_code=201)
+async def gerar_pacote_contratacao(edital_id: str) -> dict:
+    """Cria a pasta de pacote de contratação do edital no Drive."""
+    pg_row = await asyncio.to_thread(get_edital, edital_id)
+    if not pg_row:
+        raise HTTPException(status_code=404, detail="edital não encontrado")
+
+    drive_folder_id = pg_row.get("drive_folder_id")
+    if not drive_folder_id:
+        raise HTTPException(status_code=409, detail="edital sem pasta Drive vinculada")
+
+    edital_model = _edital_model_for_package(pg_row)
+    cache = None
+    try:
+        from backend.tools.pg_tools import get_cache as _get_cache
+        cache = await asyncio.to_thread(_get_cache, edital_id)
+    except Exception:
+        cache = None
+
+    if not cache:
+        raise HTTPException(status_code=409, detail="Reprocessar análise antes de montar o pacote: cache de atestados vazio")
+
+    from backend.tools.drive_tools import montar_pacote_contratacao
+
+    pacote = await asyncio.to_thread(
+        montar_pacote_contratacao,
+        edital_id,
+        drive_folder_id=drive_folder_id,
+        edital=edital_model,
+        edital_row=pg_row,
+        cache=cache,
+    )
+
+    try:
+        await asyncio.to_thread(
+            update_edital,
+            edital_id,
+            {
+                "pacote_drive_folder_id": pacote.get("package_folder_id"),
+                "pacote_drive_folder_url": pacote.get("package_folder_url"),
+            },
+        )
+    except Exception as exc:
+        log.warning("pacote.update_edital_failed", extra={"error": str(exc), "edital_id": edital_id})
+
+    return {
+        "edital_id": edital_id,
+        "status": "created",
+        **pacote,
+    }
 
 
 @app.post("/editais/{edital_id}/reprocess", status_code=202)

@@ -107,6 +107,32 @@ def _to_json(obj: Any, limit: int = 30) -> str:
         result = obj
     return json.dumps(result, ensure_ascii=False, default=str)
 
+
+def _split_tokens(keyword: str) -> list[str]:
+    toks = [t.strip() for t in re.split(r"\s+", (keyword or "").strip()) if t.strip()]
+    # Remove tokens muito curtos para reduzir ruído de busca
+    return [t for t in toks if len(t) >= 2]
+
+
+_LIC_RE = re.compile(
+    r"(?i)(\d{1,3}(?:[\.,]\d{3})+|\d+)\s*(?:licen(?:c|ç)as|usuarios|usu[áa]rios|caixas? de e-?mail|emails?)"
+)
+
+
+def _parse_int_ptbr(raw: str) -> int:
+    s = (raw or "").strip().replace(".", "").replace(",", "")
+    try:
+        return int(s)
+    except Exception:
+        return 0
+
+
+def _extract_license_counts(text: str) -> list[int]:
+    if not text:
+        return []
+    vals = [_parse_int_ptbr(m.group(1)) for m in _LIC_RE.finditer(text)]
+    return [v for v in vals if v > 0]
+
 # ── Executor de tools ─────────────────────────────────────────────────────────
 def _execute_tool(name: str, args: dict) -> str:
     try:
@@ -116,6 +142,15 @@ def _execute_tool(name: str, args: dict) -> str:
             meses = args.get("restricao_temporal_meses")
             limit = min(int(args.get("limit", 25)), 50)
             res = _buscar_atestados(kw, mode=mode, restricao_temporal_meses=meses, limit=limit)
+            # Fallback para busca multi-termo: tenta por token quando não há hit.
+            if not res and mode == "like" and len(_split_tokens(kw)) > 1:
+                merged: dict[str, Any] = {}
+                for tok in _split_tokens(kw):
+                    part = _buscar_atestados(tok, mode=mode, restricao_temporal_meses=meses, limit=limit)
+                    for item in part:
+                        key = str(getattr(item, "id", None) or getattr(item, "nrodocontrato", None) or json.dumps(item.model_dump(), ensure_ascii=False, default=str))
+                        merged[key] = item
+                res = list(merged.values())[:limit]
             return _to_json(res)
 
         elif name == "buscar_contratos_com_atestado":
@@ -202,6 +237,66 @@ def _execute_tool(name: str, args: dict) -> str:
                     d["resumos_amostra"] = list(d["resumos_amostra"])
                 rows.append(d)
             return json.dumps({"count": len(rows), "items": rows}, ensure_ascii=False, default=str)
+
+        elif name == "sumarizar_licencas_gws":
+            keyword = (args.get("keyword", "") or "").strip()
+            conta = (args.get("conta", "") or "").strip()
+            limit = min(int(args.get("limit", 200)), 500)
+
+            client = bigquery.Client(project=BQ_PROJECT)
+            where_parts = [
+                "(LOWER(COALESCE(resumodoatestado,'')) LIKE '%workspace%' OR LOWER(COALESCE(resumodoatestado,'')) LIKE '%gws%' OR LOWER(COALESCE(objeto,'')) LIKE '%workspace%' OR LOWER(COALESCE(objeto,'')) LIKE '%gws%' OR LOWER(COALESCE(familia,'')) LIKE '%gws%')"
+            ]
+            params = [bigquery.ScalarQueryParameter("lim", "INT64", limit)]
+
+            if keyword:
+                where_parts.append("(LOWER(COALESCE(resumodoatestado,'')) LIKE CONCAT('%', LOWER(@kw), '%') OR LOWER(COALESCE(objeto,'')) LIKE CONCAT('%', LOWER(@kw), '%') OR LOWER(COALESCE(nomedaconta,'')) LIKE CONCAT('%', LOWER(@kw), '%'))")
+                params.append(bigquery.ScalarQueryParameter("kw", "STRING", keyword))
+            if conta:
+                where_parts.append("LOWER(COALESCE(nomedaconta,'')) LIKE CONCAT('%', LOWER(@conta), '%')")
+                params.append(bigquery.ScalarQueryParameter("conta", "STRING", conta))
+
+            where_sql = " AND ".join(where_parts)
+            sql = f"""
+                SELECT id, nomedaconta, objeto, resumodoatestado, familia, nrodocontrato, linkdeacesso
+                FROM {_BQ_ATESTADOS}
+                WHERE {where_sql}
+                LIMIT @lim
+            """
+            job = client.query(sql, job_config=bigquery.QueryJobConfig(query_parameters=params))
+
+            items = []
+            total = 0
+            for r in job.result():
+                d = dict(r)
+                txt = f"{d.get('objeto') or ''} {d.get('resumodoatestado') or ''}"
+                counts = _extract_license_counts(txt)
+                lic = max(counts) if counts else 0
+                if lic > 0:
+                    total += lic
+                items.append(
+                    {
+                        "id": d.get("id"),
+                        "nomedaconta": d.get("nomedaconta"),
+                        "nrodocontrato": d.get("nrodocontrato"),
+                        "familia": d.get("familia"),
+                        "licencas_detectadas": lic,
+                        "linkdeacesso": d.get("linkdeacesso"),
+                    }
+                )
+
+            items_sorted = sorted(items, key=lambda x: x.get("licencas_detectadas", 0), reverse=True)
+            return json.dumps(
+                {
+                    "count_itens": len(items_sorted),
+                    "total_licencas": total,
+                    "linhas_com_licencas": sum(1 for i in items_sorted if (i.get("licencas_detectadas") or 0) > 0),
+                    "metodo": "regex sobre objeto+resumo (licenças/usuários/caixas de e-mail)",
+                    "items": items_sorted[:200],
+                },
+                ensure_ascii=False,
+                default=str,
+            )
 
         elif name == "atestados_drive_edital":
             eid = (args.get("edital_id") or "").strip()
@@ -315,6 +410,24 @@ _TOOLS = Tool(function_declarations=[
             "properties": {
                 "keyword": {"type": "string", "description": "Filtrar por tema (opcional — deixar vazio para listar todas as contas)"},
                 "limit": {"type": "integer", "description": "Número de contas (padrão 50)"},
+            },
+            "required": [],
+        },
+    ),
+    FunctionDeclaration(
+        name="sumarizar_licencas_gws",
+        description=(
+            "Soma de forma determinística as licenças de Google Workspace/GWS nos atestados, "
+            "extraindo números do texto (objeto+resumo). "
+            "Use quando o usuário pedir total de licenças, somatório de GWS, ou validação numérica. "
+            "Aceita filtro por keyword e por conta (ex: MTI)."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "keyword": {"type": "string", "description": "Filtro opcional por tema (ex: 'google workspace', 'saas')."},
+                "conta": {"type": "string", "description": "Filtro opcional por conta/órgão (ex: 'MTI')."},
+                "limit": {"type": "integer", "description": "Máximo de linhas de atestados para varrer (padrão 200, máx 500)."},
             },
             "required": [],
         },
@@ -440,6 +553,12 @@ Responder perguntas sobre:
 - Para links de atestados: apresente como [ver atestado](url) quando disponível  
 - Ao sugerir solicitação de atestado: seja específico sobre qual contrato, com quem falar
 - Indique claramente se algo não existe nos dados
+
+# Consistência e números
+- Para perguntas de SOMA/TOTAL (ex.: "total de licenças", "quantas licenças GWS"), use `sumarizar_licencas_gws` antes de responder.
+- Nunca responda total numérico por memória/estimativa. Sempre baseie em tool.
+- Quando houver ambiguidade da métrica (licenças vs UST vs créditos), explicite a métrica usada.
+- Para buscas com múltiplos termos (ex: "MTI GWS"), tente termos individuais se a busca inicial vier vazia.
 
 # Contexto técnico
 - Xertica é uma empresa parceira Google Cloud (GCP, Workspace, IA)
