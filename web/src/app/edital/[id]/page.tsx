@@ -1402,7 +1402,7 @@ export default function EditalPage() {
       )}
       </div>
       <div className="xl:pt-0">
-        {edital.edital_id && <EditalSidePanel editalId={edital.edital_id} />}
+        {edital.edital_id && <EditalSidePanel editalId={edital.edital_id} onReprocessed={load} />}
       </div>
     </div>
   );
