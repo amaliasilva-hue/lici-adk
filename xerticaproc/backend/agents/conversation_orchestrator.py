@@ -72,6 +72,31 @@ override | outro
 - user_response: texto a mostrar ao usuário
 - next_best_question: próxima pergunta (ou null se aguardando ação)
 - suggested_actions: chips de 1 clique
+
+USE EXATAMENTE estes nomes de campo (em português) — NÃO traduza para inglês:
+{
+  "intent": "fornecer_fato",
+  "facts_to_add": [
+    {"tipo": "escopo.modalidade", "valor": "pregao_eletronico", "confianca": 0.9, "confirmado": true}
+  ],
+  "decisions_to_add": [
+    {"tipo": "escopo.lote", "valor": "unico", "justificativa": "...", "fonte": "usuario"}
+  ],
+  "checklist_updates": [
+    {"item_key": "escopo.modalidade", "status": "confirmado", "valor": "pregao_eletronico"}
+  ],
+  "price_sources_to_add": [],
+  "calculations_to_run": [],
+  "user_response": "...",
+  "next_best_question": "...",
+  "suggested_actions": [
+    {"label": "Confirmar 12 meses", "command": "confirm_fact:escopo.prazo_meses=12"}
+  ]
+}
+
+Os campos OBRIGATÓRIOS por item são exatamente: `tipo` (fact/decision), \
+`item_key` (checklist), `label` e `command` (suggested_action). NÃO use \
+`fato`, `path`, `key`, `item`, `text`, `field`, `confirmed` etc.
 """
 
 
@@ -93,8 +118,14 @@ def _llm_mode() -> str:
 
 # ─── chamada ao LLM ──────────────────────────────────────────────────────────
 
-async def _call_vertex(prompt: str) -> dict[str, Any]:
-    """Chama Gemini 2.5 Flash via Vertex AI com response_schema."""
+async def _call_vertex(
+    prompt: str, extra_parts: Optional[list[Any]] = None,
+) -> dict[str, Any]:
+    """Chama Gemini 2.5 Flash via Vertex AI com response_schema.
+
+    Se `extra_parts` for fornecido (lista de `vertexai.Part`), passa multimodal
+    junto com o prompt — para análise de PDFs/imagens.
+    """
     import vertexai
     from vertexai.generative_models import (
         GenerationConfig, GenerativeModel,
@@ -122,16 +153,26 @@ async def _call_vertex(prompt: str) -> dict[str, Any]:
         response_schema=schema,
     )
 
+    contents: list[Any] = [prompt]
+    if extra_parts:
+        contents.extend(extra_parts)
+
     def _sync_call() -> str:
-        resp = model.generate_content(prompt, generation_config=cfg)
+        resp = model.generate_content(contents, generation_config=cfg)
         return resp.text
 
     raw = await asyncio.to_thread(_sync_call)
     return json.loads(raw)
 
 
-async def _call_google_ai(prompt: str) -> dict[str, Any]:
-    """Chama Gemini via google.generativeai (modo dev com API key)."""
+async def _call_google_ai(
+    prompt: str, extra_parts: Optional[list[Any]] = None,
+) -> dict[str, Any]:
+    """Chama Gemini via google.generativeai (modo dev com API key).
+
+    `extra_parts` aqui são esperados como dicts no formato
+    `{"mime_type": ..., "data": bytes}` para o SDK google-generativeai.
+    """
     import google.generativeai as genai
 
     genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
@@ -143,9 +184,13 @@ async def _call_google_ai(prompt: str) -> dict[str, Any]:
     schema = ConversationTurnAnalysis.model_json_schema()
     schema = _strip_pydantic_fields(schema)
 
+    contents: list[Any] = [prompt]
+    if extra_parts:
+        contents.extend(extra_parts)
+
     def _sync_call() -> str:
         resp = model.generate_content(
-            prompt,
+            contents,
             generation_config={
                 "temperature": 0.3,
                 "response_mime_type": "application/json",
@@ -292,13 +337,18 @@ def _stub_response_for(intent: str, msg: str) -> str:
     return "Anotado."
 
 
-async def _analyze(prompt: str, ctx: dict[str, Any], user_message: str) -> ConversationTurnAnalysis:
+async def _analyze(
+    prompt: str,
+    ctx: dict[str, Any],
+    user_message: str,
+    extra_parts: Optional[list[Any]] = None,
+) -> ConversationTurnAnalysis:
     mode = _llm_mode()
     try:
         if mode == "vertex":
-            data = await _call_vertex(prompt)
+            data = await _call_vertex(prompt, extra_parts=extra_parts)
         elif mode == "google_ai":
-            data = await _call_google_ai(prompt)
+            data = await _call_google_ai(prompt, extra_parts=extra_parts)
         else:
             log.info("ConversationOrchestrator em modo STUB (sem credenciais)")
             data = _stub_analysis(user_message, ctx)
@@ -323,6 +373,7 @@ def _build_prompt(
     checklist_summary: dict[str, Any],
     recent: list[dict[str, str]],
     resumo: Optional[str],
+    anexos_block: str = "",
 ) -> str:
     parts: list[str] = []
     if resumo:
@@ -338,9 +389,24 @@ def _build_prompt(
                      + (f" — {d['justificativa']}" if d.get("justificativa") else ""))
     parts.append(f"\n### Resumo do checklist:\n{json.dumps(checklist_summary, ensure_ascii=False)}\n")
 
+    # Lista canônica de item_keys válidos — o LLM NÃO deve inventar outras
+    try:
+        from xerticaproc.backend.agents.checklist_engine import CHECKLIST_SEED
+        valid_keys = [it["item_key"] for it in CHECKLIST_SEED]
+        parts.append(
+            "\n### item_keys válidos (use APENAS estes em checklist_updates; "
+            "NÃO invente novos):\n"
+            + ", ".join(valid_keys) + "\n"
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
     parts.append("\n## Últimas mensagens\n")
     for m in recent:
         parts.append(f"**{m['role']}**: {m['content']}")
+
+    if anexos_block:
+        parts.append(anexos_block)
 
     parts.append(f"\n## Mensagem atual do usuário\n{user_message}\n")
     parts.append("\nGere agora a análise estruturada (ConversationTurnAnalysis JSON).")
@@ -445,6 +511,22 @@ async def handle_turn(
     recent = await cs.recent_messages_for_context(session, cid, n=8)
     resumo = await cs.get_resumo(session, conversa_id)
 
+    # 2.1) processa anexos multimodais (PDF/imagem/DOCX/XLSX) — se houver
+    anexos_block = ""
+    extra_parts: list[Any] = []
+    if anexos:
+        try:
+            from xerticaproc.backend.tools import document_extractor as dx
+            extracted = await dx.process_anexos(anexos)
+            anexos_block = dx.render_anexos_for_prompt(extracted)
+            extra_parts = dx.collect_gemini_parts(extracted)
+            log.info(
+                "anexos_processed cid=%s n=%d parts=%d",
+                cid, len(extracted), len(extra_parts),
+            )
+        except Exception:
+            log.exception("Falha processando anexos cid=%s", cid)
+
     prompt = _build_prompt(
         user_message=user_message,
         facts=facts,
@@ -452,6 +534,7 @@ async def handle_turn(
         checklist_summary=checklist.summary.model_dump(),
         recent=recent,
         resumo=resumo,
+        anexos_block=anexos_block,
     )
 
     # 3) chama LLM
@@ -459,6 +542,7 @@ async def handle_turn(
         prompt,
         {"checklist_summary": checklist.summary.model_dump()},
         user_message,
+        extra_parts=extra_parts or None,
     )
 
     # 4) persiste mensagem do assistente

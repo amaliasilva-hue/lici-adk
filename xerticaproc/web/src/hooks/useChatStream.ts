@@ -3,6 +3,7 @@ import * as React from "react";
 import { chatStream, getHistory } from "@/lib/copilot/api";
 import { waitForApiToken } from "@/lib/api";
 import type {
+  Anexo,
   ChatHistoryResponse,
   MensagemOut,
   StreamEvent,
@@ -34,8 +35,8 @@ export function useChatStream(contratacaoId: string, opts: UseChatStreamOpts = {
   }, [contratacaoId]);
 
   const send = React.useCallback(
-    async (text: string) => {
-      if (!text.trim() || pending) return;
+    async (text: string, anexos?: Anexo[]) => {
+      if ((!text.trim() && !(anexos && anexos.length)) || pending) return;
       
       // Ensure token is available before sending
       const token = await waitForApiToken(6000);
@@ -49,6 +50,7 @@ export function useChatStream(contratacaoId: string, opts: UseChatStreamOpts = {
         id: `local-user-${Date.now()}`,
         role: "user",
         conteudo: text,
+        anexos: anexos,
         criado_em: now,
       };
       const assistantId = `local-asst-${Date.now()}`;
@@ -102,7 +104,7 @@ export function useChatStream(contratacaoId: string, opts: UseChatStreamOpts = {
       };
 
       try {
-        await chatStream(contratacaoId, text, onEvent, ctl.signal);
+        await chatStream(contratacaoId, text, onEvent, ctl.signal, anexos);
       } catch (e) {
         setError(String(e));
       } finally {

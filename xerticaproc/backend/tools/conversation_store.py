@@ -294,6 +294,59 @@ async def persist_turn_analysis(
     """Persiste fatos, decisões e checklist updates da análise.
     Retorna ids criados por categoria."""
     from xerticaproc.backend.agents import checklist_engine as ce
+    from xerticaproc.backend.models.copilot_schemas import ChecklistStatus
+
+    # set de item_keys canônicos para auto-propagação fact→checklist
+    canonical_keys = {it["item_key"] for it in ce.CHECKLIST_SEED}
+
+    # Mapeamento heurístico de chaves "inventadas" pelo LLM → canônicas
+    KEY_ALIASES: dict[str, str] = {
+        "escopo.tipo_contratacao": "escopo.sistema_contratacao",
+        "escopo.sistema": "escopo.sistema_contratacao",
+        "escopo.registro_de_precos": "escopo.sistema_contratacao",
+        "escopo.objeto": "escopo.objeto_resumido",
+        "escopo.descricao_objeto": "escopo.objeto_resumido",
+        "escopo.prazo": "escopo.prazo_meses",
+        "escopo.prazo_contratual_meses": "escopo.prazo_meses",
+        "escopo.prazo_vigencia_meses": "escopo.prazo_meses",
+        "escopo.prazo_contrato_meses": "escopo.prazo_meses",
+        "escopo.modalidade_licitacao": "escopo.modalidade",
+        "escopo.modalidade_contratacao": "escopo.modalidade",
+        "demanda.problema": "demanda.problema_publico",
+        "demanda.necessidade": "demanda.problema_publico",
+        "demanda.unidade": "demanda.unidade_demandante",
+        "demanda.unidade_solicitante": "demanda.unidade_demandante",
+        "demanda.area_demandante": "demanda.unidade_demandante",
+        "tec.suporte": "tec.modelo_suporte",
+        "tec.requisitos_tecnicos": "tec.requisitos_funcionais",
+        "tec.seguranca": "tec.requisitos_seguranca",
+        "tec.requisitos_nao_funcionais_sla": "tec.requisitos_nao_funcionais",
+        "qtd.matriz": "qtd.matriz_quantitativos",
+        "qtd.quantidades": "qtd.matriz_quantitativos",
+        "qtd.justificativa": "qtd.justificativa_dimensionamento",
+        "precos.fontes": "precos.fontes_diretas",
+        "precos.memoria": "precos.memoria_calculo",
+        "doc.matriz_de_riscos": "doc.matriz_riscos",
+        "doc.riscos": "doc.matriz_riscos",
+        "doc.matriz_de_alternativas": "doc.matriz_alternativas",
+        "doc.alternativas": "doc.matriz_alternativas",
+        "doc.dfd": "doc.dfd_anexado",
+        "jur.lei_14133": "jur.aderencia_14133",
+        "jur.in_94": "jur.aderencia_in94",
+        "jur.exclusividade": "jur.exclusividade_fundamento",
+        "jur.marca": "jur.justificativa_marca",
+        "lgpd.dados_pessoais": "lgpd.tratamento_dados",
+    }
+
+    def _resolve_key(k: str) -> Optional[str]:
+        if not isinstance(k, str):
+            return None
+        if k in canonical_keys:
+            return k
+        return KEY_ALIASES.get(k)
+
+    # acumula updates por key (último vence) — facts < decisions < explicit updates
+    auto_updates: dict[str, dict[str, Any]] = {}
 
     fact_ids: list[str] = []
     for f in analysis.facts_to_add:
@@ -305,6 +358,13 @@ async def persist_turn_analysis(
             confianca=f.confianca,
             confirmado=f.confirmado,
         ))
+        ck = _resolve_key(f.tipo)
+        if ck is not None and f.valor is not None:
+            auto_updates[ck] = {
+                "valor": f.valor,
+                "status": ChecklistStatus.CONFIRMADO if f.confirmado else ChecklistStatus.INFERIDO,
+                "justificativa": None,
+            }
 
     decision_ids: list[str] = []
     for d in analysis.decisions_to_add:
@@ -318,19 +378,48 @@ async def persist_turn_analysis(
         )
         if did:
             decision_ids.append(did)
+        ck = _resolve_key(d.tipo)
+        if ck is not None and d.valor is not None:
+            auto_updates[ck] = {
+                "valor": d.valor,
+                "status": ChecklistStatus.CONFIRMADO,
+                "justificativa": d.justificativa,
+            }
+
+    # Updates explícitos têm precedência (e tentam alias se key for desconhecida)
+    explicit_updates: list[tuple[str, Any]] = []
+    for upd in analysis.checklist_updates:
+        ck = _resolve_key(upd.item_key) or upd.item_key
+        explicit_updates.append((ck, upd))
+        auto_updates.pop(ck, None)  # explicit overrides auto
 
     updated_keys: list[str] = []
-    for upd in analysis.checklist_updates:
+
+    # 1) auto-propagação a partir de facts/decisions
+    for ck, payload in auto_updates.items():
         item = await ce.update_item(
             session,
             contratacao_id=contratacao_id,
-            item_key=upd.item_key,
+            item_key=ck,
+            status=payload["status"],
+            valor=payload["valor"],
+            justificativa=payload["justificativa"],
+        )
+        if item is not None:
+            updated_keys.append(ck)
+
+    # 2) updates explícitos do LLM
+    for ck, upd in explicit_updates:
+        item = await ce.update_item(
+            session,
+            contratacao_id=contratacao_id,
+            item_key=ck,
             status=upd.status,
             valor=upd.valor,
             justificativa=upd.justificativa,
         )
         if item is not None:
-            updated_keys.append(upd.item_key)
+            updated_keys.append(ck)
 
     return {
         "facts": fact_ids,

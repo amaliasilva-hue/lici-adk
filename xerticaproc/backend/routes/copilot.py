@@ -1,17 +1,20 @@
-"""Endpoints do Copiloto: chat (SSE), histórico, checklist."""
+"""Endpoints do Copiloto: chat (SSE), histórico, checklist, uploads."""
 from __future__ import annotations
 
 import json
 import logging
+import os
+import uuid
 from datetime import datetime
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from xerticaproc.backend.copilot_backend import get_backend
 from xerticaproc.backend.middleware.rate_limit import enforce_chat_rate
 from xerticaproc.backend.models.copilot_schemas import (
+    Anexo,
     Aprovacao,
     AprovacaoIn,
     ChatHistoryResponse,
@@ -75,6 +78,87 @@ async def chat_history(
     backend = get_backend()
     msgs = await backend.list_history(contratacao_id, limit=limit, before=before)
     return ChatHistoryResponse(messages=msgs, has_more=len(msgs) >= limit)
+
+
+# ─── Uploads (multimodal: PDF / imagem / DOCX / XLSX) ────────────────────────
+
+_MAX_UPLOAD_BYTES = int(os.environ.get("COPILOT_MAX_UPLOAD_BYTES", str(40 * 1024 * 1024)))
+_ALLOWED_PREFIXES = (
+    "application/pdf",
+    "image/",
+    "text/",
+    "application/vnd.openxmlformats-officedocument",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/octet-stream",
+)
+
+
+def _classify_anexo_tipo(mime: str) -> str:
+    if mime.startswith("image/"):
+        return "imagem"
+    if mime.startswith("text/"):
+        return "texto"
+    return "arquivo"
+
+
+def _upload_to_gcs(bucket_name: str, key: str, data: bytes, mime: str) -> str:
+    from google.cloud import storage  # type: ignore
+    cli = storage.Client()
+    bucket = cli.bucket(bucket_name)
+    blob = bucket.blob(key)
+    blob.upload_from_string(data, content_type=mime)
+    return f"gs://{bucket_name}/{key}"
+
+
+@router.post("/uploads", response_model=Anexo, status_code=201)
+async def upload_anexo(
+    contratacao_id: str,
+    file: UploadFile = File(...),
+    nome: Optional[str] = Form(None),
+) -> Anexo:
+    """Recebe upload binário e retorna `Anexo` (gcs_uri ou inline url).
+
+    Bucket configurável via env `COPILOT_UPLOADS_BUCKET`. Sem bucket, o arquivo
+    fica em memória (modo dev) — nesse caso `Anexo.url` é `data:` base64.
+    """
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "arquivo vazio")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            413,
+            f"arquivo excede limite ({len(raw)} > {_MAX_UPLOAD_BYTES} bytes)",
+        )
+    mime = file.content_type or "application/octet-stream"
+    if not any(mime.startswith(p) for p in _ALLOWED_PREFIXES):
+        raise HTTPException(415, f"mime não suportado: {mime}")
+
+    safe_name = (nome or file.filename or "anexo").strip().replace("/", "_")[:200]
+    bucket = os.environ.get("COPILOT_UPLOADS_BUCKET")
+    if bucket:
+        import asyncio as _asyncio
+        key = f"copilot/{contratacao_id}/{uuid.uuid4()}-{safe_name}"
+        gcs_uri = await _asyncio.to_thread(_upload_to_gcs, bucket, key, raw, mime)
+        return Anexo(
+            tipo=_classify_anexo_tipo(mime),
+            nome=safe_name,
+            gcs_uri=gcs_uri,
+        )
+
+    # Fallback dev: data URL base64 — o backend de processamento aceita?
+    # O extractor lê via httpx GET, então data: URL não funciona. Em dev sem
+    # bucket, retornamos texto se for texto, senão erro.
+    if mime.startswith("text/"):
+        return Anexo(
+            tipo="texto",
+            nome=safe_name,
+            url=raw.decode("utf-8", errors="replace"),
+        )
+    raise HTTPException(
+        503,
+        "COPILOT_UPLOADS_BUCKET não configurado; uploads binários indisponíveis",
+    )
 
 
 # ─── Checklist ───────────────────────────────────────────────────────────────

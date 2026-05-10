@@ -126,7 +126,37 @@ async def criar_contratacao(entrada: EntradaDemanda) -> ContratacaoCreated:
 
 @app.get("/proc/contratacoes")
 async def listar_contratacoes() -> list[dict[str, Any]]:
-    """Lista todas as contratações."""
+    """Lista todas as contratações (Postgres em produção, memória em dev)."""
+    if os.environ.get("ALLOYDB_URL"):
+        from xerticaproc.backend.tools.pg_tools import (
+            get_session,
+            listar_contratacoes as pg_listar_contratacoes,
+        )
+        try:
+            async with get_session() as s:
+                rows = await pg_listar_contratacoes(s, limit=200)
+            # serializa datetime/uuid → str para JSON
+            out: list[dict[str, Any]] = []
+            for r in rows:
+                out.append({
+                    "id": str(r["id"]),
+                    "status": r.get("status") or "rascunho",
+                    "objeto_resumido": r.get("objeto_resumido"),
+                    "nome_orgao": r.get("nome_orgao"),
+                    "criado_em": (
+                        r["criado_em"].isoformat()
+                        if r.get("criado_em") else None
+                    ),
+                    "atualizado_em": (
+                        r["atualizado_em"].isoformat()
+                        if r.get("atualizado_em") else None
+                    ),
+                })
+            return out
+        except Exception:
+            log.exception("Falha listando contratações via Postgres; "
+                          "usando memória")
+
     return [
         {k: v for k, v in c.items() if k != "bundle"}  # bundle pode ser grande
         for c in _contratacoes.values()
@@ -136,6 +166,27 @@ async def listar_contratacoes() -> list[dict[str, Any]]:
 @app.get("/proc/contratacoes/{contratacao_id}")
 async def obter_contratacao(contratacao_id: str) -> dict[str, Any]:
     """Retorna detalhes de uma contratação."""
+    if os.environ.get("ALLOYDB_URL"):
+        from xerticaproc.backend.tools.pg_tools import (
+            buscar_contratacao,
+            get_session,
+        )
+        try:
+            async with get_session() as s:
+                row = await buscar_contratacao(s, contratacao_id)
+            if row is not None:
+                out: dict[str, Any] = {}
+                for k, v in row.items():
+                    if hasattr(v, "isoformat"):
+                        out[k] = v.isoformat()
+                    elif hasattr(v, "hex"):  # UUID
+                        out[k] = str(v)
+                    else:
+                        out[k] = v
+                return out
+        except Exception:
+            log.exception("Falha buscando contratação via Postgres; fallback memória")
+
     c = _get_contratacao_or_404(contratacao_id)
     return {k: v for k, v in c.items() if k != "bundle"}
 

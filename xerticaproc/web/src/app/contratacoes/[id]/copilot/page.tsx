@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Plus, Send } from "lucide-react";
+import { Paperclip, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChatBubble } from "@/components/ui/chat-bubble";
@@ -15,10 +15,11 @@ import { useChatStream } from "@/hooks/useChatStream";
 import { useChecklist } from "@/hooks/useChecklist";
 import { useReadiness } from "@/hooks/useReadiness";
 import { useNegativeSearches, useSources } from "@/hooks/useSources";
-import { getRevisorReport, pacoteEvidenciasUrl } from "@/lib/copilot/api";
+import { getRevisorReport, pacoteEvidenciasUrl, uploadAnexo } from "@/lib/copilot/api";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGate } from "@/app/auth-gate";
 import type {
+  Anexo,
   ChecklistItem,
   DocType,
   FonteUsuarioIn,
@@ -42,6 +43,9 @@ function CopilotWorkspacPageContent() {
   });
 
   const [input, setInput] = React.useState("");
+  const [pendingAnexos, setPendingAnexos] = React.useState<Anexo[]>([]);
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [showAddSource, setShowAddSource] = React.useState(false);
   const [gerarDocType, setGerarDocType] = React.useState<DocType | null>(null);
   const [revisor, setRevisor] = React.useState<RevisorReport | null>(null);
@@ -66,10 +70,36 @@ function CopilotWorkspacPageContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const t = input.trim();
-    if (!t) return;
+    if (!t && pendingAnexos.length === 0) return;
     setInput("");
-    void chat.send(t);
+    const anexosToSend = pendingAnexos;
+    setPendingAnexos([]);
+    void chat.send(t || "(arquivos anexados)", anexosToSend);
   };
+
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: Anexo[] = [];
+      for (const f of files) {
+        try {
+          const a = await uploadAnexo(contratacaoId, f);
+          uploaded.push(a);
+        } catch (err) {
+          console.error("upload falhou", f.name, err);
+        }
+      }
+      setPendingAnexos((prev) => [...prev, ...uploaded]);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePendingAnexo = (idx: number) =>
+    setPendingAnexos((prev) => prev.filter((_, i) => i !== idx));
 
   const handleConfirm = (it: ChecklistItem) =>
     void checklist.patch(it.item_key, { status: "confirmado" });
@@ -182,24 +212,69 @@ function CopilotWorkspacPageContent() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
-            <textarea
-              className="textarea flex-1"
-              placeholder="Descreva o que precisa contratar, faca perguntas ou cole uma URL de preco..."
-              rows={2}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-            />
-            <Button type="submit" loading={chat.pending} disabled={!input.trim()}>
-              <Send className="h-4 w-4" />
-              Enviar
-            </Button>
+          <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2">
+            {pendingAnexos.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {pendingAnexos.map((a, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 rounded-md bg-x-bg-2 px-2 py-1 text-xs text-x-ink"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    {a.nome}
+                    <button
+                      type="button"
+                      onClick={() => removePendingAnexo(i)}
+                      className="text-x-ink-mute hover:text-x-ink"
+                      aria-label="Remover anexo"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.docx,.xlsx,.csv,.txt,.md"
+                className="hidden"
+                onChange={handleFilePick}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                title="Anexar arquivo (PDF, imagem, DOCX, XLSX)"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <textarea
+                className="textarea flex-1"
+                placeholder="Descreva o que precisa contratar, faca perguntas, cole uma URL de preco ou anexe documentos..."
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
+              />
+              <Button
+                type="submit"
+                loading={chat.pending}
+                disabled={!input.trim() && pendingAnexos.length === 0}
+              >
+                <Send className="h-4 w-4" />
+                Enviar
+              </Button>
+            </div>
           </form>
         </main>
 

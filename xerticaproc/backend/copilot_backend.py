@@ -174,6 +174,19 @@ class InMemoryCopilotBackend:
             {"role": m.role.value, "content": m.conteudo}
             for m in st["mensagens"][-8:]
         ]
+
+        # 2.1) anexos multimodais
+        anexos_block = ""
+        extra_parts: list[Any] = []
+        if anexos:
+            try:
+                from xerticaproc.backend.tools import document_extractor as dx
+                extracted = await dx.process_anexos(anexos)
+                anexos_block = dx.render_anexos_for_prompt(extracted)
+                extra_parts = dx.collect_gemini_parts(extracted)
+            except Exception:
+                log.exception("Falha processando anexos cid=%s", contratacao_id)
+
         prompt = _build_prompt(
             user_message=user_message,
             facts=st["facts"],
@@ -181,6 +194,7 @@ class InMemoryCopilotBackend:
             checklist_summary=checklist.summary.model_dump(),
             recent=recent,
             resumo=st["resumo"],
+            anexos_block=anexos_block,
         )
 
         # 3) LLM
@@ -188,6 +202,7 @@ class InMemoryCopilotBackend:
             prompt,
             {"checklist_summary": checklist.summary.model_dump()},
             user_message,
+            extra_parts=extra_parts or None,
         )
 
         # 4) persiste mensagem assistente

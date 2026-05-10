@@ -1,4 +1,5 @@
 import type {
+  Anexo,
   Aprovacao,
   AprovacaoIn,
   ChatHistoryResponse,
@@ -89,11 +90,12 @@ export async function chatStream(
   message: string,
   onEvent: (ev: StreamEvent) => void,
   signal?: AbortSignal,
+  anexos?: Anexo[],
 ): Promise<void> {
   const resp = await authFetch(buildUrl(contratacaoId, "/chat"), {
     method: "POST",
     headers: { accept: "text/event-stream" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, anexos: anexos ?? [] }),
     signal,
   });
   if (!resp.ok || !resp.body) {
@@ -287,4 +289,22 @@ export async function markEventosRead(
     contentType: null,
   });
   return jsonOrThrow<{ updated: number }>(r, "markEventosRead");
+}
+
+// ── Uploads (multimodal) ───────────────────────────────────────────────────
+export async function uploadAnexo(
+  contratacaoId: string,
+  file: File,
+  nome?: string,
+): Promise<Anexo> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (nome) fd.append("nome", nome);
+  // Não setar Content-Type: o browser define com boundary
+  const r = await authFetch(buildUrl(contratacaoId, "/uploads"), {
+    method: "POST",
+    body: fd,
+    contentType: null,
+  });
+  return jsonOrThrow<Anexo>(r, "uploadAnexo");
 }

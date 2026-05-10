@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ class Anexo(BaseModel):
 
 
 class MensagemIn(BaseModel):
-    message: str = Field(..., min_length=1, max_length=8000)
+    message: str = Field(..., min_length=1, max_length=200000)
     anexos: list[Anexo] = Field(default_factory=list)
 
 
@@ -106,27 +106,27 @@ class ChatHistoryResponse(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class FactToAdd(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    tipo: str = Field(validation_alias=AliasChoices("tipo", "fato", "key", "chave"))
-    valor: Any = None
-    confianca: float = Field(0.7, ge=0.0, le=1.0)
-    confirmado: bool = False
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    tipo: str = Field(validation_alias=AliasChoices("tipo", "fato", "key", "chave", "path", "name", "field", "id"))
+    valor: Any = Field(default=None, validation_alias=AliasChoices("valor", "value", "val"))
+    confianca: float = Field(0.7, ge=0.0, le=1.0, validation_alias=AliasChoices("confianca", "confidence"))
+    confirmado: bool = Field(False, validation_alias=AliasChoices("confirmado", "confirmed"))
 
 
 class DecisionToAdd(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    tipo: str = Field(validation_alias=AliasChoices("tipo", "decisao", "key", "chave"))
-    valor: Any = None
-    justificativa: Optional[str] = None
-    fonte: FonteOrigem = FonteOrigem.USUARIO
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    tipo: str = Field(validation_alias=AliasChoices("tipo", "decisao", "key", "chave", "path", "name", "field", "id"))
+    valor: Any = Field(default=None, validation_alias=AliasChoices("valor", "value", "val"))
+    justificativa: Optional[str] = Field(default=None, validation_alias=AliasChoices("justificativa", "justification", "rationale", "reason"))
+    fonte: FonteOrigem = Field(default=FonteOrigem.USUARIO, validation_alias=AliasChoices("fonte", "source", "origin"))
 
 
 class ChecklistUpdate(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    item_key: str = Field(validation_alias=AliasChoices("item_key", "item", "key", "chave"))
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    item_key: str = Field(validation_alias=AliasChoices("item_key", "item", "key", "chave", "path", "name", "field", "id"))
     status: ChecklistStatus
-    valor: Optional[Any] = None
-    justificativa: Optional[str] = None
+    valor: Optional[Any] = Field(default=None, validation_alias=AliasChoices("valor", "value", "val"))
+    justificativa: Optional[str] = Field(default=None, validation_alias=AliasChoices("justificativa", "justification", "rationale", "reason"))
 
 
 class PriceSourceToAdd(BaseModel):
@@ -141,17 +141,28 @@ class PriceSourceToAdd(BaseModel):
 
 
 class CalculationToRun(BaseModel):
-    operacao: str
-    parametros: dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    operacao: str = Field(validation_alias=AliasChoices("operacao", "operation", "op", "name", "tipo", "type", "action", "command"))
+    parametros: dict[str, Any] = Field(default_factory=dict, validation_alias=AliasChoices("parametros", "parameters", "params", "args"))
+
+    @field_validator("operacao", mode="before")
+    @classmethod
+    def _coerce_str(cls, v: Any) -> Any:
+        # Permite que o LLM passe uma string crua: "gerar_mapa_precos"
+        if isinstance(v, str):
+            return v
+        return v
 
 
 class SuggestedAction(BaseModel):
-    label: str
-    command: str  # comando interno, ex: "confirm_fact:escopo.modalidade=pregao_eletronico"
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    label: str = Field(validation_alias=AliasChoices("label", "text", "title", "name"))
+    command: str = Field(default="", validation_alias=AliasChoices("command", "action", "value", "id"))  # comando interno
 
 
 class ConversationTurnAnalysis(BaseModel):
     """Saída JSON forçada do Gemini Flash para cada turno do usuário."""
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
     intent: TurnIntent
     facts_to_add: list[FactToAdd] = Field(default_factory=list)
     decisions_to_add: list[DecisionToAdd] = Field(default_factory=list)
@@ -161,6 +172,24 @@ class ConversationTurnAnalysis(BaseModel):
     user_response: str = Field(..., description="Texto a ser exibido para o usuário")
     next_best_question: Optional[str] = None
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
+
+    @field_validator("calculations_to_run", mode="before")
+    @classmethod
+    def _coerce_calculations(cls, v: Any) -> Any:
+        # LLM às vezes manda lista de strings ou string simples
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [{"operacao": v}]
+        if isinstance(v, list):
+            out = []
+            for x in v:
+                if isinstance(x, str):
+                    out.append({"operacao": x})
+                else:
+                    out.append(x)
+            return out
+        return v
 
 
 # ─────────────────────────────────────────────────────────────────────────────
