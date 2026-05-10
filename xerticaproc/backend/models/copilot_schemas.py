@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -106,21 +106,24 @@ class ChatHistoryResponse(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class FactToAdd(BaseModel):
-    tipo: str
-    valor: Any
+    model_config = ConfigDict(populate_by_name=True)
+    tipo: str = Field(validation_alias=AliasChoices("tipo", "fato", "key", "chave"))
+    valor: Any = None
     confianca: float = Field(0.7, ge=0.0, le=1.0)
     confirmado: bool = False
 
 
 class DecisionToAdd(BaseModel):
-    tipo: str
-    valor: Any
+    model_config = ConfigDict(populate_by_name=True)
+    tipo: str = Field(validation_alias=AliasChoices("tipo", "decisao", "key", "chave"))
+    valor: Any = None
     justificativa: Optional[str] = None
     fonte: FonteOrigem = FonteOrigem.USUARIO
 
 
 class ChecklistUpdate(BaseModel):
-    item_key: str
+    model_config = ConfigDict(populate_by_name=True)
+    item_key: str = Field(validation_alias=AliasChoices("item_key", "item", "key", "chave"))
     status: ChecklistStatus
     valor: Optional[Any] = None
     justificativa: Optional[str] = None
