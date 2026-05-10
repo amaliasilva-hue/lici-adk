@@ -626,8 +626,43 @@ class InMemoryCopilotBackend:
 # Postgres backend (produção)
 
 class PostgresCopilotBackend:
+    async def _ensure_contratacao_exists(self, contratacao_id: str) -> None:
+        from sqlalchemy import text
+        from xerticaproc.backend.tools.pg_tools import buscar_contratacao, get_session
+        async with get_session() as s:
+            row = await buscar_contratacao(s, contratacao_id)
+            if row is not None:
+                return
+            # Backward compatibility: contratos criados em memória em revisões
+            # anteriores não existiam no Postgres e quebravam o Copiloto.
+            await s.execute(
+                text(
+                    """
+                    INSERT INTO contratacoes
+                      (id, id_orgao, nome_orgao, objeto_resumido,
+                       descricao_necessidade, prazo_vigencia_meses, palavras_chave)
+                    VALUES
+                      (CAST(:id AS uuid), :id_orgao, :nome_orgao, :objeto_resumido,
+                       :descricao_necessidade, :prazo_vigencia_meses,
+                       CAST(:palavras_chave AS text[]))
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                ),
+                {
+                    "id": contratacao_id,
+                    "id_orgao": "na",
+                    "nome_orgao": "Órgão não informado",
+                    "objeto_resumido": "Objeto em definição",
+                    "descricao_necessidade": "Demanda inicial registrada via Copiloto",
+                    "prazo_vigencia_meses": 12,
+                    "palavras_chave": [],
+                },
+            )
+        log.warning("copilot.bootstrap_contratacao cid=%s", contratacao_id)
+
     async def ensure_seed(self, contratacao_id: str) -> None:
         from xerticaproc.backend.tools.pg_tools import get_session
+        await self._ensure_contratacao_exists(contratacao_id)
         async with get_session() as s:
             items = await ce.list_items(s, contratacao_id)
             if not items:
@@ -639,6 +674,7 @@ class PostgresCopilotBackend:
     ) -> dict[str, Any]:
         from xerticaproc.backend.agents.conversation_orchestrator import handle_turn
         from xerticaproc.backend.tools.pg_tools import get_session
+        await self._ensure_contratacao_exists(contratacao_id)
         async with get_session() as s:
             return await handle_turn(
                 s, contratacao_id=contratacao_id,
@@ -653,6 +689,7 @@ class PostgresCopilotBackend:
             handle_turn_stream,
         )
         from xerticaproc.backend.tools.pg_tools import get_session
+        await self._ensure_contratacao_exists(contratacao_id)
         async with get_session() as s:
             async for ev, data in handle_turn_stream(
                 s, contratacao_id=contratacao_id,
@@ -666,11 +703,13 @@ class PostgresCopilotBackend:
     ) -> list[MensagemOut]:
         from xerticaproc.backend.tools import conversation_store as cs
         from xerticaproc.backend.tools.pg_tools import get_session
+        await self._ensure_contratacao_exists(contratacao_id)
         async with get_session() as s:
             return await cs.list_messages(s, contratacao_id, limit=limit, before=before)
 
     async def get_checklist(self, contratacao_id: str) -> ChecklistResponse:
         from xerticaproc.backend.tools.pg_tools import get_session
+        await self._ensure_contratacao_exists(contratacao_id)
         async with get_session() as s:
             items = await ce.list_items(s, contratacao_id)
             if not items:

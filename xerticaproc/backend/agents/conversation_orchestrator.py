@@ -78,7 +78,13 @@ override | outro
 # ─── modo de execução ────────────────────────────────────────────────────────
 
 def _llm_mode() -> str:
-    if os.environ.get("VERTEX_PROJECT") and os.environ.get("VERTEX_LOCATION"):
+    project = (
+        os.environ.get("VERTEX_PROJECT")
+        or os.environ.get("GCP_PROJECT_ID")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    )
+    location = os.environ.get("VERTEX_LOCATION") or os.environ.get("GCP_LOCATION")
+    if project and location:
         return "vertex"
     if os.environ.get("GOOGLE_API_KEY"):
         return "google_ai"
@@ -94,8 +100,14 @@ async def _call_vertex(prompt: str) -> dict[str, Any]:
         GenerationConfig, GenerativeModel,
     )
 
-    project = os.environ["VERTEX_PROJECT"]
-    location = os.environ.get("VERTEX_LOCATION", "us-central1")
+    project = (
+        os.environ.get("VERTEX_PROJECT")
+        or os.environ.get("GCP_PROJECT_ID")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    )
+    if not project:
+        raise RuntimeError("Project for Vertex is not configured")
+    location = os.environ.get("VERTEX_LOCATION") or os.environ.get("GCP_LOCATION") or "us-central1"
     model_name = os.environ.get("COPILOT_MODEL", "gemini-2.5-flash")
 
     vertexai.init(project=project, location=location)
@@ -148,11 +160,33 @@ async def _call_google_ai(prompt: str) -> dict[str, Any]:
 
 def _strip_pydantic_fields(schema: dict[str, Any]) -> dict[str, Any]:
     """Remove campos de schema JSON que Vertex não aceita."""
-    drop = {"title", "$defs", "additionalProperties", "default"}
+    drop = {
+        "title",
+        "$defs",
+        "$ref",
+        "definitions",
+        "additionalProperties",
+        "default",
+    }
+
+    def _normalize_nullable(node: dict[str, Any]) -> dict[str, Any]:
+        any_of = node.get("anyOf")
+        if not isinstance(any_of, list):
+            return node
+        non_null = [x for x in any_of if not (isinstance(x, dict) and x.get("type") == "null")]
+        has_null = len(non_null) != len(any_of)
+        if has_null and len(non_null) == 1 and isinstance(non_null[0], dict):
+            merged = dict(node)
+            merged.pop("anyOf", None)
+            merged.update(non_null[0])
+            merged["nullable"] = True
+            return merged
+        return node
 
     def _walk(node: Any) -> Any:
         if isinstance(node, dict):
-            return {k: _walk(v) for k, v in node.items() if k not in drop}
+            cleaned = {k: _walk(v) for k, v in node.items() if k not in drop}
+            return _normalize_nullable(cleaned)
         if isinstance(node, list):
             return [_walk(x) for x in node]
         return node

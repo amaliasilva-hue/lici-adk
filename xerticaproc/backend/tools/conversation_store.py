@@ -90,8 +90,8 @@ async def append_message(
             INSERT INTO mensagens
               (id, conversa_id, contratacao_id, role, conteudo, meta, anexos)
             VALUES
-              (:id, :cv, :cid, :role::mensagem_role,
-               :ct, :meta::jsonb, :anexos::jsonb)
+                            (:id, :cv, :cid, CAST(:role AS mensagem_role),
+                             :ct, CAST(:meta AS jsonb), CAST(:anexos AS jsonb))
         """),
         {
             "id": msg_id,
@@ -170,7 +170,7 @@ async def add_fact(
               (id, contratacao_id, tipo, valor, fonte_mensagem_id,
                confianca, confirmado)
             VALUES
-              (:id, :cid, :tp, :val::jsonb, :msg, :conf, :ok)
+                            (:id, :cid, :tp, CAST(:val AS jsonb), :msg, :conf, :ok)
         """),
         {
             "id": fid,
@@ -226,7 +226,7 @@ async def add_decision(
             text("""
                 SELECT 1 FROM decisoes_conversa
                  WHERE contratacao_id = :cid AND tipo = :tp
-                   AND fonte = 'usuario'::fonte_origem
+                                     AND fonte = CAST('usuario' AS fonte_origem)
                  LIMIT 1
             """),
             {"cid": str(contratacao_id), "tp": tipo},
@@ -242,8 +242,8 @@ async def add_decision(
               (id, contratacao_id, tipo, valor, justificativa,
                fonte, fonte_mensagem_id, confirmado_por)
             VALUES
-              (:id, :cid, :tp, :val::jsonb, :just,
-               :fonte::fonte_origem, :msg, :who)
+                            (:id, :cid, :tp, CAST(:val AS jsonb), :just,
+                             CAST(:fonte AS fonte_origem), :msg, :who)
         """),
         {
             "id": did,

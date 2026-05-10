@@ -20,6 +20,7 @@ import asyncio
 import logging
 import os
 import uuid
+import json
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -74,7 +75,38 @@ async def healthz() -> dict[str, str]:
 @app.post("/proc/contratacoes", response_model=ContratacaoCreated, status_code=201)
 async def criar_contratacao(entrada: EntradaDemanda) -> ContratacaoCreated:
     """Cria uma nova contratação a partir dos dados básicos."""
-    cid = uuid.uuid4()
+    cid: uuid.UUID
+    if os.environ.get("ALLOYDB_URL"):
+        # Produção: persiste no Postgres para que o Copiloto enxergue a contratação.
+        from xerticaproc.backend.tools.pg_tools import criar_contratacao as pg_criar_contratacao, get_session
+
+        palavras_chave = [p for p in [entrada.objeto_da_contratacao, entrada.unidade_demandante] if p]
+        dfd_texto = json.dumps(
+            {
+                "problema_publico": entrada.problema_publico,
+                "objetivo": entrada.objetivo,
+                "responsavel": entrada.responsavel,
+            },
+            ensure_ascii=False,
+        )
+        async with get_session() as s:
+            cid_str = await pg_criar_contratacao(
+                s,
+                id_orgao=entrada.uasg or entrada.orgao,
+                nome_orgao=entrada.orgao,
+                objeto_resumido=entrada.objeto_da_contratacao,
+                descricao_necessidade=entrada.problema_publico,
+                uasg=entrada.uasg,
+                natureza_objeto=None,
+                valor_estimado_maximo=entrada.orcamento_estimado,
+                prazo_vigencia_meses=entrada.prazo_estimado_meses,
+                palavras_chave=palavras_chave,
+                dfd_texto=dfd_texto,
+            )
+        cid = uuid.UUID(cid_str)
+    else:
+        cid = uuid.uuid4()
+
     _contratacoes[str(cid)] = {
         "id": str(cid),
         "entrada": entrada.model_dump(),

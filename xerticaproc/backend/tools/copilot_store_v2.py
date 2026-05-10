@@ -172,7 +172,7 @@ async def insert_negative_search(
               (id, contratacao_id, termo, fontes_consultadas, justificativa,
                efeito_na_estimativa)
             VALUES
-              (:id, :cid, :termo, :fc::jsonb, :just, :ef)
+                            (:id, :cid, :termo, CAST(:fc AS jsonb), :just, :ef)
         """),
         {
             "id": str(pid), "cid": contratacao_id,
@@ -237,7 +237,7 @@ async def insert_documento(
             INSERT INTO documentos_gerados
               (id, contratacao_id, doc_type, versao, content_md, readiness_snapshot)
             VALUES
-              (:id, :cid, :dt, :v, :md, :rd::jsonb)
+                            (:id, :cid, :dt, :v, :md, CAST(:rd AS jsonb))
         """),
         {
             "id": str(did), "cid": contratacao_id, "dt": doc_type,
@@ -254,7 +254,8 @@ async def insert_documento(
                open_fields_orgao, recommendations)
             VALUES
               (uuid_generate_v4(), :cid, :dt, :cg, :sc,
-               :bm::jsonb, :om::jsonb, :ii::jsonb, :ofo::jsonb, :rec)
+                             CAST(:bm AS jsonb), CAST(:om AS jsonb), CAST(:ii AS jsonb),
+                             CAST(:ofo AS jsonb), :rec)
         """),
         {
             "cid": contratacao_id, "dt": doc_type,
@@ -373,7 +374,7 @@ async def emit_event(
     await session.execute(
         text("""
             INSERT INTO eventos_contratacao (contratacao_id, tipo, payload)
-            VALUES (:cid, :tp, :pl::jsonb)
+            VALUES (:cid, :tp, CAST(:pl AS jsonb))
         """),
         {
             "cid": contratacao_id, "tp": tipo,

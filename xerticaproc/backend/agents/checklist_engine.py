@@ -116,9 +116,9 @@ async def seed_checklist(session: AsyncSession, contratacao_id: str | UUID) -> i
                    status, criticidade, owner)
                 VALUES
                   (:cid, :item_key, :categoria, :label,
-                   'pendente'::checklist_status,
-                   :criticidade::checklist_critic,
-                   :owner::checklist_owner)
+                         CAST('pendente' AS checklist_status),
+                         CAST(:criticidade AS checklist_critic),
+                         CAST(:owner AS checklist_owner))
                 ON CONFLICT (contratacao_id, item_key) DO NOTHING
             """),
             {"cid": cid, **item},
@@ -182,10 +182,10 @@ async def update_item(
     await session.execute(
         text("""
             UPDATE checklist_itens
-               SET status        = :status::checklist_status,
-                   valor         = :valor::jsonb,
+               SET status        = CAST(:status AS checklist_status),
+                   valor         = CAST(:valor AS jsonb),
                    justificativa = COALESCE(:just, justificativa),
-                   evidence_ids  = COALESCE(:ev::jsonb, evidence_ids),
+                   evidence_ids  = COALESCE(CAST(:ev AS jsonb), evidence_ids),
                    atualizado_em = NOW()
              WHERE contratacao_id = :cid
                AND item_key       = :item_key

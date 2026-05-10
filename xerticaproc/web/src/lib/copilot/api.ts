@@ -248,9 +248,9 @@ export function pacoteEvidenciasUrl(contratacaoId: string): string {
 export async function addAprovacao(
   contratacaoId: string, documentoId: string, payload: AprovacaoIn,
 ): Promise<Aprovacao> {
-  const r = await fetch(
+  const r = await authFetch(
     buildUrl(contratacaoId, `/documentos/${documentoId}/aprovacoes`),
-    { method: "POST", headers: { "content-type": "application/json" },
+    { method: "POST",
       body: JSON.stringify(payload) },
   );
   return jsonOrThrow<Aprovacao>(r, "addAprovacao");
@@ -259,7 +259,10 @@ export async function addAprovacao(
 export async function listAprovacoes(
   contratacaoId: string,
 ): Promise<Aprovacao[]> {
-  const r = await fetch(buildUrl(contratacaoId, "/aprovacoes"), { cache: "no-store" });
+  const r = await authFetch(buildUrl(contratacaoId, "/aprovacoes"), {
+    cache: "no-store",
+    contentType: null,
+  });
   return jsonOrThrow<Aprovacao[]>(r, "listAprovacoes");
 }
 
@@ -269,9 +272,9 @@ export async function listEventos(
   const qs = new URLSearchParams();
   if (opts.onlyUnread) qs.set("only_unread", "true");
   if (opts.limit) qs.set("limit", String(opts.limit));
-  const r = await fetch(
+  const r = await authFetch(
     buildUrl(contratacaoId, `/eventos${qs.size ? `?${qs}` : ""}`),
-    { cache: "no-store" },
+    { cache: "no-store", contentType: null },
   );
   return jsonOrThrow<EventoOut[]>(r, "listEventos");
 }
@@ -279,8 +282,9 @@ export async function listEventos(
 export async function markEventosRead(
   contratacaoId: string,
 ): Promise<{ updated: number }> {
-  const r = await fetch(buildUrl(contratacaoId, "/eventos/marcar-lidos"), {
+  const r = await authFetch(buildUrl(contratacaoId, "/eventos/marcar-lidos"), {
     method: "POST",
+    contentType: null,
   });
   return jsonOrThrow<{ updated: number }>(r, "markEventosRead");
 }

@@ -96,8 +96,8 @@ async def criar_contratacao(
                palavras_chave, dfd_texto)
             VALUES
               (:id, :id_orgao, :nome_orgao, :objeto_resumido, :descricao_necessidade,
-               :uasg, :natureza_objeto::natureza_objeto, :valor_estimado_maximo,
-               :prazo_vigencia_meses, :palavras_chave::text[], :dfd_texto)
+                    :uasg, CAST(:natureza_objeto AS natureza_objeto), :valor_estimado_maximo,
+                    :prazo_vigencia_meses, CAST(:palavras_chave AS text[]), :dfd_texto)
             """
         ),
         {
@@ -110,7 +110,7 @@ async def criar_contratacao(
             "natureza_objeto": natureza_objeto,
             "valor_estimado_maximo": valor_estimado_maximo,
             "prazo_vigencia_meses": prazo_vigencia_meses,
-            "palavras_chave": "{" + ",".join(palavras_chave or []) + "}",
+            "palavras_chave": palavras_chave or [],
             "dfd_texto": dfd_texto,
         },
     )
