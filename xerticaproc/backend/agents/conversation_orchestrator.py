@@ -514,7 +514,7 @@ async def handle_turn(
                     continue
                 row = (await session.execute(
                     text("""
-                        SELECT id FROM documentos
+                        SELECT id FROM biblioteca_documentos
                          WHERE contratacao_id = :cid AND storage_uri = :uri
                          LIMIT 1
                     """),

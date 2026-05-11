@@ -4,7 +4,7 @@ Itera todas as mensagens com `anexos != []`. Para cada anexo único (gcs_uri),
 baixa do GCS, calcula SHA256 e insere em `documentos` (origem=upload_chat,
 status=processando) — depois chama `process_documento` em paralelo limitado.
 
-Também cria as linhas em `mensagem_documento_refs` para preservar a relação
+Também cria as linhas em `mensagem_biblioteca_refs` para preservar a relação
 chat ↔ documento.
 
 Idempotente: pula documentos cujo (contratacao_id, sha256) já existe.

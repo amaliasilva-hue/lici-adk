@@ -55,7 +55,7 @@ async def find_by_sha(
 ) -> Optional[Documento]:
     row = (await session.execute(
         text("""
-            SELECT * FROM documentos
+            SELECT * FROM biblioteca_documentos
              WHERE contratacao_id = :cid AND sha256 = :sha
              LIMIT 1
         """),
@@ -72,7 +72,7 @@ async def get_by_id(
 ) -> Optional[Documento]:
     row = (await session.execute(
         text("""
-            SELECT * FROM documentos
+            SELECT * FROM biblioteca_documentos
              WHERE contratacao_id = :cid AND id = :id
              LIMIT 1
         """),
@@ -106,7 +106,7 @@ async def list_documentos(
     where_sql = " AND ".join(where)
     rows = (await session.execute(
         text(f"""
-            SELECT * FROM documentos
+            SELECT * FROM biblioteca_documentos
              WHERE {where_sql}
              ORDER BY criado_em DESC
              LIMIT :lim OFFSET :off
@@ -115,7 +115,7 @@ async def list_documentos(
     )).fetchall()
 
     total = (await session.execute(
-        text(f"SELECT COUNT(*) AS n FROM documentos WHERE {where_sql}"),
+        text(f"SELECT COUNT(*) AS n FROM biblioteca_documentos WHERE {where_sql}"),
         params,
     )).scalar_one()
 
@@ -141,14 +141,14 @@ async def insert_documento(
     doc_id = str(uuid.uuid4())
     await session.execute(
         text("""
-            INSERT INTO documentos
+            INSERT INTO biblioteca_documentos
               (id, contratacao_id, nome, mime, bytes_size, sha256, storage_uri,
                origem, origem_ref, status, uploaded_by)
             VALUES
               (:id, :cid, :nome, :mime, :sz, :sha, :uri,
-               CAST(:origem AS documento_origem),
+               CAST(:origem AS biblioteca_documento_origem),
                CAST(:oref AS jsonb),
-               CAST(:status AS documento_status),
+               CAST(:status AS biblioteca_documento_status),
                :ub)
         """),
         {
@@ -179,7 +179,7 @@ async def update_processed(
     preview_uri: Optional[str] = None,
     meta_patch: Optional[dict[str, Any]] = None,
 ) -> None:
-    sets = ["status = CAST(:status AS documento_status)",
+    sets = ["status = CAST(:status AS biblioteca_documento_status)",
             "processado_em = NOW()"]
     params: dict[str, Any] = {"id": documento_id, "status": status.value}
     if pages is not None:
@@ -194,7 +194,7 @@ async def update_processed(
         sets.append("meta = COALESCE(meta, '{}'::jsonb) || CAST(:mp AS jsonb)")
         params["mp"] = json.dumps(meta_patch, ensure_ascii=False, default=str)
     await session.execute(
-        text(f"UPDATE documentos SET {', '.join(sets)} WHERE id = :id"),
+        text(f"UPDATE biblioteca_documentos SET {', '.join(sets)} WHERE id = :id"),
         params,
     )
 
@@ -218,7 +218,7 @@ async def patch_documento(
         return await get_by_id(session, contratacao_id=contratacao_id,
                                 documento_id=documento_id)
     await session.execute(
-        text(f"UPDATE documentos SET {', '.join(sets)} "
+        text(f"UPDATE biblioteca_documentos SET {', '.join(sets)} "
               "WHERE id = :id AND contratacao_id = :cid"),
         params,
     )
@@ -234,7 +234,7 @@ async def soft_delete(
 ) -> bool:
     res = await session.execute(
         text("""
-            UPDATE documentos
+            UPDATE biblioteca_documentos
                SET status = 'arquivado'
              WHERE id = :id AND contratacao_id = :cid
             RETURNING id
@@ -256,7 +256,7 @@ async def link_message_documento(
 ) -> None:
     await session.execute(
         text("""
-            INSERT INTO mensagem_documento_refs
+            INSERT INTO mensagem_biblioteca_refs
               (mensagem_id, documento_id, papel, trechos)
             VALUES
               (:mid, :did, :papel, CAST(:tr AS jsonb))
@@ -277,8 +277,8 @@ async def list_documentos_for_message(
     rows = (await session.execute(
         text("""
             SELECT d.*, r.papel
-              FROM mensagem_documento_refs r
-              JOIN documentos d ON d.id = r.documento_id
+              FROM mensagem_biblioteca_refs r
+              JOIN biblioteca_documentos d ON d.id = r.documento_id
              WHERE r.mensagem_id = :mid
         """),
         {"mid": mensagem_id},
