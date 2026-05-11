@@ -21,6 +21,7 @@ from typing import Any, AsyncIterator, Optional
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xerticaproc.backend.agents import checklist_engine as ce
@@ -503,6 +504,31 @@ async def handle_turn(
         conteudo=user_message,
         anexos=anexos,
     )
+
+    # 1.1) cria refs na biblioteca de documentos para anexos com gcs_uri
+    if anexos:
+        try:
+            from xerticaproc.backend.tools import documentos_store as ds
+            for a in anexos:
+                if not a.gcs_uri:
+                    continue
+                row = (await session.execute(
+                    text("""
+                        SELECT id FROM documentos
+                         WHERE contratacao_id = :cid AND storage_uri = :uri
+                         LIMIT 1
+                    """),
+                    {"cid": str(cid), "uri": a.gcs_uri},
+                )).first()
+                if row:
+                    await ds.link_message_documento(
+                        session,
+                        mensagem_id=user_msg_id,
+                        documento_id=str(row.id),
+                        papel="anexado_pelo_usuario",
+                    )
+        except Exception:
+            log.exception("link mensagem→documento falhou cid=%s", cid)
 
     # 2) monta contexto
     facts = await cs.list_facts(session, cid)

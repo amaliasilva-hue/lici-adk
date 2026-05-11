@@ -349,3 +349,56 @@ class EventoOut(BaseModel):
     payload: dict
     lido: bool
     criado_em: datetime
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Biblioteca de Documentos (sprint MVP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DocumentoOrigem(str, enum.Enum):
+    UPLOAD_CHAT = "upload_chat"
+    GERADO = "gerado"
+    FONTE_EXTERNA = "fonte_externa"
+    DRIVE_SYNC = "drive_sync"
+    PESQUISA_NEGATIVA = "pesquisa_negativa"
+
+
+class DocumentoStatus(str, enum.Enum):
+    PROCESSANDO = "processando"
+    PRONTO = "pronto"
+    FALHOU = "falhou"
+    ARQUIVADO = "arquivado"
+
+
+class Documento(BaseModel):
+    """Item da biblioteca da contratação."""
+    model_config = ConfigDict(use_enum_values=True)
+
+    id: UUID
+    contratacao_id: UUID
+    nome: str
+    mime: str
+    bytes_size: int = 0
+    pages: Optional[int] = None
+    sha256: str
+    origem: DocumentoOrigem
+    origem_ref: dict[str, Any] = Field(default_factory=dict)
+    storage_uri: str
+    thumb_uri: Optional[str] = None
+    preview_uri: Optional[str] = None
+    text_excerpt: Optional[str] = None
+    status: DocumentoStatus
+    meta: dict[str, Any] = Field(default_factory=dict)
+    uploaded_by: Optional[str] = None
+    criado_em: datetime
+    processado_em: Optional[datetime] = None
+
+
+class DocumentoListResponse(BaseModel):
+    items: list[Documento]
+    total: int
+
+
+class DocumentoPatch(BaseModel):
+    nome: Optional[str] = None
+    meta: Optional[dict[str, Any]] = None

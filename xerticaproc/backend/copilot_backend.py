@@ -484,23 +484,44 @@ class InMemoryCopilotBackend:
         st = self._state(contratacao_id)
         checklist = await self.get_checklist(contratacao_id)
         fontes = list(st["fontes"].values())
+        messages = list(st["mensagens"])
 
         if doc_type == "etp":
-            content_md = etp_renderer.render_etp_markdown(
+            from xerticaproc.backend.agents import llm_doc_writer
+            content_md = await llm_doc_writer.render_etp(
                 contratacao_id=contratacao_id,
                 checklist=checklist,
                 facts=st["facts"],
                 decisions=st["decisions"],
                 fontes=fontes,
+                messages=messages,
             )
+            if not content_md:
+                content_md = etp_renderer.render_etp_markdown(
+                    contratacao_id=contratacao_id,
+                    checklist=checklist,
+                    facts=st["facts"],
+                    decisions=st["decisions"],
+                    fontes=fontes,
+                )
         elif doc_type == "tr":
-            content_md = tr_renderer.render_tr_markdown(
+            from xerticaproc.backend.agents import llm_doc_writer
+            content_md = await llm_doc_writer.render_tr(
                 contratacao_id=contratacao_id,
                 checklist=checklist,
                 facts=st["facts"],
                 decisions=st["decisions"],
                 fontes=fontes,
+                messages=messages,
             )
+            if not content_md:
+                content_md = tr_renderer.render_tr_markdown(
+                    contratacao_id=contratacao_id,
+                    checklist=checklist,
+                    facts=st["facts"],
+                    decisions=st["decisions"],
+                    fontes=fontes,
+                )
         elif doc_type == "mapa_precos":
             content_md = mapa_precos_renderer.render_mapa_precos_markdown(
                 contratacao_id=contratacao_id,
@@ -834,9 +855,11 @@ class PostgresCopilotBackend:
                 },
             )
         checklist = await self.get_checklist(contratacao_id)
+        from xerticaproc.backend.tools import conversation_store as conv_store
         async with get_session() as s:
             fontes = await cs2.list_sources(s, contratacao_id)
             negativas = await cs2.list_negative_searches(s, contratacao_id)
+            messages = await conv_store.list_messages(s, contratacao_id, limit=200)
 
         # Facts/decisions: extrair do checklist (snapshot leve)
         facts = [
@@ -848,15 +871,29 @@ class PostgresCopilotBackend:
         decisions: list[dict] = []
 
         if doc_type == "etp":
-            content_md = etp_renderer.render_etp_markdown(
+            from xerticaproc.backend.agents import llm_doc_writer
+            content_md = await llm_doc_writer.render_etp(
                 contratacao_id=contratacao_id, checklist=checklist,
                 facts=facts, decisions=decisions, fontes=fontes,
+                messages=messages,
             )
+            if not content_md:
+                content_md = etp_renderer.render_etp_markdown(
+                    contratacao_id=contratacao_id, checklist=checklist,
+                    facts=facts, decisions=decisions, fontes=fontes,
+                )
         elif doc_type == "tr":
-            content_md = tr_renderer.render_tr_markdown(
+            from xerticaproc.backend.agents import llm_doc_writer
+            content_md = await llm_doc_writer.render_tr(
                 contratacao_id=contratacao_id, checklist=checklist,
                 facts=facts, decisions=decisions, fontes=fontes,
+                messages=messages,
             )
+            if not content_md:
+                content_md = tr_renderer.render_tr_markdown(
+                    contratacao_id=contratacao_id, checklist=checklist,
+                    facts=facts, decisions=decisions, fontes=fontes,
+                )
         elif doc_type == "mapa_precos":
             content_md = mapa_precos_renderer.render_mapa_precos_markdown(
                 contratacao_id=contratacao_id, checklist=checklist,

@@ -48,6 +48,24 @@ export function GerarDocModal({
     URL.revokeObjectURL(url);
   };
 
+  const downloadDocx = async () => {
+    if (!doc) return;
+    const url = `/api/proxy/copilot/${doc.contratacao_id}/documentos/${doc.id}/download?format=docx`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      // eslint-disable-next-line no-alert
+      alert(`Falha ao gerar DOCX (${resp.status})`);
+      return;
+    }
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = `${doc.doc_type}-v${doc.versao}-${doc.contratacao_id}.docx`;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -163,10 +181,16 @@ export function GerarDocModal({
             </Button>
           )}
           {doc && (
-            <Button variant="primary" onClick={downloadMd}>
-              <Download className="h-4 w-4" />
-              Baixar .md
-            </Button>
+            <>
+              <Button variant="outline" onClick={downloadMd}>
+                <Download className="h-4 w-4" />
+                Baixar .md
+              </Button>
+              <Button variant="primary" onClick={() => void downloadDocx()}>
+                <Download className="h-4 w-4" />
+                Baixar .docx
+              </Button>
+            </>
           )}
         </footer>
       </div>

@@ -8,8 +8,17 @@ import uuid
 from datetime import datetime
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
+from fastapi.responses import Response, StreamingResponse
 
 from xerticaproc.backend.copilot_backend import get_backend
 from xerticaproc.backend.middleware.rate_limit import enforce_chat_rate
@@ -21,6 +30,10 @@ from xerticaproc.backend.models.copilot_schemas import (
     ChecklistItem,
     ChecklistPatch,
     ChecklistResponse,
+    Documento,
+    DocumentoListResponse,
+    DocumentoOrigem,
+    DocumentoPatch,
     DocumentReadiness,
     DocumentoGeradoLite,
     EventoOut,
@@ -114,13 +127,14 @@ def _upload_to_gcs(bucket_name: str, key: str, data: bytes, mime: str) -> str:
 @router.post("/uploads", response_model=Anexo, status_code=201)
 async def upload_anexo(
     contratacao_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     nome: Optional[str] = Form(None),
 ) -> Anexo:
-    """Recebe upload binário e retorna `Anexo` (gcs_uri ou inline url).
-
-    Bucket configurável via env `COPILOT_UPLOADS_BUCKET`. Sem bucket, o arquivo
-    fica em memória (modo dev) — nesse caso `Anexo.url` é `data:` base64.
+    """Compatibilidade — recebe upload e devolve `Anexo` para o chat,
+    porém agora também grava na biblioteca de Documentos (com dedup) e
+    agenda o pipeline de processamento (extract+thumb).
     """
     raw = await file.read()
     if not raw:
@@ -135,30 +149,195 @@ async def upload_anexo(
         raise HTTPException(415, f"mime não suportado: {mime}")
 
     safe_name = (nome or file.filename or "anexo").strip().replace("/", "_")[:200]
+
     bucket = os.environ.get("COPILOT_UPLOADS_BUCKET")
-    if bucket:
-        import asyncio as _asyncio
-        key = f"copilot/{contratacao_id}/{uuid.uuid4()}-{safe_name}"
-        gcs_uri = await _asyncio.to_thread(_upload_to_gcs, bucket, key, raw, mime)
-        return Anexo(
-            tipo=_classify_anexo_tipo(mime),
-            nome=safe_name,
-            gcs_uri=gcs_uri,
+    if not bucket:
+        # fallback dev: somente texto
+        if mime.startswith("text/"):
+            return Anexo(tipo="texto", nome=safe_name,
+                         url=raw.decode("utf-8", errors="replace"))
+        raise HTTPException(
+            503,
+            "COPILOT_UPLOADS_BUCKET não configurado; uploads binários indisponíveis",
         )
 
-    # Fallback dev: data URL base64 — o backend de processamento aceita?
-    # O extractor lê via httpx GET, então data: URL não funciona. Em dev sem
-    # bucket, retornamos texto se for texto, senão erro.
-    if mime.startswith("text/"):
-        return Anexo(
-            tipo="texto",
+    # Ingest na biblioteca (com dedup por SHA256) + agenda pipeline
+    from xerticaproc.backend.tools import documentos_pipeline as dp
+    user = (request.headers.get("x-user-email")
+            or request.headers.get("x-user")
+            or "anonimo")
+    try:
+        doc_id, was_new = await dp.ingest_upload(
+            contratacao_id=contratacao_id,
+            raw=raw,
             nome=safe_name,
-            url=raw.decode("utf-8", errors="replace"),
+            mime=mime,
+            uploaded_by=user,
         )
-    raise HTTPException(
-        503,
-        "COPILOT_UPLOADS_BUCKET não configurado; uploads binários indisponíveis",
+    except Exception:  # noqa: BLE001
+        log.exception("ingest_upload falhou")
+        raise HTTPException(500, "falha ao ingerir documento")
+
+    if was_new:
+        background_tasks.add_task(dp.process_documento, doc_id, contratacao_id)
+
+    # devolve Anexo (formato esperado pelo chat) com gcs_uri persistido
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=doc_id,
+        )
+    if doc is None:
+        raise HTTPException(500, "documento criado mas não encontrado")
+    return Anexo(
+        tipo=_classify_anexo_tipo(doc.mime),
+        nome=doc.nome,
+        gcs_uri=doc.storage_uri,
     )
+
+
+# ─── Biblioteca de Documentos ────────────────────────────────────────────────
+
+@router.get("/biblioteca", response_model=DocumentoListResponse)
+async def list_biblioteca(
+    contratacao_id: str,
+    origem: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> DocumentoListResponse:
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        items, total = await ds.list_documentos(
+            s,
+            contratacao_id=contratacao_id,
+            origem=origem,
+            status=status,
+            q=q,
+            limit=limit,
+            offset=offset,
+        )
+    return DocumentoListResponse(items=items, total=total)
+
+
+@router.get("/biblioteca/{documento_id}", response_model=Documento)
+async def get_biblioteca_doc(contratacao_id: str, documento_id: str) -> Documento:
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+    if doc is None:
+        raise HTTPException(404, "documento não encontrado")
+    return doc
+
+
+@router.get("/biblioteca/{documento_id}/conteudo")
+async def get_biblioteca_conteudo(contratacao_id: str, documento_id: str):
+    """Stream binário do documento original. Auth via proxy/middleware."""
+    from xerticaproc.backend.tools import documentos_pipeline as dp
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+    if doc is None:
+        raise HTTPException(404, "documento não encontrado")
+    try:
+        data = await dp.gcs_download(doc.storage_uri)
+    except Exception:  # noqa: BLE001
+        log.exception("download conteudo falhou")
+        raise HTTPException(502, "falha lendo do storage")
+    headers = {
+        "Content-Disposition": f'inline; filename="{doc.nome}"',
+        "Cache-Control": "private, max-age=300",
+    }
+    return Response(content=data, media_type=doc.mime, headers=headers)
+
+
+@router.get("/biblioteca/{documento_id}/thumb")
+async def get_biblioteca_thumb(contratacao_id: str, documento_id: str):
+    from xerticaproc.backend.tools import documentos_pipeline as dp
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+    if doc is None or not doc.thumb_uri:
+        raise HTTPException(404, "thumb indisponível")
+    try:
+        data = await dp.gcs_download(doc.thumb_uri)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "falha lendo thumb")
+    return Response(
+        content=data, media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.patch("/biblioteca/{documento_id}", response_model=Documento)
+async def patch_biblioteca_doc(
+    contratacao_id: str,
+    documento_id: str,
+    payload: DocumentoPatch,
+) -> Documento:
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.patch_documento(
+            s,
+            contratacao_id=contratacao_id,
+            documento_id=documento_id,
+            nome=payload.nome,
+            meta_patch=payload.meta,
+        )
+    if doc is None:
+        raise HTTPException(404, "documento não encontrado")
+    return doc
+
+
+@router.delete("/biblioteca/{documento_id}", status_code=204)
+async def delete_biblioteca_doc(contratacao_id: str, documento_id: str):
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        ok = await ds.soft_delete(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+    if not ok:
+        raise HTTPException(404, "documento não encontrado")
+
+
+@router.post("/biblioteca/{documento_id}/reindex", response_model=Documento)
+async def reindex_biblioteca_doc(
+    contratacao_id: str,
+    documento_id: str,
+    background_tasks: BackgroundTasks,
+) -> Documento:
+    from xerticaproc.backend.tools import documentos_pipeline as dp
+    from xerticaproc.backend.tools import documentos_store as ds
+    from xerticaproc.backend.models.copilot_schemas import DocumentoStatus
+    from xerticaproc.backend.tools.pg_tools import get_session
+    async with get_session() as s:
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+        if doc is None:
+            raise HTTPException(404, "documento não encontrado")
+        await ds.update_processed(
+            s, documento_id=documento_id, status=DocumentoStatus.PROCESSANDO,
+        )
+        doc = await ds.get_by_id(
+            s, contratacao_id=contratacao_id, documento_id=documento_id,
+        )
+    background_tasks.add_task(dp.process_documento, documento_id, contratacao_id)
+    return doc
 
 
 # ─── Checklist ───────────────────────────────────────────────────────────────
@@ -376,6 +555,54 @@ async def renderizar_documento(
     return await render_to_gcs(
         contratacao_id=contratacao_id, doc_type=doc.doc_type,
         versao=doc.versao, content_md=doc.content_md, formats=fmts,
+    )
+
+
+_DOC_TYPE_TITLES = {
+    "etp": "Estudo Técnico Preliminar",
+    "tr": "Termo de Referência",
+    "mapa_precos": "Mapa de Preços",
+}
+
+
+@router.get("/documentos/{documento_id}/download")
+async def download_documento(
+    contratacao_id: str, documento_id: str,
+    format: str = Query("docx", pattern="^(docx|md)$"),
+) -> Response:
+    """Baixa o documento gerado em DOCX (default) ou Markdown.
+
+    Conversão Markdown → DOCX é feita inline com python-docx,
+    sem dependência do Cloud Run Job pandoc.
+    """
+    backend = get_backend()
+    docs = await backend.list_documents(contratacao_id)
+    doc = next((d for d in docs if str(d.id) == documento_id), None)
+    if doc is None:
+        raise HTTPException(404, "Documento não encontrado")
+
+    base_name = f"{doc.doc_type}-v{doc.versao}-{contratacao_id}"
+
+    if format == "md":
+        return Response(
+            content=doc.content_md.encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{base_name}.md"',
+            },
+        )
+
+    from xerticaproc.backend.tools.markdown_docx import markdown_to_docx_bytes
+    title = f"{_DOC_TYPE_TITLES.get(doc.doc_type, doc.doc_type.upper())} — v{doc.versao}"
+    blob = markdown_to_docx_bytes(doc.content_md, title=title)
+    return Response(
+        content=blob,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        headers={
+            "Content-Disposition": f'attachment; filename="{base_name}.docx"',
+        },
     )
 
 

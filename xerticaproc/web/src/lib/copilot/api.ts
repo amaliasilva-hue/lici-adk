@@ -6,6 +6,8 @@ import type {
   ChecklistItem,
   ChecklistPatch,
   ChecklistResponse,
+  Documento,
+  DocumentoListResponse,
   DocType,
   DocumentReadiness,
   DocumentoGeradoLite,
@@ -308,4 +310,78 @@ export async function uploadAnexo(
     contentType: null,
   });
   return jsonOrThrow<Anexo>(r, "uploadAnexo");
+}
+
+
+// ── Biblioteca de Documentos ────────────────────────────────────────────────
+export async function listBiblioteca(
+  contratacaoId: string,
+  opts?: { origem?: string; status?: string; q?: string; limit?: number; offset?: number },
+): Promise<DocumentoListResponse> {
+  const params = new URLSearchParams();
+  if (opts?.origem) params.set("origem", opts.origem);
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.q) params.set("q", opts.q);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  if (opts?.offset) params.set("offset", String(opts.offset));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const r = await authFetch(buildUrl(contratacaoId, `/biblioteca${qs}`), {
+    cache: "no-store",
+  });
+  return jsonOrThrow<DocumentoListResponse>(r, "listBiblioteca");
+}
+
+export async function getBibliotecaDoc(
+  contratacaoId: string,
+  documentoId: string,
+): Promise<Documento> {
+  const r = await authFetch(
+    buildUrl(contratacaoId, `/biblioteca/${documentoId}`),
+    { cache: "no-store" },
+  );
+  return jsonOrThrow<Documento>(r, "getBibliotecaDoc");
+}
+
+export function bibliotecaConteudoUrl(contratacaoId: string, documentoId: string): string {
+  return buildUrl(contratacaoId, `/biblioteca/${documentoId}/conteudo`);
+}
+
+export function bibliotecaThumbUrl(contratacaoId: string, documentoId: string): string {
+  return buildUrl(contratacaoId, `/biblioteca/${documentoId}/thumb`);
+}
+
+export async function patchBibliotecaDoc(
+  contratacaoId: string,
+  documentoId: string,
+  payload: { nome?: string; meta?: Record<string, unknown> },
+): Promise<Documento> {
+  const r = await authFetch(
+    buildUrl(contratacaoId, `/biblioteca/${documentoId}`),
+    { method: "PATCH", body: JSON.stringify(payload) },
+  );
+  return jsonOrThrow<Documento>(r, "patchBibliotecaDoc");
+}
+
+export async function deleteBibliotecaDoc(
+  contratacaoId: string,
+  documentoId: string,
+): Promise<void> {
+  const r = await authFetch(
+    buildUrl(contratacaoId, `/biblioteca/${documentoId}`),
+    { method: "DELETE", contentType: null },
+  );
+  if (!r.ok && r.status !== 204) {
+    throw new Error(`deleteBibliotecaDoc ${r.status}`);
+  }
+}
+
+export async function reindexBibliotecaDoc(
+  contratacaoId: string,
+  documentoId: string,
+): Promise<Documento> {
+  const r = await authFetch(
+    buildUrl(contratacaoId, `/biblioteca/${documentoId}/reindex`),
+    { method: "POST", contentType: null },
+  );
+  return jsonOrThrow<Documento>(r, "reindexBibliotecaDoc");
 }

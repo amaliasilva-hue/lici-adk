@@ -49,6 +49,13 @@ export function HistoricoDocumentos({ contratacaoId, docType }: Props) {
                 </span>
               </div>
               <div className="flex items-center gap-1">
+                <a
+                  className="rounded border border-x-line px-1.5 py-0.5 text-[10px] hover:bg-x-accent/10"
+                  href={`/api/proxy/copilot/${contratacaoId}/documentos/${d.id}/download?format=docx`}
+                  title="Baixar DOCX"
+                >
+                  .docx
+                </a>
                 <button
                   className={`rounded px-1.5 py-0.5 text-[10px] ${
                     selA === d.id ? "bg-x-accent text-white" : "border border-x-line"

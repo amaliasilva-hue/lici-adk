@@ -229,3 +229,43 @@ export interface EventoOut {
   lido: boolean;
   criado_em: string;
 }
+
+// ── Biblioteca de Documentos ────────────────────────────────────────────────
+export type DocumentoOrigem =
+  | "upload_chat"
+  | "gerado"
+  | "fonte_externa"
+  | "drive_sync"
+  | "pesquisa_negativa";
+
+export type DocumentoStatus =
+  | "processando"
+  | "pronto"
+  | "falhou"
+  | "arquivado";
+
+export interface Documento {
+  id: string;
+  contratacao_id: string;
+  nome: string;
+  mime: string;
+  bytes_size: number;
+  pages?: number | null;
+  sha256: string;
+  origem: DocumentoOrigem;
+  origem_ref: Record<string, unknown>;
+  storage_uri: string;
+  thumb_uri?: string | null;
+  preview_uri?: string | null;
+  text_excerpt?: string | null;
+  status: DocumentoStatus;
+  meta: Record<string, unknown>;
+  uploaded_by?: string | null;
+  criado_em: string;
+  processado_em?: string | null;
+}
+
+export interface DocumentoListResponse {
+  items: Documento[];
+  total: number;
+}

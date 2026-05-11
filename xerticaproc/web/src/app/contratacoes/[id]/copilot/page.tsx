@@ -11,6 +11,7 @@ import { AddSourceModal } from "@/components/ui/add-source-modal";
 import { GerarDocModal } from "@/components/ui/gerar-doc-modal";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { SourceCard } from "@/components/ui/source-card";
+import { BibliotecaPanel } from "@/components/ui/biblioteca-panel";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useChecklist } from "@/hooks/useChecklist";
 import { useReadiness } from "@/hooks/useReadiness";
@@ -363,6 +364,8 @@ function CopilotWorkspacPageContent() {
               </div>
             )}
           </Card>
+
+          <BibliotecaPanel contratacaoId={contratacaoId} />
 
           {negList.length > 0 && (
             <Card>
