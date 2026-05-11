@@ -1,8 +1,12 @@
+# syntax=docker/dockerfile:1.6
 # ── Stage 1: install deps ────────────────────────────────────────────────────
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
+# Use ci when lockfile present (deterministic + faster); fall back to install.
+RUN --mount=type=cache,target=/root/.npm \
+    if [ -f package-lock.json ]; then npm ci --legacy-peer-deps --prefer-offline --no-audit --no-fund; \
+    else npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund; fi
 
 # ── Stage 2: build ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder

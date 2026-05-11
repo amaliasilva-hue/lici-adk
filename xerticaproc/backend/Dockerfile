@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.6
 # ── Stage 1: build deps ──────────────────────────────────────────────────────
 # Build context: xerticaproc/  (one level above backend/)
 FROM python:3.12-slim AS builder
@@ -10,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install -r requirements.txt
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim
