@@ -35,9 +35,10 @@ async function jsonOrThrow<T>(r: Response, label: string): Promise<T> {
 }
 
 async function authFetch(path: string, init?: RequestInit & { contentType?: string | null }) {
-  const headers = await buildApiHeaders(init?.headers, {
-    contentType: init?.contentType ?? "application/json",
-  });
+  // Preserve explicit `null` (multipart uploads). `??` would coerce null → default.
+  const contentType =
+    init && "contentType" in init ? init.contentType : "application/json";
+  const headers = await buildApiHeaders(init?.headers, { contentType });
   return fetch(path, {
     ...init,
     headers,
